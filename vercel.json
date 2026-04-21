@@ -1,6 +1,9 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": "expo",
-  "nodeVersion": "20.x"
+  "buildCommand": "npm run export",
+  "outputDirectory": "web-build",
+  "framework": "react",
+  "nodeVersion": "20.x",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
