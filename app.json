@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "ascend",
+    "name": "Ascend",
     "slug": "ascend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1A1A1A"
     },
     "ios": {
       "supportsTablet": true
@@ -21,10 +21,20 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.astrosix.ascend"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9537a692-249b-445a-af39-a1c3b4be1094"
+      }
     }
   }
 }
