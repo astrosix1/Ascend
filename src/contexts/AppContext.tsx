@@ -688,7 +688,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Push to cloud whenever key data changes (debounce via useEffect)
   useEffect(() => {
-    if (!currentUserId || isSyncing) return; // Skip auto-save while syncing
+    if (!currentUserId || isSyncing || isLoading) return; // Skip auto-save while syncing or loading initial data
     const timer = setTimeout(() => {
       console.log('[Sync] Auto-saving data to cloud for user:', currentUserId);
       saveUserData(currentUserId, {
@@ -714,7 +714,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }, 2000); // 2s debounce
     return () => clearTimeout(timer);
-  }, [currentUserId, isSyncing, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory]);
+  }, [currentUserId, isSyncing, isLoading, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory]);
 
   const signOutUser = useCallback(async () => {
     // Clear Supabase session (if authenticated)
