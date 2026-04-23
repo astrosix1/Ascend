@@ -1,7 +1,6 @@
 {
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "web-build",
-  "nodeVersion": "20.x",
   "env": [
     "SUPABASE_URL",
     "SUPABASE_KEY"
