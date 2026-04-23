@@ -1,4 +1,6 @@
 import { getSupabaseClient, isSupabaseReady } from './runtimeConfig';
+import type { DataType, SyncMetadata } from '../types/sync';
+import { syncWithRetry, mergeDataWithConflictResolution } from './syncEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,26 @@ export interface DBUserData {
   journal_entries: string;
   relapse_log: string;
   reflection_responses: string;
+  // New columns for missing data types
+  forum_favorites?: string;     // JSON array
+  detox_history?: string;       // JSON array
+  alarms?: string;              // JSON array
+  pomodoro_history?: string;    // JSON array
+  // Sync metadata columns (per-datatype last sync timestamps)
+  last_sync_time?: string | null;
+  last_habit_sync?: string | null;
+  last_stats_sync?: string | null;
+  last_settings_sync?: string | null;
+  last_calendar_events_sync?: string | null;
+  last_real_world_wins_sync?: string | null;
+  last_journal_entries_sync?: string | null;
+  last_relapse_log_sync?: string | null;
+  last_reflection_responses_sync?: string | null;
+  last_forum_favorites_sync?: string | null;
+  last_pomodoro_history_sync?: string | null;
+  last_detox_history_sync?: string | null;
+  last_alarms_sync?: string | null;
+  conflict_markers?: string; // JSON object
   updated_at: string;
 }
 
@@ -352,6 +374,241 @@ export async function loadUserData(userId: string): Promise<DBUserData | null> {
   }
 }
 
+// ─── Enhanced Cloud Sync (Selective/Incremental) ──────────────────────────────
+
+/**
+ * Load user data for specific data types only (selective sync)
+ * Optionally filters by modification time for incremental sync
+ */
+export async function loadUserDataPartial(
+  userId: string,
+  dataTypes: DataType[],
+  sinceTimestamp?: string
+): Promise<Partial<DBUserData> | null> {
+  const sb = getSupabaseClient();
+  if (!sb) {
+    console.warn('[DB] Supabase not configured - cannot load data');
+    return null;
+  }
+
+  try {
+    const columns = [
+      'user_id',
+      'updated_at',
+      ...dataTypes,
+      // Include corresponding sync timestamp columns
+      ...dataTypes.map(dt => `last_${dt}_sync`),
+      'conflict_markers',
+    ];
+
+    console.log('[DB] Loading partial user data for userId:', userId, 'types:', dataTypes);
+    let query = sb.from('user_data').select(columns.join(',')).eq('user_id', userId).single();
+
+    // Optional: filter by update time for incremental sync
+    if (sinceTimestamp) {
+      query = query.gt('updated_at', sinceTimestamp);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (error.code === '406') {
+        console.log('[DB] No existing user data found (first login)');
+      } else {
+        console.error('[DB] Failed to load partial user data:', error);
+      }
+      return null;
+    }
+
+    if (data) {
+      console.log('[DB] Partial user data loaded successfully');
+      return data;
+    }
+    return null;
+  } catch (err: any) {
+    console.error('[DB] Load partial user data error:', err.message || err);
+    return null;
+  }
+}
+
+/**
+ * Save user data for specific data types only (selective update)
+ * Includes sync metadata for conflict detection
+ */
+export async function saveUserDataPartial(
+  userId: string,
+  payload: Partial<Record<DataType, string>>,
+  syncMetadata: Record<DataType, SyncMetadata>
+): Promise<void> {
+  const sb = getSupabaseClient();
+  if (!sb) {
+    console.warn('[DB] Supabase not configured - skipping save');
+    return;
+  }
+
+  try {
+    console.log('[DB] Saving partial user data for userId:', userId);
+
+    // Build update object with data types + their sync timestamps
+    const updateData: any = {
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+      last_sync_time: new Date().toISOString(),
+    };
+
+    // Add the data itself
+    Object.entries(payload).forEach(([dataType, value]) => {
+      updateData[dataType] = value;
+    });
+
+    // Add per-datatype sync timestamps
+    Object.entries(syncMetadata).forEach(([dataType, metadata]) => {
+      updateData[`last_${dataType}_sync`] = metadata.lastSyncTime;
+    });
+
+    const { error } = await sb.from('user_data').upsert(updateData);
+
+    if (error) {
+      console.error('[DB] Failed to save partial user data:', error);
+      if (error.message?.includes('policy') || error.code === 'PGRST301' || error.code === 'PGRST302') {
+        console.error('[DB] RLS Policy Error - user may not have permission to save');
+      }
+      throw error;
+    }
+
+    console.log('[DB] Partial user data saved successfully');
+  } catch (err: any) {
+    console.error('[DB] Save partial user data error:', err.message || err);
+    throw err;
+  }
+}
+
+/**
+ * Load paginated history for large datasets (pomodoro_history, detox_history)
+ * Fetches in chunks to avoid timeouts
+ */
+export async function loadHistoryPaginated(
+  userId: string,
+  dataType: 'pomodoro_history' | 'detox_history',
+  limit: number = 500,
+  offset: number = 0
+): Promise<any[]> {
+  const sb = getSupabaseClient();
+  if (!sb) {
+    console.warn('[DB] Supabase not configured - cannot load history');
+    return [];
+  }
+
+  try {
+    console.log(`[DB] Loading ${dataType} page (limit: ${limit}, offset: ${offset})`);
+
+    const { data, error } = await sb
+      .from('user_data')
+      .select(dataType)
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      if (error?.code !== '406') {
+        console.error(`[DB] Failed to load ${dataType}:`, error);
+      }
+      return [];
+    }
+
+    // Parse the JSON array
+    const history = JSON.parse(data[dataType] || '[]');
+
+    // Sort by timestamp descending (newest first)
+    history.sort((a: any, b: any) => {
+      const aTime = new Date(a.timestamp || a.createdAt || 0).getTime();
+      const bTime = new Date(b.timestamp || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    // Return paginated slice
+    const paginated = history.slice(offset, offset + limit);
+    console.log(`[DB] Loaded ${paginated.length} items from ${dataType}`);
+    return paginated;
+  } catch (err: any) {
+    console.error(`[DB] Load ${dataType} error:`, err.message || err);
+    return [];
+  }
+}
+
+/**
+ * Append new entries to history (pomodoro_history, detox_history)
+ * Only syncs new entries since last sync (incremental append)
+ */
+export async function appendToHistory(
+  userId: string,
+  dataType: 'pomodoro_history' | 'detox_history',
+  newEntries: any[],
+  lastSyncTimestamp: string | null
+): Promise<void> {
+  const sb = getSupabaseClient();
+  if (!sb) {
+    console.warn('[DB] Supabase not configured - skipping append');
+    return;
+  }
+
+  try {
+    if (newEntries.length === 0) {
+      console.log('[DB] No new entries to append');
+      return;
+    }
+
+    console.log(`[DB] Appending ${newEntries.length} entries to ${dataType}`);
+
+    // Load existing history
+    const { data, error: loadError } = await sb
+      .from('user_data')
+      .select(dataType)
+      .eq('user_id', userId)
+      .single();
+
+    if (loadError && loadError.code !== '406') {
+      throw loadError;
+    }
+
+    // Parse existing history
+    const existingHistory = data ? JSON.parse(data[dataType] || '[]') : [];
+
+    // Filter new entries to avoid duplicates (by ID if available, or by timestamp)
+    const existingIds = new Set(existingHistory.map((h: any) => h.id).filter(Boolean));
+    const uniqueNewEntries = newEntries.filter(entry => !existingIds.has(entry.id));
+
+    // Combine and sort
+    const combined = [...existingHistory, ...uniqueNewEntries].sort((a: any, b: any) => {
+      const aTime = new Date(a.timestamp || a.createdAt || 0).getTime();
+      const bTime = new Date(b.timestamp || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    // Save back
+    const updateData: any = {
+      [dataType]: JSON.stringify(combined),
+      [`last_${dataType}_sync`]: new Date().toISOString(),
+      last_sync_time: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await sb.from('user_data').upsert({
+      user_id: userId,
+      ...updateData,
+    });
+
+    if (updateError) {
+      console.error(`[DB] Failed to append to ${dataType}:`, updateError);
+      throw updateError;
+    }
+
+    console.log(`[DB] Successfully appended ${uniqueNewEntries.length} entries to ${dataType}`);
+  } catch (err: any) {
+    console.error(`[DB] Append to ${dataType} error:`, err.message || err);
+    throw err;
+  }
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function signUp(email: string, password: string) {
@@ -425,6 +682,27 @@ create table if not exists user_data (
   journal_entries   text default '[]',
   relapse_log       text default '[]',
   reflection_responses text default '[]',
+  -- New columns for missing data types
+  forum_favorites   text default '[]',
+  detox_history     text default '[]',
+  alarms            text default '[]',
+  pomodoro_history  text default '[]',
+  -- Sync metadata columns (per-datatype last sync timestamps)
+  last_sync_time    timestamptz,
+  last_habit_sync   timestamptz,
+  last_stats_sync   timestamptz,
+  last_settings_sync timestamptz,
+  last_calendar_events_sync timestamptz,
+  last_real_world_wins_sync timestamptz,
+  last_journal_entries_sync timestamptz,
+  last_relapse_log_sync timestamptz,
+  last_reflection_responses_sync timestamptz,
+  last_forum_favorites_sync timestamptz,
+  last_pomodoro_history_sync timestamptz,
+  last_detox_history_sync timestamptz,
+  last_alarms_sync  timestamptz,
+  -- Conflict tracking
+  conflict_markers  text default '{}',
   updated_at        timestamptz default now()
 );
 

@@ -6,6 +6,7 @@ import { useApp } from '../contexts/AppContext';
 import { useScreenWidth, BREAKPOINTS } from '../utils/responsive';
 import DesktopSidebar from '../components/DesktopSidebar';
 import TopHeader from '../components/TopHeader';
+import { OfflineIndicator } from '../components/OfflineIndicator';
 
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
 import ClockScreen from '../screens/Clock/ClockScreen';
@@ -222,11 +223,12 @@ const screenMap: Record<string, React.ComponentType<any>> = {
 };
 
 function MobileNavigator() {
-  const { colors } = useApp();
+  const { colors, theme } = useApp();
   useNotificationPermission();
 
   return (
     <View style={{ flex: 1 }}>
+    <OfflineIndicator theme={theme} />
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
@@ -255,7 +257,7 @@ function MobileNavigator() {
 }
 
 function DesktopNavigator() {
-  const { colors, toggleTheme } = useApp();
+  const { colors, toggleTheme, theme } = useApp();
   const [activeScreen, setActiveScreen] = useState('dashboard');
   useNotificationPermission();
 
@@ -263,6 +265,9 @@ function DesktopNavigator() {
 
   return (
     <View style={{ flex: 1, flexDirection: 'column', backgroundColor: colors.background }}>
+      {/* Offline Indicator */}
+      <OfflineIndicator theme={theme} />
+
       {/* Top Header spanning full width */}
       <TopHeader onToggleTheme={toggleTheme} />
 

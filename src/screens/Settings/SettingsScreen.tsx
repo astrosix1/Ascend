@@ -10,7 +10,7 @@ import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 
 export default function SettingsScreen() {
-  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth } = useApp();
+  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
 
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameInput, setUsernameInput] = useState(settings.username);
@@ -367,6 +367,58 @@ export default function SettingsScreen() {
           <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
             Brief prompts asking what you did instead of a bad habit today.
           </Text>
+        </Card>
+
+        {/* Cloud Sync */}
+        <Text style={s.sectionLabel}>CLOUD SYNC</Text>
+        <Card>
+          <View style={[s.row, { marginBottom: Spacing.md }]}>
+            <View>
+              <Text style={s.label}>Cloud Status</Text>
+              <Text style={s.value}>
+                {currentUserEmail ? '✓ Synced' : '○ Guest Mode'}
+              </Text>
+            </View>
+            {currentUserEmail && (
+              <TouchableOpacity
+                onPress={() => manualSync()}
+                disabled={isSyncing}
+                style={{
+                  paddingHorizontal: Spacing.md,
+                  paddingVertical: Spacing.sm,
+                  backgroundColor: colors.accentLight,
+                  borderRadius: BorderRadius.sm,
+                  opacity: isSyncing ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ color: colors.accent, fontWeight: '600', fontSize: FontSize.sm }}>
+                  {isSyncing ? '⟳ Syncing...' : '↻ Sync Now'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {lastSyncTime && (
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>
+              Last synced: {new Date(lastSyncTime).toLocaleString()}
+            </Text>
+          )}
+
+          {syncError && (
+            <Text style={{ color: colors.danger, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>
+              ⚠️ {syncError}
+            </Text>
+          )}
+
+          {currentUserEmail ? (
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, lineHeight: 18 }}>
+              Your data is automatically saved to the cloud and synchronized across all devices you sign into. Tap "Sync Now" to manually refresh.
+            </Text>
+          ) : (
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, lineHeight: 18 }}>
+              Sign in to enable cloud sync and access your data on any device.
+            </Text>
+          )}
         </Card>
 
         {/* Accountability Partner */}

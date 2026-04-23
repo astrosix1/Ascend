@@ -3,17 +3,22 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Spacing, FontSize, FontSizeDesktop, BorderRadius, FontWeight, LineHeight } from '../utils/theme';
 import { useIsDesktop } from '../utils/responsive';
+import { SyncStatusIndicator } from './SyncStatusIndicator';
 
 interface TopHeaderProps {
   onToggleTheme?: () => void;
 }
 
 export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
-  const { colors, theme, currentUserEmail, signOutUser, syncError, clearSyncError } = useApp();
+  const { colors, theme, currentUserEmail, signOutUser, syncError, clearSyncError, manualSync } = useApp();
   const desktop = useIsDesktop();
 
   const handleSignOut = async () => {
     await signOutUser();
+  };
+
+  const handleSyncPress = () => {
+    manualSync();
   };
 
   const styles = StyleSheet.create({
@@ -84,6 +89,9 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
 
         {/* Right Section: Actions */}
         <View style={styles.rightSection}>
+          {/* Sync Status Indicator */}
+          <SyncStatusIndicator onPress={handleSyncPress} />
+
           {/* Theme Toggle */}
           <TouchableOpacity
             style={styles.iconButton}
