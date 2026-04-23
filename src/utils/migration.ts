@@ -68,7 +68,21 @@ export async function migrateGuestDataToCloud(
         'pomodoro_history',
       ]);
       if (response) {
-        remoteData = response;
+        // Parse JSON strings from Supabase into actual objects
+        remoteData = {
+          habits: response.habits ? (typeof response.habits === 'string' ? JSON.parse(response.habits) : response.habits) : undefined,
+          stats: response.stats ? (typeof response.stats === 'string' ? JSON.parse(response.stats) : response.stats) : undefined,
+          settings: response.settings ? (typeof response.settings === 'string' ? JSON.parse(response.settings) : response.settings) : undefined,
+          calendarEvents: response.calendar_events ? (typeof response.calendar_events === 'string' ? JSON.parse(response.calendar_events) : response.calendar_events) : undefined,
+          realWorldWins: response.real_world_wins ? (typeof response.real_world_wins === 'string' ? JSON.parse(response.real_world_wins) : response.real_world_wins) : undefined,
+          journalEntries: response.journal_entries ? (typeof response.journal_entries === 'string' ? JSON.parse(response.journal_entries) : response.journal_entries) : undefined,
+          relapseLog: response.relapse_log ? (typeof response.relapse_log === 'string' ? JSON.parse(response.relapse_log) : response.relapse_log) : undefined,
+          reflectionResponses: response.reflection_responses ? (typeof response.reflection_responses === 'string' ? JSON.parse(response.reflection_responses) : response.reflection_responses) : undefined,
+          forumFavorites: response.forum_favorites ? (typeof response.forum_favorites === 'string' ? JSON.parse(response.forum_favorites) : response.forum_favorites) : undefined,
+          detoxHistory: response.detox_history ? (typeof response.detox_history === 'string' ? JSON.parse(response.detox_history) : response.detox_history) : undefined,
+          alarms: response.alarms ? (typeof response.alarms === 'string' ? JSON.parse(response.alarms) : response.alarms) : undefined,
+          pomodoroHistory: response.pomodoro_history ? (typeof response.pomodoro_history === 'string' ? JSON.parse(response.pomodoro_history) : response.pomodoro_history) : undefined,
+        };
       }
     } catch (e) {
       // No remote data exists yet (first sign-in) - that's fine
@@ -81,9 +95,24 @@ export async function migrateGuestDataToCloud(
 
     // Step 4: Save merged data to cloud
     onProgress?.({ status: 'in_progress', progress: 80 });
-    await saveUserDataPartial(userId, mergedData, {
-      conflict_markers: { migrated_from_guest: true, migrated_at: new Date().toISOString() },
+    // Stringify merged data for Supabase storage
+    const stringifiedData: Partial<Record<string, string>> = {};
+    Object.entries(mergedData).forEach(([key, value]) => {
+      stringifiedData[key] = JSON.stringify(value);
     });
+
+    // Create proper sync metadata for each datatype
+    const metadata: Record<string, any> = {};
+    Object.keys(mergedData).forEach((dataType) => {
+      metadata[dataType] = {
+        dataType,
+        lastSyncTime: new Date().toISOString(),
+        lastModifiedLocal: new Date().toISOString(),
+        conflictDetected: false,
+      };
+    });
+
+    await saveUserDataPartial(userId, stringifiedData as Partial<Record<string, string>>, metadata);
 
     // Step 5: Success - data is now in cloud
     onProgress?.({ status: 'completed', progress: 100 });
