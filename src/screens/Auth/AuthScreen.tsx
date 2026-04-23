@@ -3,7 +3,6 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { signIn, signUp } from '../../utils/supabase';
 import { useApp } from '../../contexts/AppContext';
 import { FontSize, Spacing, BorderRadius } from '../../utils/theme';
@@ -35,7 +34,16 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
       if (error) throw error;
       if (data.user) onAuthenticated(data.user.id, data.user.email || email);
     } catch (err: any) {
-      Alert.alert('Login failed', err.message || 'Incorrect email or password.');
+      const errorMsg = err.message || '';
+      let userMessage = 'Login failed. Please try again.';
+
+      if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid') || errorMsg.includes('password')) {
+        userMessage = 'Invalid email or password. Please check and try again.';
+      } else if (errorMsg.includes('not confirmed') || errorMsg.includes('email') || errorMsg.includes('verify')) {
+        userMessage = 'Please verify your email before signing in. Check your inbox for a confirmation link.';
+      }
+
+      Alert.alert('Login failed', userMessage);
     } finally {
       setLoading(false);
     }
@@ -141,13 +149,13 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
 
           <View style={{ marginBottom: Spacing.xl }}>
             {[
-              ['cloud-upload-outline', 'Sync your habits across all your devices'],
-              ['shield-checkmark-outline', 'Your data stays private and secure'],
-              ['people-outline', 'Join a real community working toward the same goals'],
-              ['phone-portrait-outline', 'Use offline — syncs when you reconnect'],
+              ['☁️', 'Sync your habits across all your devices'],
+              ['🛡️', 'Your data stays private and secure'],
+              ['👥', 'Join a real community working toward the same goals'],
+              ['📱', 'Use offline — syncs when you reconnect'],
             ].map(([icon, text]) => (
               <View key={text} style={s.featureRow}>
-                <Ionicons name={icon as any} size={18} color={colors.accent} />
+                <Text style={{ fontSize: 18, color: colors.accent }}>{icon}</Text>
                 <Text style={s.featureText}>{text}</Text>
               </View>
             ))}
@@ -196,7 +204,7 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
           onPress={() => setMode('landing')}
           style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xl }}
         >
-          <Ionicons name="arrow-back" size={20} color={colors.accent} />
+          <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
           <Text style={{ color: colors.accent, marginLeft: Spacing.xs, fontSize: FontSize.sm }}>Back</Text>
         </TouchableOpacity>
 
@@ -229,7 +237,7 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
           />
           <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 18 }}>{showPassword ? '👁️' : '👁️'}</Text>
           </TouchableOpacity>
         </View>
 

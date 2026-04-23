@@ -32,12 +32,12 @@ export const Colors = {
 export type ThemeColors = typeof Colors.dark;
 
 export const Spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
+  xs: 3,
+  sm: 6,
+  md: 13,
+  lg: 20,
+  xl: 27,
+  xxl: 40,
 };
 
 // Mobile-first font sizes

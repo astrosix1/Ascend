@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Modal, FlatList, Alert
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -110,7 +109,7 @@ export default function LearnScreen() {
 
         {/* Search */}
         <View style={s.searchRow}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 18 }}>🔍</Text>
           <TextInput
             style={s.searchInput}
             value={search}
@@ -120,7 +119,7 @@ export default function LearnScreen() {
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: 18 }}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -199,7 +198,7 @@ export default function LearnScreen() {
                 <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Tap to learn more →</Text>
                 {alreadyAdded(habit.id) && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                    <Text style={{ color: colors.success, fontSize: 14 }}>✓</Text>
                     <Text style={{ color: colors.success, fontSize: FontSize.xs }}>In your stack</Text>
                   </View>
                 )}
@@ -210,7 +209,7 @@ export default function LearnScreen() {
 
         {filtered.length === 0 && (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-            <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 48 }}>🔍</Text>
             <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>No habits found</Text>
           </View>
         )}
@@ -241,7 +240,7 @@ export default function LearnScreen() {
                 {selectedHabit?.name}
               </Text>
               <TouchableOpacity onPress={() => setSelectedHabit(null)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 24 }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -283,11 +282,12 @@ export default function LearnScreen() {
                       </Text>
                       {(selectedHabit.benefits || selectedHabit.drawbacks || []).map((item, i) => (
                         <View key={i} style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs }}>
-                          <Ionicons
-                            name={selectedHabit.type === 'good' ? 'checkmark-circle' : 'remove-circle'}
-                            size={16}
-                            color={selectedHabit.type === 'good' ? colors.success : colors.danger}
-                          />
+                          <Text style={{
+                            color: selectedHabit.type === 'good' ? colors.success : colors.danger,
+                            fontSize: 16
+                          }}>
+                            {selectedHabit.type === 'good' ? '✓' : '✕'}
+                          </Text>
                           <Text style={{ color: colors.text, fontSize: FontSize.sm, flex: 1 }}>{item}</Text>
                         </View>
                       ))}
@@ -310,7 +310,7 @@ export default function LearnScreen() {
                       onPress={() => handleAddHabit(selectedHabit)}
                     >
                       <Text style={{ color: colors.accent, fontWeight: '700' }}>{selectedHabit.name} (Full)</Text>
-                      <Ionicons name="add-circle" size={20} color={colors.accent} />
+                      <Text style={{ color: colors.accent, fontSize: 18 }}>➕</Text>
                     </TouchableOpacity>
                     {selectedHabit.microHabits.map((micro, i) => (
                       <TouchableOpacity
@@ -323,7 +323,7 @@ export default function LearnScreen() {
                         onPress={() => handleAddHabit(selectedHabit, micro)}
                       >
                         <Text style={{ color: colors.text, flex: 1 }}>{micro}</Text>
-                        <Ionicons name="add" size={18} color={colors.accent} />
+                        <Text style={{ color: colors.accent, fontSize: 16 }}>➕</Text>
                       </TouchableOpacity>
                     ))}
                     {/* Custom micro-habit */}
@@ -375,7 +375,7 @@ export default function LearnScreen() {
                             <Text style={{ color: colors.danger, fontSize: FontSize.xs, fontWeight: '700' }}>TRIGGER</Text>
                             <Text style={{ color: colors.text, fontSize: FontSize.sm }}>{trigger}</Text>
                           </View>
-                          <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
+                          <Text style={{ color: colors.textSecondary, fontSize: 16 }}>→</Text>
                           <View style={{ flex: 1 }}>
                             <Text style={{ color: colors.success, fontSize: FontSize.xs, fontWeight: '700' }}>INSTEAD</Text>
                             <Text style={{ color: colors.text, fontSize: FontSize.sm }}>

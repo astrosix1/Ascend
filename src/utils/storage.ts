@@ -30,7 +30,8 @@ export async function getData<T>(key: string): Promise<T | null> {
   try {
     const value = await AsyncStorage.getItem(key);
     return value ? JSON.parse(value) : null;
-  } catch {
+  } catch (err: any) {
+    console.error(`[Storage] Failed to read ${key}:`, err.message || err);
     return null;
   }
 }
@@ -38,16 +39,18 @@ export async function getData<T>(key: string): Promise<T | null> {
 export async function setData<T>(key: string, value: T): Promise<void> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // silently fail for offline resilience
+  } catch (err: any) {
+    console.error(`[Storage] Failed to write ${key}:`, err.message || err);
+    // Still fail silently for offline resilience, but log it for debugging
   }
 }
 
 export async function removeData(key: string): Promise<void> {
   try {
     await AsyncStorage.removeItem(key);
-  } catch {
-    // silently fail
+  } catch (err: any) {
+    console.error(`[Storage] Failed to remove ${key}:`, err.message || err);
+    // Silently fail to maintain resilience
   }
 }
 
@@ -75,8 +78,10 @@ export async function clearAllData(): Promise<void> {
     ];
 
     await Promise.all(userDataKeys.map(key => AsyncStorage.removeItem(key)));
-  } catch {
-    // silently fail for offline resilience
+    console.log('[Storage] All user data cleared');
+  } catch (err: any) {
+    console.error('[Storage] Failed to clear all data:', err.message || err);
+    // Still fail silently for offline resilience
   }
 }
 

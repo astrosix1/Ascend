@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../contexts/AppContext';
 import { Spacing, FontSize, BorderRadius, FontWeight, LineHeight } from '../utils/theme';
 
@@ -41,10 +40,10 @@ export default function Toast({ message, onDismiss }: ToastProps) {
   }, [message, fadeAnim, onDismiss]);
 
   const typeConfig = {
-    success: { bg: colors.success, icon: 'checkmark-circle', opacity: 0.2 },
-    error: { bg: colors.danger, icon: 'close-circle', opacity: 0.2 },
-    warning: { bg: colors.warning, icon: 'warning', opacity: 0.2 },
-    info: { bg: colors.accent, icon: 'information-circle', opacity: 0.2 },
+    success: { bg: colors.success, icon: '✓', opacity: 0.2 },
+    error: { bg: colors.danger, icon: '✕', opacity: 0.2 },
+    warning: { bg: colors.warning, icon: '⚠️', opacity: 0.2 },
+    info: { bg: colors.accent, icon: 'ℹ️', opacity: 0.2 },
   };
 
   const config = typeConfig[message.type];
@@ -59,7 +58,7 @@ export default function Toast({ message, onDismiss }: ToastProps) {
           borderLeftWidth: 4,
         },
       ]}>
-        <Ionicons name={config.icon} size={24} color={config.bg} style={styles.icon} />
+        <Text style={[styles.icon, { fontSize: 24, color: config.bg }]}>{config.icon}</Text>
         <Text style={[
           styles.message,
           { color: colors.text, lineHeight: LineHeight.normal * FontSize.sm },
@@ -70,7 +69,7 @@ export default function Toast({ message, onDismiss }: ToastProps) {
           onPress={() => onDismiss(message.id)}
           style={styles.closeButton}
         >
-          <Ionicons name="close" size={20} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 18 }}>✕</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

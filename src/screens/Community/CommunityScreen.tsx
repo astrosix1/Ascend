@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator, Linking, RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -19,6 +18,7 @@ import {
 } from '../../utils/supabase';
 import { isSupabaseReady } from '../../utils/runtimeConfig';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
+import { containsProfanity, getProfanityWarning } from '../../utils/profanityFilter';
 
 type CommunityTab = 'events' | 'forums';
 
@@ -148,13 +148,17 @@ export default function CommunityScreen() {
       ]);
       setPosts(allPosts);
       setFeaturedPost(featured);
+      // Auto-select first post on desktop
+      if (desktop && allPosts.length > 0 && !selectedPost) {
+        openPost(allPosts[0]);
+      }
     } catch {
       setPostsError('fetch_failed');
     } finally {
       setPostsLoading(false);
       setPostsRefreshing(false);
     }
-  }, [forumCategory]);
+  }, [forumCategory, desktop, selectedPost]);
 
   useEffect(() => {
     if (activeTab === 'forums') {
@@ -216,6 +220,10 @@ export default function CommunityScreen() {
     }
     if (!newPostTitle.trim() || !newPostBody.trim()) {
       Alert.alert('Incomplete', 'Please add a title and body.');
+      return;
+    }
+    if (containsProfanity(newPostTitle) || containsProfanity(newPostBody)) {
+      Alert.alert('Language Policy', `${getProfanityWarning()} This post cannot be submitted.`);
       return;
     }
     setPostSubmitting(true);
@@ -351,7 +359,7 @@ export default function CommunityScreen() {
     },
     tab: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
     tabText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, lineHeight: FontSize.sm * LineHeight.normal },
-    scroll: { padding: Spacing.md },
+    scroll: { flex: 1, padding: Spacing.md },
     badge: { paddingHorizontal: Spacing.xs, paddingVertical: 2, borderRadius: BorderRadius.full },
     input: {
       borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.sm,
@@ -416,7 +424,7 @@ export default function CommunityScreen() {
 
         {!eventsLoading && eventsError === 'no_results' && (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-            <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
+            <Text style={{ fontSize: 48, color: colors.textSecondary, marginBottom: Spacing.sm }}>📅</Text>
             <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>No events found near {settings.location}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 4 }}>Try a different city in Settings</Text>
           </View>
@@ -479,7 +487,7 @@ export default function CommunityScreen() {
                     flexDirection: 'row', alignItems: 'center', gap: 4,
                   }}
                 >
-                  <Ionicons name="map-outline" size={14} color={colors.textSecondary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🗺️</Text>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Map</Text>
                 </TouchableOpacity>
 
@@ -492,7 +500,7 @@ export default function CommunityScreen() {
                       flexDirection: 'row', alignItems: 'center', gap: 4,
                     }}
                   >
-                    <Ionicons name="open-outline" size={14} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🔗</Text>
                     <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Details</Text>
                   </TouchableOpacity>
                 )}
@@ -500,7 +508,7 @@ export default function CommunityScreen() {
 
               {going && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.xs }}>
-                  <Ionicons name="people-outline" size={12} color={colors.textSecondary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>👥</Text>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
                     Other Ascend users may also be attending this event.
                   </Text>
@@ -543,7 +551,7 @@ export default function CommunityScreen() {
               backgroundColor: colors.surface,
             }}>
               <TouchableOpacity onPress={() => setEditingPostId(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                <Ionicons name="arrow-back" size={20} color={colors.accent} />
+                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
                 <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Cancel</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>Edit Post</Text>
@@ -556,6 +564,7 @@ export default function CommunityScreen() {
                 onChangeText={setEditPostTitle}
                 placeholder="Title"
                 placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="Edit post title input"
               />
               <TextInput
                 style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.lg }]}
@@ -564,6 +573,7 @@ export default function CommunityScreen() {
                 placeholder="Post content..."
                 placeholderTextColor={colors.textSecondary}
                 multiline
+                accessibilityLabel="Edit post content textarea"
               />
               <Button title="Save Changes" onPress={handleEditPost} />
             </ScrollView>
@@ -580,24 +590,22 @@ export default function CommunityScreen() {
             backgroundColor: colors.surface,
           }}>
             <TouchableOpacity onPress={() => setSelectedPost(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <Ionicons name="arrow-back" size={20} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
               <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
               <TouchableOpacity onPress={() => toggleForumFavorite(selectedPost.id)}>
-                <Ionicons
-                  name={forumFavorites.includes(selectedPost.id) ? 'bookmark' : 'bookmark-outline'}
-                  size={20}
-                  color={forumFavorites.includes(selectedPost.id) ? colors.accent : colors.textSecondary}
-                />
+                <Text style={{ color: forumFavorites.includes(selectedPost.id) ? colors.accent : colors.textSecondary, fontSize: 18 }}>
+                  {forumFavorites.includes(selectedPost.id) ? '🔖' : '📌'}
+                </Text>
               </TouchableOpacity>
               {selectedPost.user_id === currentUserId ? (
                 <>
                   <TouchableOpacity onPress={() => { setEditingPostId(selectedPost.id); setEditPostTitle(selectedPost.title); setEditPostContent(selectedPost.content); }}>
-                    <Ionicons name="pencil-outline" size={20} color={colors.accent} />
+                    <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeletePost()}>
-                    <Ionicons name="trash-outline" size={20} color={colors.warning} />
+                    <Text style={{ color: colors.warning, fontSize: 18 }}>🗑️</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -605,7 +613,7 @@ export default function CommunityScreen() {
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', 'Thank you — our team will review it.') },
                 ])}>
-                  <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 18 }}>🚩</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -648,6 +656,7 @@ export default function CommunityScreen() {
                       placeholder="Edit comment..."
                       placeholderTextColor={colors.textSecondary}
                       multiline
+                      accessibilityLabel="Edit comment textarea"
                     />
                     <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                       <Button
@@ -671,10 +680,10 @@ export default function CommunityScreen() {
                         {comment.user_id === currentUserId ? (
                           <>
                             <TouchableOpacity onPress={() => { setEditingCommentId(comment.id); setEditCommentContent(comment.content); }}>
-                              <Ionicons name="pencil-outline" size={14} color={colors.accent} />
+                              <Text style={{ color: colors.accent, fontSize: 14 }}>✎</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
-                              <Ionicons name="trash-outline" size={14} color={colors.warning} />
+                              <Text style={{ color: colors.warning, fontSize: 14 }}>🗑️</Text>
                             </TouchableOpacity>
                           </>
                         ) : (
@@ -682,7 +691,7 @@ export default function CommunityScreen() {
                             { text: 'Cancel', style: 'cancel' },
                             { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', 'Thank you — our team will review it.') },
                           ])}>
-                            <Ionicons name="flag-outline" size={14} color={colors.textSecondary} />
+                            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🚩</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -719,6 +728,7 @@ export default function CommunityScreen() {
               placeholder="Add a response..."
               placeholderTextColor={colors.textSecondary}
               multiline
+              accessibilityLabel="Comment input textarea, describe your response to this post"
             />
             <TouchableOpacity
               onPress={submitComment}
@@ -731,7 +741,7 @@ export default function CommunityScreen() {
             >
               {commentPosting
                 ? <ActivityIndicator size="small" color="#1A1A1A" />
-                : <Ionicons name="send" size={18} color="#1A1A1A" />}
+                : <Text style={{ color: '#1A1A1A', fontSize: 16 }}>➤</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -747,7 +757,7 @@ export default function CommunityScreen() {
             backgroundColor: colors.surface,
           }}>
             <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <Ionicons name="arrow-back" size={20} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
               <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
             </TouchableOpacity>
             <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
@@ -758,21 +768,35 @@ export default function CommunityScreen() {
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.md }}>
               All posts are anonymous. Share honestly.
             </Text>
-            <TextInput
-              style={[s.input, { marginBottom: Spacing.sm }]}
-              value={newPostTitle}
-              onChangeText={setNewPostTitle}
-              placeholder="Title"
-              placeholderTextColor={colors.textSecondary}
-            />
-            <TextInput
-              style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.sm }]}
-              value={newPostBody}
-              onChangeText={setNewPostBody}
-              placeholder="Share your story, question, or experience..."
-              placeholderTextColor={colors.textSecondary}
-              multiline
-            />
+            <View style={{ marginBottom: Spacing.sm }}>
+              <TextInput
+                style={[s.input, { marginBottom: Spacing.xs }]}
+                value={newPostTitle}
+                onChangeText={setNewPostTitle}
+                placeholder="Title"
+                placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="Forum post title input"
+                maxLength={100}
+              />
+              <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                {newPostTitle.length}/100
+              </Text>
+            </View>
+            <View style={{ marginBottom: Spacing.sm }}>
+              <TextInput
+                style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.xs }]}
+                value={newPostBody}
+                onChangeText={setNewPostBody}
+                placeholder="Share your story, question, or experience..."
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                accessibilityLabel="Forum post content textarea, share your story, question, or experience"
+                maxLength={500}
+              />
+              <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                {newPostBody.length}/500
+              </Text>
+            </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>CATEGORY</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
               <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
@@ -800,6 +824,7 @@ export default function CommunityScreen() {
               onChangeText={setNewPostTags}
               placeholder="Tags (comma-separated, optional)"
               placeholderTextColor={colors.textSecondary}
+              accessibilityLabel="Forum post tags input, comma-separated optional tags"
             />
             <Button
               title={postSubmitting ? 'Posting...' : 'Post Anonymously'}
@@ -852,13 +877,14 @@ export default function CommunityScreen() {
         {/* Search + bookmark filter */}
         <View style={{ flexDirection: 'row', gap: Spacing.sm, marginVertical: Spacing.sm, alignItems: 'center' }}>
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.sm, backgroundColor: colors.surface, paddingHorizontal: Spacing.sm }}>
-            <Ionicons name="search" size={14} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🔍</Text>
             <TextInput
               style={{ flex: 1, color: colors.text, padding: Spacing.xs, fontSize: FontSize.sm }}
               value={forumSearch}
               onChangeText={setForumSearch}
               placeholder="Search posts..."
               placeholderTextColor={colors.textSecondary}
+              accessibilityLabel="Search forum posts input"
             />
           </View>
           <TouchableOpacity
@@ -869,7 +895,7 @@ export default function CommunityScreen() {
               backgroundColor: showFavoritesOnly ? colors.accentLight : 'transparent',
             }}
           >
-            <Ionicons name={showFavoritesOnly ? 'bookmark' : 'bookmark-outline'} size={18} color={showFavoritesOnly ? colors.accent : colors.textSecondary} />
+            <Text style={{ color: showFavoritesOnly ? colors.accent : colors.textSecondary, fontSize: 18 }}>🔖</Text>
           </TouchableOpacity>
         </View>
 
@@ -897,7 +923,7 @@ export default function CommunityScreen() {
 
         {/* No notifications note */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.md }}>
-          <Ionicons name="notifications-off-outline" size={13} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>🔇</Text>
           <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
             No notifications — check in intentionally, not reactively.
           </Text>
@@ -923,11 +949,7 @@ export default function CommunityScreen() {
                   onPress={() => toggleForumFavorite(post.id)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons
-                    name={forumFavorites.includes(post.id) ? 'bookmark' : 'bookmark-outline'}
-                    size={16}
-                    color={forumFavorites.includes(post.id) ? colors.accent : colors.textSecondary}
-                  />
+                  <Text style={{ color: forumFavorites.includes(post.id) ? colors.accent : colors.textSecondary, fontSize: 16 }}>🔖</Text>
                 </TouchableOpacity>
               </View>
               <Text style={s.postMeta}>
@@ -952,7 +974,7 @@ export default function CommunityScreen() {
 
         {!postsLoading && filteredPosts.length === 0 && !postsError && (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-            <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 48 }}>💬</Text>
             <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>
               {showFavoritesOnly ? 'No saved posts yet.' : 'No posts yet. Be the first to share.'}
             </Text>
@@ -962,8 +984,8 @@ export default function CommunityScreen() {
     );
   };
 
-  // ─── FORUMS DESKTOP VIEW (Split Pane) ───────────────────────────────────────
-  const renderForumsDesktop = () => {
+  // ─── FORUMS DESKTOP FLATTENED VIEW (Three equal columns) ────────────────────
+  const renderForumsDesktopFlattened = () => {
     // Left side: Posts list
     const renderPostsList = () => {
       if (!sbReady) {
@@ -984,8 +1006,8 @@ export default function CommunityScreen() {
               backgroundColor: colors.surface,
             }}>
               <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                <Ionicons name="arrow-back" size={20} color={colors.accent} />
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Back</Text>
+                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
               <View style={{ width: 60 }} />
@@ -994,21 +1016,35 @@ export default function CommunityScreen() {
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.md }}>
                 All posts are anonymous. Share honestly.
               </Text>
-              <TextInput
-                style={[s.input, { marginBottom: Spacing.sm }]}
-                value={newPostTitle}
-                onChangeText={setNewPostTitle}
-                placeholder="Title"
-                placeholderTextColor={colors.textSecondary}
-              />
-              <TextInput
-                style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.sm }]}
-                value={newPostBody}
-                onChangeText={setNewPostBody}
-                placeholder="Share your story, question, or experience..."
-                placeholderTextColor={colors.textSecondary}
-                multiline
-              />
+              <View style={{ marginBottom: Spacing.sm }}>
+                <TextInput
+                  style={[s.input, { marginBottom: Spacing.xs }]}
+                  value={newPostTitle}
+                  onChangeText={setNewPostTitle}
+                  placeholder="Title"
+                  placeholderTextColor={colors.textSecondary}
+                  accessibilityLabel="Forum post title input"
+                  maxLength={100}
+                />
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                  {newPostTitle.length}/100
+                </Text>
+              </View>
+              <View style={{ marginBottom: Spacing.sm }}>
+                <TextInput
+                  style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.xs }]}
+                  value={newPostBody}
+                  onChangeText={setNewPostBody}
+                  placeholder="Share your story, question, or experience..."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  accessibilityLabel="Forum post content textarea, share your story, question, or experience"
+                  maxLength={500}
+                />
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                  {newPostBody.length}/500
+                </Text>
+              </View>
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>CATEGORY</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
                 <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
@@ -1036,6 +1072,7 @@ export default function CommunityScreen() {
                 onChangeText={setNewPostTags}
                 placeholder="Tags (comma-separated, optional)"
                 placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="Forum post tags input, comma-separated optional tags"
               />
               <Button
                 title={postSubmitting ? 'Posting...' : 'Post Anonymously'}
@@ -1075,7 +1112,7 @@ export default function CommunityScreen() {
               onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
               style={{ marginRight: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}
             >
-              <Ionicons name={showFavoritesOnly ? 'bookmark' : 'bookmark-outline'} size={18} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontSize: 18 }}>🔖</Text>
               <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>
                 {showFavoritesOnly ? 'All' : 'Saved'}
               </Text>
@@ -1115,11 +1152,7 @@ export default function CommunityScreen() {
                     onPress={() => toggleForumFavorite(post.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons
-                      name={forumFavorites.includes(post.id) ? 'bookmark' : 'bookmark-outline'}
-                      size={16}
-                      color={colors.accent}
-                    />
+                    <Text style={{ color: colors.accent, fontSize: 16 }}>🔖</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
@@ -1137,7 +1170,7 @@ export default function CommunityScreen() {
 
           {!postsLoading && filteredPosts.length === 0 && !postsError && (
             <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-              <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: 48 }}>💬</Text>
               <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>
                 {showFavoritesOnly ? 'No saved posts yet.' : 'No posts yet. Be the first to share.'}
               </Text>
@@ -1155,7 +1188,245 @@ export default function CommunityScreen() {
 
       return (
         <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
-          <Ionicons name="chatbubbles-outline" size={64} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 64 }}>💬</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: FontSize.md, marginTop: Spacing.lg }}>
+            Select a post to view
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowNewPost(true)}
+            style={{
+              marginTop: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
+              backgroundColor: colors.accent, borderRadius: BorderRadius.sm,
+            }}
+          >
+            <Text style={{ color: '#1A1A1A', fontWeight: '700', fontSize: FontSize.sm }}>
+              Start a Discussion
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    };
+
+    return (
+      <>
+        {/* Posts List (33%) */}
+        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: colors.border }}>
+          {renderPostsList()}
+        </View>
+
+        {/* Post Detail (33%) */}
+        <View style={{ flex: 1 }}>
+          {renderPostDetail()}
+        </View>
+      </>
+    );
+  };
+
+  // ─── FORUMS DESKTOP VIEW (Split Pane) ───────────────────────────────────────
+  const renderForumsDesktop = () => {
+    // Left side: Posts list
+    const renderPostsList = () => {
+      if (!sbReady) {
+        return (
+          <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+            <SectionHeader title="Community Forums" />
+            <SetupPrompt feature="Forums" docsUrl="https://supabase.com" />
+          </ScrollView>
+        );
+      }
+
+      if (showNewPost) {
+        return (
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+              backgroundColor: colors.surface,
+            }}>
+              <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Back</Text>
+              </TouchableOpacity>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
+              <View style={{ width: 60 }} />
+            </View>
+            <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 60 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.md }}>
+                All posts are anonymous. Share honestly.
+              </Text>
+              <View style={{ marginBottom: Spacing.sm }}>
+                <TextInput
+                  style={[s.input, { marginBottom: Spacing.xs }]}
+                  value={newPostTitle}
+                  onChangeText={setNewPostTitle}
+                  placeholder="Title"
+                  placeholderTextColor={colors.textSecondary}
+                  accessibilityLabel="Forum post title input"
+                  maxLength={100}
+                />
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                  {newPostTitle.length}/100
+                </Text>
+              </View>
+              <View style={{ marginBottom: Spacing.sm }}>
+                <TextInput
+                  style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.xs }]}
+                  value={newPostBody}
+                  onChangeText={setNewPostBody}
+                  placeholder="Share your story, question, or experience..."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  accessibilityLabel="Forum post content textarea, share your story, question, or experience"
+                  maxLength={500}
+                />
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'right' }}>
+                  {newPostBody.length}/500
+                </Text>
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>CATEGORY</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
+                <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                  {FORUM_CATEGORIES.filter(c => c !== 'All').map(cat => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setNewPostCategory(cat)}
+                      style={{
+                        paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+                        borderRadius: BorderRadius.full, borderWidth: 1,
+                        backgroundColor: newPostCategory === cat ? colors.accentLight : 'transparent',
+                        borderColor: newPostCategory === cat ? colors.accent : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: newPostCategory === cat ? colors.accent : colors.textSecondary, fontSize: FontSize.xs }}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <TextInput
+                style={[s.input, { marginBottom: Spacing.lg }]}
+                value={newPostTags}
+                onChangeText={setNewPostTags}
+                placeholder="Tags (comma-separated, optional)"
+                placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="Forum post tags input, comma-separated optional tags"
+              />
+              <Button
+                title={postSubmitting ? 'Posting...' : 'Post Anonymously'}
+                onPress={submitNewPost}
+                disabled={postSubmitting || !newPostTitle.trim() || !newPostBody.trim()}
+              />
+            </ScrollView>
+          </View>
+        );
+      }
+
+      return (
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          refreshControl={<RefreshControl refreshing={postsRefreshing} onRefresh={() => { setPostsRefreshing(true); loadPosts(true); }} tintColor={colors.accent} />}
+        >
+          {/* Featured post */}
+          {featuredPost && !showFavoritesOnly && (
+            <>
+              <SectionHeader title="Question of the Day" />
+              <TouchableOpacity onPress={() => setSelectedPost(featuredPost)} activeOpacity={0.85}>
+                <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
+                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                  <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
+                    {featuredPost.content}
+                  </Text>
+                </Card>
+              </TouchableOpacity>
+            </>
+          )}
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md }}>
+            <SectionHeader title="Recent Posts" />
+            <TouchableOpacity
+              onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              style={{ marginRight: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}
+            >
+              <Text style={{ color: colors.accent, fontSize: 18 }}>🔖</Text>
+              <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>
+                {showFavoritesOnly ? 'All' : 'Saved'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Category filter chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+              {FORUM_CATEGORIES.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setForumCategory(cat)}
+                  style={{
+                    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+                    borderRadius: BorderRadius.full, borderWidth: 1,
+                    backgroundColor: forumCategory === cat ? colors.accent : 'transparent',
+                    borderColor: forumCategory === cat ? colors.accent : colors.border,
+                  }}
+                >
+                  <Text style={{ color: forumCategory === cat ? '#1A1A1A' : colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {postsLoading && <ActivityIndicator size="large" color={colors.accent} />}
+
+          {filteredPosts.map(post => (
+            <TouchableOpacity key={post.id} onPress={() => setSelectedPost(post)} activeOpacity={0.85}>
+              <Card style={{ marginBottom: Spacing.sm, backgroundColor: selectedPost?.id === post.id ? colors.accentLight : colors.surface }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Text style={[s.postTitle, { color: colors.text, flex: 1, marginRight: Spacing.sm }]}>{post.title}</Text>
+                  <TouchableOpacity
+                    onPress={() => toggleForumFavorite(post.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={{ color: colors.accent, fontSize: 16 }}>🔖</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
+                  {new Date(post.created_at).toLocaleDateString()} · {post.category}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
+                  {post.content}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                  {post.comments_count || 0} responses
+                </Text>
+              </Card>
+            </TouchableOpacity>
+          ))}
+
+          {!postsLoading && filteredPosts.length === 0 && !postsError && (
+            <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 48 }}>💬</Text>
+              <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>
+                {showFavoritesOnly ? 'No saved posts yet.' : 'No posts yet. Be the first to share.'}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      );
+    };
+
+    // Right side: Post detail or empty state
+    const renderPostDetail = () => {
+      if (selectedPost) {
+        return renderForums();
+      }
+
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 64 }}>💬</Text>
           <Text style={{ color: colors.textSecondary, fontSize: FontSize.md, marginTop: Spacing.lg }}>
             Select a post to view
           </Text>
@@ -1176,13 +1447,13 @@ export default function CommunityScreen() {
 
     return (
       <View style={{ flex: 1, flexDirection: 'row' }}>
-        {/* Posts List - Left side (40%) */}
-        <View style={{ flex: 0.4, borderRightWidth: 1, borderRightColor: colors.border }}>
+        {/* Posts List - Left side (50%) */}
+        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: colors.border }}>
           {renderPostsList()}
         </View>
 
-        {/* Post Detail - Right side (60%) */}
-        <View style={{ flex: 0.6 }}>
+        {/* Post Detail - Right side (50%) */}
+        <View style={{ flex: 1 }}>
           {renderPostDetail()}
         </View>
       </View>
@@ -1190,18 +1461,16 @@ export default function CommunityScreen() {
   };
 
   if (desktop) {
-    // Desktop: Split pane layout with Events (30%) and Forums nested split-pane (70%)
+    // Desktop: Split pane layout with Events (33%), Forums Posts (33%), Forum Detail (33%)
     return (
       <View style={[s.container, { flexDirection: 'row' }]}>
-        {/* Events Panel */}
-        <View style={{ flex: 0.3, borderRightWidth: 1, borderRightColor: colors.border }}>
+        {/* Events Panel (33%) */}
+        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: colors.border }}>
           {renderEvents()}
         </View>
 
-        {/* Forums Panel - with nested split-pane (posts list + detail) */}
-        <View style={{ flex: 0.7 }}>
-          {renderForumsDesktop()}
-        </View>
+        {/* Forums Panel (two-column split) */}
+        {renderForumsDesktopFlattened()}
       </View>
     );
   }

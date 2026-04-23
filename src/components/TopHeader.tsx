@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../contexts/AppContext';
 import { Spacing, FontSize, FontSizeDesktop, BorderRadius, FontWeight, LineHeight } from '../utils/theme';
 import { useIsDesktop } from '../utils/responsive';
@@ -10,7 +9,7 @@ interface TopHeaderProps {
 }
 
 export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
-  const { colors, theme, currentUserEmail, signOutUser } = useApp();
+  const { colors, theme, currentUserEmail, signOutUser, syncError, clearSyncError } = useApp();
   const desktop = useIsDesktop();
 
   const handleSignOut = async () => {
@@ -66,48 +65,68 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
   });
 
   return (
-    <View style={styles.container}>
-      {/* Left Section: User Info */}
-      <View style={styles.leftSection}>
-        <View style={[styles.iconButton]}>
-          <Ionicons name="person-circle" size={32} color={colors.accent} />
+    <>
+      <View style={styles.container}>
+        {/* Left Section: User Info */}
+        <View style={styles.leftSection}>
+          <View style={[styles.iconButton]}>
+            <Text style={{ fontSize: 32, color: colors.accent }}>👤</Text>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>
+              {currentUserEmail ? currentUserEmail.split('@')[0].split(/[._]/)[0] : 'Guest'}
+            </Text>
+            <Text style={styles.userEmail}>
+              {currentUserEmail || 'Not signed in'}
+            </Text>
+          </View>
         </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>
-            {currentUserEmail ? currentUserEmail.split('@')[0] : 'Guest'}
-          </Text>
-          <Text style={styles.userEmail}>
-            {currentUserEmail || 'Not signed in'}
-          </Text>
-        </View>
-      </View>
 
-      {/* Right Section: Actions */}
-      <View style={styles.rightSection}>
-        {/* Theme Toggle */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onToggleTheme}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={theme === 'dark' ? 'moon' : 'sunny'}
-            size={20}
-            color={colors.accent}
-          />
-        </TouchableOpacity>
-
-        {/* Sign Out */}
-        {currentUserEmail && (
+        {/* Right Section: Actions */}
+        <View style={styles.rightSection}>
+          {/* Theme Toggle */}
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={handleSignOut}
+            onPress={onToggleTheme}
             activeOpacity={0.7}
           >
-            <Ionicons name="log-out" size={20} color={colors.warning} />
+            <Text style={{ fontSize: 20, color: colors.accent }}>
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </Text>
           </TouchableOpacity>
-        )}
+
+          {/* Sign Out */}
+          {currentUserEmail && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleSignOut}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16, color: colors.warning }}>⎋</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
+
+      {/* Sync Error Banner */}
+      {syncError && (
+        <TouchableOpacity
+          style={{
+            backgroundColor: colors.warning,
+            paddingHorizontal: Spacing.lg,
+            paddingVertical: Spacing.sm,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+          onPress={clearSyncError}
+        >
+          <Text style={{ color: '#1A1A1A', fontSize: FontSize.xs, flex: 1 }}>
+            ⚠️ {syncError}
+          </Text>
+          <Text style={{ color: '#1A1A1A', marginLeft: Spacing.sm }}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </>
   );
 }

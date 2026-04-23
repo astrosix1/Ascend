@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, AccessibilityInfo } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../contexts/AppContext';
 import { SIDEBAR_WIDTH, useScreenWidth } from '../utils/responsive';
 import { Spacing, FontSize, BorderRadius, FontWeight, LineHeight } from '../utils/theme';
@@ -8,15 +7,14 @@ import { Spacing, FontSize, BorderRadius, FontWeight, LineHeight } from '../util
 interface NavigationItem {
   id: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
 }
 
 const NAVIGATION_ITEMS: NavigationItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'home-outline' },
-  { id: 'clock', label: 'Clock', icon: 'time-outline' },
-  { id: 'discover', label: 'Discover', icon: 'book-outline' },
-  { id: 'community', label: 'Community', icon: 'people-outline' },
-  { id: 'settings', label: 'Settings', icon: 'settings-outline' },
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'clock', label: 'Clock' },
+  { id: 'discover', label: 'Discover' },
+  { id: 'community', label: 'Community' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 interface DesktopSidebarProps {
@@ -46,19 +44,13 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
       flexDirection: 'column',
       justifyContent: 'space-between',
     },
-    header: {
-      alignItems: 'center',
-      marginBottom: Spacing.lg,
-      paddingBottom: Spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
     logo: {
       fontSize: FontSize.lg,
       fontWeight: FontWeight.bold,
       color: colors.accent,
       marginBottom: Spacing.sm,
       lineHeight: FontSize.lg * 1.2,
+      textAlign: 'center',
     },
     tagline: {
       fontSize: FontSize.xs,
@@ -126,19 +118,6 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
 
   return (
     <View style={styles.container}>
-      {/* Header with Logo */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>🚀</Text>
-        {!isCollapsed && (
-          <>
-            <Text style={[styles.logo, { fontSize: FontSize.md, marginBottom: 2 }]}>
-              Ascend
-            </Text>
-            <Text style={styles.tagline}>Recovery companion</Text>
-          </>
-        )}
-      </View>
-
       {/* Navigation Items */}
       <View style={styles.navSection}>
         {NAVIGATION_ITEMS.map(item => {
@@ -161,12 +140,6 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={`${item.label} navigation button`}
             >
-              <Ionicons
-                name={item.icon}
-                size={20}
-                color={isActive ? colors.accent : colors.textSecondary}
-                style={styles.navIcon}
-              />
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
                 {item.label}
               </Text>
@@ -175,19 +148,24 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
         })}
       </View>
 
-      {/* Footer with Collapse Button */}
+      {/* Footer with Ascend Title and Collapse Button */}
       <View style={styles.footer}>
+        {/* Ascend Title */}
+        {!isCollapsed && (
+          <Text style={[styles.logo, { fontSize: FontSize.sm, marginBottom: Spacing.md }]}>
+            Ascend
+          </Text>
+        )}
+
         {/* Collapse Button */}
         <TouchableOpacity
           style={styles.collapseButton}
           onPress={() => setManualCollapsed(!manualCollapsed)}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name={isCollapsed ? 'chevron-forward' : 'chevron-back'}
-            size={18}
-            color={colors.textSecondary}
-          />
+          <Text style={{ color: colors.textSecondary, fontSize: 16 }}>
+            {isCollapsed ? '›' : '‹'}
+          </Text>
           <Text style={styles.collapseLabel}>
             {isCollapsed ? '' : 'Collapse'}
           </Text>

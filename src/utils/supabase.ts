@@ -274,34 +274,7 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
   console.log('Attempting to delete post:', postId);
 
   try {
-    // First, fetch the post to verify ownership
-    const { data: post, error: fetchError } = await sb
-      .from('forum_posts')
-      .select('*')
-      .eq('id', postId)
-      .single();
-
-    if (fetchError || !post) {
-      console.error('Could not fetch post:', fetchError);
-      return { success: false, error: 'Post not found' };
-    }
-
-    // Get current user
-    const { data: { user }, error: authError } = await sb.auth.getUser();
-    if (authError || !user) {
-      console.error('Not authenticated:', authError);
-      return { success: false, error: 'You must be signed in to delete' };
-    }
-
-    console.log('Post user_id:', post.user_id, 'Current user:', user.id);
-
-    // Check ownership
-    if (post.user_id !== user.id) {
-      console.warn('User does not own this post');
-      return { success: false, error: 'You can only delete your own posts' };
-    }
-
-    // Delete the post
+    // Delete the post (RLS policy on the backend will verify ownership)
     const { error: deleteError } = await sb
       .from('forum_posts')
       .delete()
@@ -325,38 +298,56 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
 export async function saveUserData(userId: string, payload: Omit<DBUserData, 'user_id' | 'updated_at'>): Promise<void> {
   const sb = getSupabaseClient();
   if (!sb) {
-    console.warn('Supabase not configured - skipping save');
+    console.warn('[DB] Supabase not configured - skipping save');
     return;
   }
   try {
+    console.log('[DB] Saving user data for userId:', userId);
     const { error } = await sb.from('user_data').upsert({
       user_id: userId,
       ...payload,
       updated_at: new Date().toISOString(),
     });
     if (error) {
-      console.error('Failed to save user data:', error);
+      console.error('[DB] Failed to save user data:', error);
+      // Check if it's an RLS policy error
+      if (error.message?.includes('policy') || error.code === 'PGRST301' || error.code === 'PGRST302') {
+        console.error('[DB] RLS Policy Error - user may not have permission to save');
+      }
+      throw error;
     }
+    console.log('[DB] User data saved successfully');
   } catch (err: any) {
-    console.error('Save user data error:', err.message);
+    console.error('[DB] Save user data error:', err.message || err);
+    throw err;
   }
 }
 
 export async function loadUserData(userId: string): Promise<DBUserData | null> {
   const sb = getSupabaseClient();
-  if (!sb) return null;
+  if (!sb) {
+    console.warn('[DB] Supabase not configured - cannot load data');
+    return null;
+  }
   try {
+    console.log('[DB] Loading user data for userId:', userId);
     const { data, error } = await sb.from('user_data').select('*').eq('user_id', userId).single();
     if (error) {
       // 406 means no rows found, which is expected for new users
-      if (error.code !== '406') {
-        console.error('Failed to load user data:', error);
+      if (error.code === '406') {
+        console.log('[DB] No existing user data found (first login)');
+      } else {
+        console.error('[DB] Failed to load user data:', error);
       }
       return null;
     }
-    return data || null;
+    if (data) {
+      console.log('[DB] User data loaded successfully');
+      return data;
+    }
+    return null;
   } catch (err: any) {
-    console.error('Load user data error:', err.message);
+    console.error('[DB] Load user data error:', err.message || err);
     return null;
   }
 }

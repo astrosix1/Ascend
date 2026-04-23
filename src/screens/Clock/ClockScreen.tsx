@@ -3,13 +3,13 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Switch, Modal, Alert, FlatList
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { PomodoroSession, DetoxSession, Alarm } from '../../utils/types';
+import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 
 type ClockTab = 'alarm' | 'pomodoro' | 'detox';
 type PomodoroState = 'idle' | 'studying' | 'break';
@@ -45,33 +45,39 @@ function getTodayLocal(): string {
 
 export default function ClockScreen() {
   const { colors, settings, updateSettings, pomodoroHistory, addPomodoroSession, detoxHistory, addDetoxSession, addXP, activeTimer, timerStartTime, timerDuration, setActiveTimer, alarms, setAlarms } = useApp();
+  const screenWidth = useScreenWidth();
+  const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeTab, setActiveTab] = useState<ClockTab>('alarm');
 
-  // Initialize pomState and pomSeconds based on global timer
-  const getInitialPomState = () => {
+  // ─── HELPER: Calculate timer state from global activeTimer ──────────────────
+  // Consolidated to eliminate duplication in initial state and sync logic
+  const calculatePomTimerState = useCallback(() => {
     if (activeTimer === 'pomodoro' && timerStartTime && timerDuration > 0) {
       const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
       if (elapsed < timerDuration) {
-        return timerDuration === settings.pomodoroStudyTime * 60 ? 'studying' : 'break';
+        const state = timerDuration === settings.pomodoroStudyTime * 60 ? 'studying' : 'break';
+        const seconds = timerDuration - elapsed;
+        return { state, seconds };
       }
     }
-    return 'idle';
-  };
+    return { state: 'idle' as PomodoroState, seconds: settings.pomodoroStudyTime * 60 };
+  }, [activeTimer, timerStartTime, timerDuration, settings.pomodoroStudyTime]);
 
-  const getInitialPomSeconds = () => {
-    if (activeTimer === 'pomodoro' && timerStartTime && timerDuration > 0) {
-      const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-      return Math.max(0, timerDuration - elapsed);
-    }
-    return settings.pomodoroStudyTime * 60;
-  };
+  const [pomState, setPomState] = useState<PomodoroState>('idle');
+  const [pomSeconds, setPomSeconds] = useState(settings.pomodoroStudyTime * 60);
 
-  const [pomState, setPomState] = useState<PomodoroState>(getInitialPomState());
-  const [pomSeconds, setPomSeconds] = useState(getInitialPomSeconds());
+  // Sync timer state on mount and when global activeTimer changes
+  // This consolidates the duplicate logic from getInitialPomState/getInitialPomSeconds
+  useEffect(() => {
+    const { state, seconds } = calculatePomTimerState();
+    setPomState(state);
+    setPomSeconds(seconds);
+  }, [calculatePomTimerState]);
 
   // ─── ALARM STATE (managed in AppContext for persistence + global firing) ──
   const [showAlarmForm, setShowAlarmForm] = useState(false);
   const [alarmTime, setAlarmTime] = useState('07:00');
+  const [alarmAmPm, setAlarmAmPm] = useState<'AM' | 'PM'>('AM');
   const [alarmLabel, setAlarmLabel] = useState('');
   const [alarmDays, setAlarmDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [alarmVoices, setAlarmVoices] = useState<Alarm['voiceOption'][]>(['briefing']);
@@ -91,24 +97,26 @@ export default function ClockScreen() {
   const pomInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── DETOX STATE ────────────────────────────────────────────────
-  const getInitialDetoxActive = () => {
+  // Consolidated helper to eliminate duplication in initial state and sync logic
+  const calculateDetoxTimerState = useCallback(() => {
     if (activeTimer === 'detox' && timerStartTime && timerDuration > 0) {
       const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-      return elapsed < timerDuration;
+      const isActive = elapsed < timerDuration;
+      const seconds = Math.max(0, timerDuration - elapsed);
+      return { isActive, seconds };
     }
-    return false;
-  };
+    return { isActive: false, seconds: 0 };
+  }, [activeTimer, timerStartTime, timerDuration]);
 
-  const getInitialDetoxSeconds = () => {
-    if (activeTimer === 'detox' && timerStartTime && timerDuration > 0) {
-      const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-      return Math.max(0, timerDuration - elapsed);
-    }
-    return 0;
-  };
+  const [detoxActive, setDetoxActive] = useState(false);
+  const [detoxSeconds, setDetoxSeconds] = useState(0);
 
-  const [detoxActive, setDetoxActive] = useState(getInitialDetoxActive());
-  const [detoxSeconds, setDetoxSeconds] = useState(getInitialDetoxSeconds());
+  // Sync detox state on mount and when global activeTimer changes
+  useEffect(() => {
+    const { isActive, seconds } = calculateDetoxTimerState();
+    setDetoxActive(isActive);
+    setDetoxSeconds(seconds);
+  }, [calculateDetoxTimerState]);
   const [detoxTotalSeconds, setDetoxTotalSeconds] = useState(1800);
   const [detoxCustom, setDetoxCustom] = useState('');
   const [detoxStartTime, setDetoxStartTime] = useState('');
@@ -121,20 +129,6 @@ export default function ClockScreen() {
       pomInterval.current = null;
     }
   }, []);
-
-  // Sync timer state when it changes (navigating back to screen)
-  useEffect(() => {
-    if (activeTimer === 'pomodoro' && timerStartTime && timerDuration > 0) {
-      const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-      if (elapsed < timerDuration) {
-        setPomState(timerDuration === settings.pomodoroStudyTime * 60 ? 'studying' : 'break');
-      } else {
-        setPomState('idle');
-      }
-    } else {
-      setPomState('idle');
-    }
-  }, [activeTimer, settings.pomodoroStudyTime]);
 
   // Calculate elapsed and remaining time from global timer state
   useEffect(() => {
@@ -244,17 +238,11 @@ export default function ClockScreen() {
   }, []);
 
   // Start/restart the detox interval whenever global timer state says detox is active
+  // Initial state sync is now handled by consolidated useEffect above
   useEffect(() => {
     if (activeTimer === 'detox' && timerStartTime && timerDuration > 0) {
       const startTime = timerStartTime;
       const totalSecs = timerDuration;
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      if (elapsed >= totalSecs) {
-        setDetoxActive(false);
-        return;
-      }
-      setDetoxActive(true);
-      setDetoxSeconds(Math.max(0, totalSecs - elapsed));
 
       // Clear any existing interval before creating a new one
       if (detoxInterval.current) clearInterval(detoxInterval.current);
@@ -270,13 +258,12 @@ export default function ClockScreen() {
         }
       }, 1000);
     } else {
-      setDetoxActive(false);
       clearDetoxInterval();
     }
     return () => {
       if (detoxInterval.current) clearInterval(detoxInterval.current);
     };
-  }, [activeTimer, timerStartTime, timerDuration]);
+  }, [activeTimer, timerStartTime, timerDuration, clearDetoxInterval]);
 
   const startDetox = () => {
     const startTime = Date.now();
@@ -315,6 +302,7 @@ export default function ClockScreen() {
   const resetAlarmForm = () => {
     setAlarmLabel('');
     setAlarmTime('07:00');
+    setAlarmAmPm('AM');
     setAlarmDays([1, 2, 3, 4, 5]);
     setAlarmVoices(['briefing']);
     setEditingAlarmId(null);
@@ -488,25 +476,14 @@ export default function ClockScreen() {
         </View>
       </Modal>
 
-      {/* Tab Bar */}
-      <View style={s.tabRow}>
-        {(['alarm', 'pomodoro', 'detox'] as ClockTab[]).map(tab => (
-          <TouchableOpacity key={tab} style={s.tab} onPress={() => setActiveTab(tab)}>
-            <Text style={[s.tabText, { color: activeTab === tab ? colors.accent : colors.textSecondary }]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-            {activeTab === tab && (
-              <View style={{ height: 2, width: 30, backgroundColor: colors.accent, marginTop: 4, borderRadius: 1 }} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Desktop: 3-column layout */}
+      {desktop && (
+        <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
+          {/* Alarm Column */}
+          <ScrollView style={[s.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]} contentContainerStyle={{ paddingBottom: 40 }}>
 
-      <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
-
-        {/* ── ALARM TAB ─────────────────────────────────────────── */}
-        {activeTab === 'alarm' && (
-          <>
+            {/* ── ALARM COLUMN ─────────────────────────────────────── */}
+            <>
             <SectionHeader title="Alarms" subtitle="Wake up informed, not reactive" />
             {alarms.map(alarm => (
               <Card key={alarm.id}>
@@ -538,10 +515,10 @@ export default function ClockScreen() {
                       thumbColor="#FFF"
                     />
                     <TouchableOpacity onPress={() => startEditAlarm(alarm)}>
-                      <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
+                      <Text style={{ color: colors.textSecondary, fontSize: 16 }}>✎</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => deleteAlarm(alarm.id)}>
-                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                      <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -550,7 +527,7 @@ export default function ClockScreen() {
 
             {alarms.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-                <Ionicons name="alarm-outline" size={48} color={colors.textSecondary} />
+                <Text style={{ fontSize: 48, color: colors.textSecondary, marginBottom: Spacing.sm }}>🔔</Text>
                 <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>No alarms set</Text>
               </View>
             )}
@@ -560,14 +537,36 @@ export default function ClockScreen() {
                 <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.md, fontSize: FontSize.md }}>
                   {editingAlarmId !== null ? 'Edit Alarm' : 'New Alarm'}
                 </Text>
-                <TextInput
-                  style={s.input}
-                  value={alarmTime}
-                  onChangeText={setAlarmTime}
-                  placeholder="HH:MM (e.g. 07:30)"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="numbers-and-punctuation"
-                />
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm, alignItems: 'center' }}>
+                  <TextInput
+                    style={[s.input, { flex: 1 }]}
+                    value={alarmTime}
+                    onChangeText={setAlarmTime}
+                    placeholder="HH:MM"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                  <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                    {(['AM', 'PM'] as const).map(period => (
+                      <TouchableOpacity
+                        key={period}
+                        onPress={() => setAlarmAmPm(period)}
+                        style={{
+                          paddingHorizontal: Spacing.md,
+                          paddingVertical: Spacing.xs,
+                          borderRadius: 4,
+                          backgroundColor: alarmAmPm === period ? colors.accent : colors.surface,
+                          borderWidth: 1,
+                          borderColor: alarmAmPm === period ? colors.accent : colors.border,
+                        }}
+                      >
+                        <Text style={{ color: alarmAmPm === period ? '#1A1A1A' : colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm }}>
+                          {period}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
                 <TextInput
                   style={s.input}
                   value={alarmLabel}
@@ -613,7 +612,7 @@ export default function ClockScreen() {
                         <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>{opt.desc}</Text>
                       </View>
                       {selected && (
-                        <Ionicons name="checkmark" size={18} color={colors.accent} />
+                        <Text style={{ color: colors.accent, fontSize: 16 }}>✓</Text>
                       )}
                     </TouchableOpacity>
                   );
@@ -647,32 +646,16 @@ export default function ClockScreen() {
               />
             )}
           </>
-        )}
+          </ScrollView>
 
-        {/* ── POMODORO TAB ──────────────────────────────────────── */}
-        {activeTab === 'pomodoro' && (
-          <>
-            {/* SectionHeader with inline gear icon */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-              <SectionHeader
-                title="Pomodoro"
-                subtitle={`${settings.pomodoroStudyTime} min focus · ${settings.pomodoroBreakTime} min break`}
-              />
-              <TouchableOpacity
-                onPress={() => {
-                  setPomStudyVal(settings.pomodoroStudyTime.toString());
-                  setPomBreakVal(settings.pomodoroBreakTime.toString());
-                  setShowPomSettings(v => !v);
-                }}
-                style={{ padding: Spacing.sm }}
-              >
-                <Ionicons
-                  name="settings-outline"
-                  size={20}
-                  color={showPomSettings ? colors.accent : colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
+          {/* Pomodoro Column */}
+          <ScrollView style={[s.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* ── POMODORO COLUMN ───────────────────────────────────── */}
+            <>
+            <SectionHeader
+              title="Pomodoro"
+              subtitle={`${settings.pomodoroStudyTime} min focus · ${settings.pomodoroBreakTime} min break`}
+            />
 
             {/* Inline Pomodoro Settings Card */}
             {showPomSettings && (
@@ -707,12 +690,16 @@ export default function ClockScreen() {
               </Card>
             )}
 
-            <View style={s.timerCircle}>
+            <TouchableOpacity style={s.timerCircle} onPress={() => {
+              setPomStudyVal(settings.pomodoroStudyTime.toString());
+              setPomBreakVal(settings.pomodoroBreakTime.toString());
+              setShowPomSettings(v => !v);
+            }}>
               <Text style={s.timerText}>{formatTime(pomSeconds)}</Text>
               <Text style={s.timerLabel}>
                 {pomState === 'idle' ? 'Ready' : pomState === 'studying' ? 'Focus' : 'Break'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {pomSessionCount > 0 && (
               <View style={{ alignItems: 'center', marginBottom: Spacing.md }}>
@@ -741,13 +728,6 @@ export default function ClockScreen() {
               )}
               <Button title="Reset" variant="ghost" onPress={resetPomodoro} style={{ flex: 1 }} />
             </View>
-
-            <Card style={{ borderLeftWidth: 3, borderLeftColor: colors.accent }}>
-              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 }}>
-                After each session: step away, drink water, move your body.{'\n'}
-                The breaks are where real recovery happens.
-              </Text>
-            </Card>
 
             {/* History */}
             <SectionHeader title="Session History" />
@@ -790,22 +770,13 @@ export default function ClockScreen() {
               ))
             )}
           </>
-        )}
+          </ScrollView>
 
-        {/* ── DETOX TAB ─────────────────────────────────────────── */}
-        {activeTab === 'detox' && (
-          <>
+          {/* Detox Column */}
+          <ScrollView style={[s.scroll, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* ── DETOX COLUMN ──────────────────────────────────────── */}
+            <>
             <SectionHeader title="Phone Detox" subtitle="Intentional disconnection" />
-
-            <Card style={{ borderLeftWidth: 3, borderLeftColor: colors.accent }}>
-              <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.xs }}>
-                How it works
-              </Text>
-              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 22 }}>
-                Set a duration. When you start, your phone enters detox mode — minimal display, just a countdown. When the timer ends, a tone plays and you tap "I'm back" to complete the session.{'\n\n'}
-                Earn 1 point per 30 minutes completed.
-              </Text>
-            </Card>
 
             <SectionHeader title="Set Duration" />
             <View style={s.durationRow}>
@@ -894,8 +865,388 @@ export default function ClockScreen() {
               ))
             )}
           </>
-        )}
-      </ScrollView>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Mobile: Tab-based layout */}
+      {!desktop && (
+        <>
+          {/* Tab Bar */}
+          <View style={s.tabRow}>
+            {(['alarm', 'pomodoro', 'detox'] as ClockTab[]).map(tab => (
+              <TouchableOpacity key={tab} style={s.tab} onPress={() => setActiveTab(tab)}>
+                <Text style={[s.tabText, { color: activeTab === tab ? colors.accent : colors.textSecondary }]}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+                {activeTab === tab && (
+                  <View style={{ height: 2, width: 30, backgroundColor: colors.accent, marginTop: 4, borderRadius: 1 }} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* ── ALARM TAB ─────────────────────────────────────────── */}
+            {activeTab === 'alarm' && (
+              <>
+                <SectionHeader title="Alarms" subtitle="Wake up informed, not reactive" />
+                {alarms.map(alarm => (
+                  <Card key={alarm.id}>
+                    <View style={s.alarmRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.alarmTime}>{alarm.time}</Text>
+                        <Text style={s.alarmLabel}>{alarm.label}</Text>
+                        <Text style={[s.alarmLabel, { color: colors.accent }]}>
+                          {VOICE_OPTIONS.find(opt => opt.value === alarm.voiceOption)?.label ?? alarm.voiceOption}
+                        </Text>
+                        <View style={s.dayRow}>
+                          {DAYS.map((d, i) => (
+                            <View key={i} style={[s.dayCircle, {
+                              backgroundColor: alarm.days.includes(i) ? colors.accentLight : 'transparent',
+                              borderColor: alarm.days.includes(i) ? colors.accent : colors.border,
+                            }]}>
+                              <Text style={{ fontSize: 9, color: alarm.days.includes(i) ? colors.accent : colors.textSecondary }}>
+                                {d.slice(0, 1)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: Spacing.sm }}>
+                        <Switch
+                          value={alarm.enabled}
+                          onValueChange={() => toggleAlarmEnabled(alarm.id)}
+                          trackColor={{ false: colors.border, true: colors.accent }}
+                          thumbColor="#FFF"
+                        />
+                        <TouchableOpacity onPress={() => startEditAlarm(alarm)}>
+                          <Text style={{ color: colors.textSecondary, fontSize: 16 }}>✎</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => deleteAlarm(alarm.id)}>
+                          <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Card>
+                ))}
+
+                <SectionHeader title={showAlarmForm ? 'Edit Alarm' : 'Add Alarm'} />
+                {showAlarmForm ? (
+                  <Card>
+                    <TextInput
+                      style={s.input}
+                      value={alarmTime}
+                      onChangeText={setAlarmTime}
+                      placeholder="HH:MM (e.g. 07:30)"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                    <TextInput
+                      style={s.input}
+                      value={alarmLabel}
+                      onChangeText={setAlarmLabel}
+                      placeholder="Label (optional)"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>REPEAT DAYS</Text>
+                    <View style={s.dayRow}>
+                      {DAYS.map((d, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          onPress={() => toggleAlarmDay(i)}
+                          style={[s.dayCircle, {
+                            backgroundColor: alarmDays.includes(i) ? colors.accentLight : 'transparent',
+                            borderColor: alarmDays.includes(i) ? colors.accent : colors.border,
+                          }]}
+                        >
+                          <Text style={{ fontSize: 10, color: alarmDays.includes(i) ? colors.accent : colors.textSecondary }}>
+                            {d.slice(0, 2)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+                      VOICE BRIEFING
+                    </Text>
+                    {VOICE_OPTIONS.map(opt => {
+                      const selected = alarmVoices[0] === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          onPress={() => setAlarmVoices([opt.value])}
+                          style={[s.voiceOpt, {
+                            backgroundColor: selected ? colors.accentLight : 'transparent',
+                            borderColor: selected ? colors.accent : colors.border,
+                          }]}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: selected ? colors.accent : colors.text, fontWeight: '600', fontSize: FontSize.sm }}>
+                              {opt.label}
+                            </Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>{opt.desc}</Text>
+                          </View>
+                          {selected && (
+                            <Text style={{ color: colors.accent, fontSize: 16 }}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <View style={[s.btnRow, { marginTop: Spacing.sm }]}>
+                      <Button
+                        title={editingAlarmId !== null ? 'Update Alarm' : 'Save Alarm'}
+                        onPress={saveAlarm}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => {
+                          setShowAlarmForm(false);
+                          resetAlarmForm();
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </Card>
+                ) : (
+                  <Button
+                    title="+ Add Alarm"
+                    variant="secondary"
+                    onPress={() => {
+                      resetAlarmForm();
+                      setShowAlarmForm(true);
+                    }}
+                    style={{ marginTop: Spacing.sm }}
+                  />
+                )}
+              </>
+            )}
+
+            {/* ── POMODORO TAB ──────────────────────────────────────── */}
+            {activeTab === 'pomodoro' && (
+              <>
+                {/* SectionHeader with inline gear icon */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                  <SectionHeader
+                    title="Pomodoro"
+                    subtitle={`${settings.pomodoroStudyTime} min focus · ${settings.pomodoroBreakTime} min break`}
+                  />
+                </View>
+
+                {/* Inline Pomodoro Settings Card */}
+                {showPomSettings && (
+                  <Card style={s.pomSettingsCard}>
+                    <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm }}>
+                      Timer Settings
+                    </Text>
+                    <View style={s.pomSettingsRow}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, flex: 1 }}>Study time (min)</Text>
+                      <TextInput
+                        style={s.pomSettingsInput}
+                        value={pomStudyVal}
+                        onChangeText={setPomStudyVal}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                      />
+                    </View>
+                    <View style={s.pomSettingsRow}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, flex: 1 }}>Break time (min)</Text>
+                      <TextInput
+                        style={s.pomSettingsInput}
+                        value={pomBreakVal}
+                        onChangeText={setPomBreakVal}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                      />
+                    </View>
+                    <View style={[s.btnRow, { marginTop: Spacing.xs, marginBottom: 0 }]}>
+                      <Button title="Save" onPress={savePomSettings} style={{ flex: 1 }} size="small" />
+                      <Button title="Cancel" variant="ghost" onPress={() => setShowPomSettings(false)} style={{ flex: 1 }} size="small" />
+                    </View>
+                  </Card>
+                )}
+
+                <TouchableOpacity
+                  style={s.timerCircle}
+                  onPress={() => {
+                    setPomStudyVal(settings.pomodoroStudyTime.toString());
+                    setPomBreakVal(settings.pomodoroBreakTime.toString());
+                    setShowPomSettings(v => !v);
+                  }}
+                >
+                  <Text style={s.timerText}>{formatTime(pomSeconds)}</Text>
+                  <Text style={s.timerLabel}>
+                    {pomState === 'idle' ? 'Ready' : pomState === 'studying' ? 'Focus' : 'Break'}
+                  </Text>
+                </TouchableOpacity>
+
+                {pomSessionCount > 0 && (
+                  <View style={{ alignItems: 'center', marginBottom: Spacing.md }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>
+                      {pomSessionCount} session{pomSessionCount > 1 ? 's' : ''} completed today
+                    </Text>
+                  </View>
+                )}
+
+                <View style={s.btnRow}>
+                  {pomState === 'idle' ? (
+                    <>
+                      <Button title="Start Focus" onPress={startPomodoro} style={{ flex: 1 }} />
+                      <Button
+                        title="Break"
+                        variant="secondary"
+                        onPress={() => {
+                          setPomState('break');
+                          setActiveTimer('pomodoro', settings.pomodoroBreakTime * 60);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </>
+                  ) : (
+                    <Button title="Pause" variant="secondary" onPress={pausePomodoro} style={{ flex: 1 }} />
+                  )}
+                  <Button title="Reset" variant="ghost" onPress={resetPomodoro} style={{ flex: 1 }} />
+                </View>
+
+                <SectionHeader title="Session History" />
+                <View style={s.sortRow}>
+                  {(['recent', 'longest'] as const).map(opt => (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => setPomSort(opt)}
+                      style={{
+                        paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+                        borderRadius: BorderRadius.full, borderWidth: 1,
+                        backgroundColor: pomSort === opt ? colors.accentLight : 'transparent',
+                        borderColor: pomSort === opt ? colors.accent : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: pomSort === opt ? colors.accent : colors.textSecondary, fontSize: FontSize.sm }}>
+                        {opt === 'recent' ? 'Most Recent' : 'Longest First'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {sortedHistory.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.md }}>
+                    No sessions yet. Start your first focus block.
+                  </Text>
+                ) : (
+                  sortedHistory.map(session => (
+                    <View key={session.id} style={[s.historyItem, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                      <View>
+                        <Text style={{ color: colors.text, fontWeight: '600', fontSize: FontSize.sm }}>
+                          {session.duration} min session
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
+                          {new Date(session.startTime).toLocaleDateString()} · {session.breakActivity || 'No break logged'}
+                        </Text>
+                      </View>
+                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{session.duration}m</Text>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+
+            {/* ── DETOX TAB ─────────────────────────────────────────── */}
+            {activeTab === 'detox' && (
+              <>
+                <SectionHeader title="Phone Detox" subtitle="Intentional disconnection" />
+
+                <SectionHeader title="Set Duration" />
+                <View style={s.durationRow}>
+                  {[
+                    { label: '30 min', secs: 1800 },
+                    { label: '1 hour', secs: 3600 },
+                    { label: '2 hours', secs: 7200 },
+                    { label: '4 hours', secs: 14400 },
+                  ].map(opt => (
+                    <TouchableOpacity
+                      key={opt.label}
+                      onPress={() => setDetoxTotalSeconds(opt.secs)}
+                      style={{
+                        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+                        borderRadius: BorderRadius.sm, borderWidth: 1,
+                        backgroundColor: detoxTotalSeconds === opt.secs ? colors.accentLight : 'transparent',
+                        borderColor: detoxTotalSeconds === opt.secs ? colors.accent : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: detoxTotalSeconds === opt.secs ? colors.accent : colors.text, fontWeight: '600' }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                  <TextInput
+                    style={[s.input, { flex: 1, marginBottom: 0 }]}
+                    value={detoxCustom}
+                    onChangeText={setDetoxCustom}
+                    placeholder="Custom minutes"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                  />
+                  <Button
+                    title="Set"
+                    variant="secondary"
+                    size="small"
+                    onPress={() => {
+                      const mins = parseInt(detoxCustom);
+                      if (!isNaN(mins) && mins > 0) setDetoxTotalSeconds(mins * 60);
+                    }}
+                  />
+                </View>
+
+                <View style={{ alignItems: 'center', marginVertical: Spacing.md }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.sm }}>
+                    Selected: {Math.floor(detoxTotalSeconds / 60)} minutes
+                    {' · '}
+                    Earn {Math.floor(detoxTotalSeconds / 1800)} point{Math.floor(detoxTotalSeconds / 1800) !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+
+                <Button
+                  title="Begin Detox"
+                  size="large"
+                  onPress={startDetox}
+                  style={{ marginBottom: Spacing.lg }}
+                />
+
+                {/* Detox History */}
+                <SectionHeader title="Past Sessions" />
+                {detoxHistory.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.md }}>
+                    No detox sessions yet.
+                  </Text>
+                ) : (
+                  detoxHistory.slice(0, 10).map(session => (
+                    <View key={session.id} style={[s.historyItem, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                      <View>
+                        <Text style={{ color: colors.text, fontWeight: '600', fontSize: FontSize.sm }}>
+                          {session.duration} min detox
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
+                          {new Date(session.startTime).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.md }}>
+                          +{session.pointsEarned}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>pts</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }

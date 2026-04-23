@@ -10,7 +10,6 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -20,7 +19,12 @@ import LineGraph from '../../components/LineGraph';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry } from '../../utils/types';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
+import { getData, setData } from '../../utils/storage';
+
+type DashboardTab = 'habits' | 'calendar' | 'journals';
+// Mobile-responsive day labels (short on small screens, full on larger)
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_LABELS_SHORT = ['S', 'M', 'T', 'W', 'Th', 'F', 'Sa'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -171,6 +175,7 @@ export default function DashboardScreen() {
     removeCalendarEvent,
     removeHabit,
     addHabit,
+    updateHabit,
   } = useApp();
 
   const today = getToday();
@@ -216,30 +221,52 @@ export default function DashboardScreen() {
   };
 
   // ── Stats / Chart state ────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<DashboardTab>('habits');
   const [chartTab, setChartTab] = useState<'Week' | 'Month' | 'Year'>('Week');
   const [bonusEarnedToday, setBonusEarnedToday] = useState(false);
   const [lastBonusDate, setLastBonusDate] = useState<string | null>(null);
 
-  // Reset bonus state when day changes
+  // Reset bonus state when day changes (fixed to handle edge cases at midnight)
+  // Uses persistent timestamp instead of just date string to handle app restarts
   useEffect(() => {
-    // Initialize lastBonusDate on first load
-    if (lastBonusDate === null) {
-      setLastBonusDate(today);
+    const resetBonusIfDateChanged = async () => {
+      try {
+        // Load last bonus date from storage
+        const stored = await getData<string>('bonus_last_reset_date');
 
-      // Check if all habits are already completed (e.g., after refresh)
-      const goodHabits = habits.filter(h => h.type === 'good');
-      const completedToday = goodHabits.filter(h => h.completedDates.includes(today)).length;
-      const allCompletedToday = completedToday === goodHabits.length && goodHabits.length > 0;
+        // If no stored date or date has changed, reset bonus
+        if (!stored || stored !== today) {
+          // Save current date to storage for persistence across app restarts
+          await setData('bonus_last_reset_date', today);
+          setLastBonusDate(today);
+          setBonusEarnedToday(false);
+        } else {
+          // Same day, check if bonus should be set based on completed habits
+          const goodHabits = habits.filter(h => h.type === 'good');
+          const completedToday = goodHabits.filter(h => h.completedDates.includes(today)).length;
+          const allCompletedToday = completedToday === goodHabits.length && goodHabits.length > 0;
 
-      if (allCompletedToday) {
-        setBonusEarnedToday(true);
+          setBonusEarnedToday(allCompletedToday);
+          setLastBonusDate(today);
+        }
+      } catch (err) {
+        // Fallback to non-persisted logic if storage fails
+        if (lastBonusDate === null) {
+          setLastBonusDate(today);
+          const goodHabits = habits.filter(h => h.type === 'good');
+          const completedToday = goodHabits.filter(h => h.completedDates.includes(today)).length;
+          if (completedToday === goodHabits.length && goodHabits.length > 0) {
+            setBonusEarnedToday(true);
+          }
+        } else if (lastBonusDate !== today) {
+          setLastBonusDate(today);
+          setBonusEarnedToday(false);
+        }
       }
-    } else if (lastBonusDate !== today) {
-      // Day has changed, reset bonus
-      setLastBonusDate(today);
-      setBonusEarnedToday(false);
-    }
-  }, [today, lastBonusDate]);
+    };
+
+    resetBonusIfDateChanged();
+  }, [today, habits]);
 
   const weeklyData = useMemo(() => buildWeeklyData(habits), [habits]);
   const monthlyData = useMemo(() => buildMonthlyData(habits), [habits]);
@@ -438,6 +465,9 @@ export default function DashboardScreen() {
   const [newHabitName, setNewHabitName] = useState('');
   const [newHabitType, setNewHabitType] = useState<'good' | 'bad'>('good');
   const [newHabitDescription, setNewHabitDescription] = useState('');
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editHabitName, setEditHabitName] = useState('');
+  const [editHabitType, setEditHabitType] = useState<'good' | 'bad'>('good');
 
   function handleAddHabit() {
     if (!newHabitName.trim()) return;
@@ -462,630 +492,756 @@ export default function DashboardScreen() {
 
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
-  const contentPadding = desktop ? Spacing.lg : Spacing.md;
+  const contentPadding = desktop ? Spacing.md : Spacing.sm;
 
-  // Split-pane layout for desktop
+  // 3-column responsive layout (desktop) + tab-based layout (mobile/tablet)
   const mainContent = desktop ? (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingBottom: Spacing.xxl }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={{ flexDirection: 'row' }}>
-        {/* LEFT PANEL: Stats & Progress */}
-        <View
-          style={[styles.leftPanel, { borderRightWidth: 1, borderRightColor: colors.border, padding: contentPadding }]}
-        >
-      {/* ── STATS SECTION ───────────────────────────────────────────────── */}
-      <SectionHeader title="Dashboard" subtitle={`Today is ${formatDisplayDate(today)}`} />
-
-      {/* Stat cards row */}
-      <View style={styles.statRow}>
-        <StatCard label="XP" value={stats.xp} accent={colors.accent} />
-        <StatCard label="Level" value={stats.level} accent={colors.success} />
-        <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
-      </View>
-
-      {/* Chart tabs */}
-      <Card style={styles.chartCard}>
-        <View style={styles.tabRow}>
-          {(['Week', 'Month', 'Year'] as const).map(tab => (
-            <TouchableOpacity
-              key={tab}
-              onPress={() => setChartTab(tab)}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary },
-                ]}
-              >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-          Good-habit completion %
-        </Text>
-        <View style={[styles.graphContainer, { marginLeft: -Spacing.md, marginRight: -Spacing.md, marginBottom: -Spacing.md, marginTop: Spacing.sm }]}>
-          <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={Spacing.md} />
-        </View>
-      </Card>
-
-
-      {/* ── CALENDAR SECTION ────────────────────────────────────────────── */}
-      <SectionHeader title="Calendar" subtitle="Your schedule at a glance" />
-
-      <Card>
-        {/* Month nav */}
-        <View style={styles.calHeader}>
-          <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
-            <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
-          </TouchableOpacity>
-          <Text style={[styles.calMonthLabel, { color: colors.text }]}>
-            {MONTH_NAMES[calMonth]} {calYear}
-          </Text>
-          <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
-            <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
-          </TouchableOpacity>
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
+      {/* ━━ LEFT COLUMN: HABITS (Stats + Habits) ━━ */}
+      <ScrollView
+        style={[styles.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]}
+        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Column Header */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
+          <SectionHeader title="Habits" subtitle={`${goodHabits.length} good · ${badHabits.length} bad`} />
         </View>
 
-        {/* Day labels */}
-        <View style={styles.calDayLabels}>
-          {DAY_LABELS.map(d => (
-            <Text key={d} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
-          ))}
-        </View>
-
-        {/* Day grid */}
-        <View style={styles.calGrid}>
-          {/* Empty cells for offset */}
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <View key={`empty-${i}`} style={styles.calCell} />
-          ))}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isToday = dateStr === today;
-            const hasEvent = eventDates.has(dateStr);
-            const isSelected = selectedDay === dateStr;
-            return (
-              <TouchableOpacity
-                key={day}
-                onPress={() => setSelectedDay(isSelected ? null : dateStr)}
-                style={[
-                  styles.calCell,
-                  isToday && { backgroundColor: colors.accentLight },
-                  isSelected && { backgroundColor: colors.accent },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.calDayNum,
-                    { color: isSelected ? '#1A1A1A' : isToday ? colors.accent : colors.text },
-                  ]}
-                >
-                  {day}
-                </Text>
-                {hasEvent && (
-                  <View style={[styles.eventDot, { backgroundColor: isSelected ? '#1A1A1A' : colors.accent }]} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Selected day events */}
-        {selectedDay && (
-          <View style={[styles.selectedDayPanel, { borderTopColor: colors.border }]}>
-            <Text style={[styles.selectedDayTitle, { color: colors.text }]}>
-              {formatDisplayDate(selectedDay)}
-            </Text>
-            {selectedDayEvents.length === 0 ? (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                No events — tap "Add Event" to create one.
-              </Text>
-            ) : (
-              selectedDayEvents.map(evt => (
-                <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
-                  <View style={styles.eventRowInfo}>
-                    {evt.time && (
-                      <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>
-                    )}
-                    <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
-                    <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
+        {/* Stats row */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
+          <View style={styles.statRow}>
+            <StatCard label="XP" value={stats.xp} accent={colors.accent} />
+            <StatCard label="Level" value={stats.level} accent={colors.success} />
+            <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
           </View>
-        )}
+        </View>
 
-        <Button
-          title="+ Add Event"
-          variant="ghost"
-          size="small"
-          style={styles.addEventBtn}
-          onPress={() => {
-            setNewEventDate(selectedDay ?? today);
-            setShowAddEventModal(true);
-          }}
-        />
-      </Card>
-
-      <View style={styles.bottomPad} />
-          </View>
-
-          {/* RIGHT PANEL: Habit Checklist & Quick Actions */}
-          <View
-            style={[styles.rightPanel, { padding: contentPadding }]}
-          >
-          {/* Quick Stats */}
-          <Card style={styles.quickStatsCard}>
-            <Text style={[styles.subsectionLabel, { color: colors.accent, marginBottom: Spacing.md }]}>
-              Today's Progress
-            </Text>
-            <View style={styles.quickStatRow}>
-              <View style={styles.quickStatItem}>
-                <Text style={[styles.quickStatValue, { color: colors.success }]}>
-                  {completedGoodHabits.length}/{goodHabits.length}
-                </Text>
-                <Text style={[styles.quickStatLabel, { color: colors.textSecondary }]}>
-                  Good Habits
-                </Text>
-              </View>
-              <View style={styles.quickStatItem}>
-                <Text style={[styles.quickStatValue, { color: colors.warning }]}>
-                  {stats.currentStreak}d
-                </Text>
-                <Text style={[styles.quickStatLabel, { color: colors.textSecondary }]}>
-                  Streak
-                </Text>
-              </View>
-              <View style={styles.quickStatItem}>
-                <Text style={[styles.quickStatValue, { color: colors.accent }]}>
-                  {stats.xp}
-                </Text>
-                <Text style={[styles.quickStatLabel, { color: colors.textSecondary }]}>
-                  XP
-                </Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Habit Checklist Header */}
+        {/* Good Habits */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: Spacing.xs }}>
           <View style={styles.habitChecklistHeader}>
             <View style={styles.habitChecklistHeaderLeft}>
-              <SectionHeader title="Habits" subtitle="Today's checklist" />
+              <Text style={[styles.subsectionLabel, { color: colors.success }]}>Good Habits</Text>
             </View>
-            <Button
-              title="Edit"
-              variant="ghost"
-              size="small"
-              onPress={() => setShowEditHabits(true)}
-            />
+            <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
           </View>
-
-          {/* Habit Cards */}
-          <View style={[styles.habitCardsRow, { flexDirection: 'column', marginBottom: Spacing.lg }]}>
-            {/* Good Habits */}
-            <Card>
-              <Text style={[styles.subsectionLabel, { color: colors.success }]}>
-                Good Habits
-              </Text>
-              {goodHabits.length === 0 && (
-                <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                  No good habits yet. Add some!
-                </Text>
-              )}
-              {goodHabits.map(habit => {
-                const done = habit.completedDates.includes(today);
-                return (
-                  <View
-                    key={habit.id}
-                    style={[styles.habitRow, { borderBottomColor: colors.border }]}
-                  >
-                    <TouchableOpacity
-                      onPress={() => handleToggleHabit(habit.id, today)}
-                      style={[
-                        styles.checkbox,
-                        {
-                          borderColor: colors.success,
-                          backgroundColor: done ? colors.success : 'transparent',
-                        },
-                      ]}
-                    >
-                      {done && <Text style={styles.checkmark}>✓</Text>}
-                    </TouchableOpacity>
-                    <View style={styles.habitInfo}>
-                      <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                      <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                        🔥 {habit.streak} day streak
-                      </Text>
-                    </View>
-                    {done && (
-                      <TouchableOpacity
-                        onPress={() => openJournalForm(habit.id, habit.name)}
-                        style={[styles.whyBtn, { borderColor: colors.accent }]}
-                      >
-                        <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })}
-            </Card>
-
-            {/* Bad Habits */}
-            <Card>
-              <Text style={[styles.subsectionLabel, { color: colors.danger }]}>
-                Bad Habits to Avoid
-              </Text>
-              {badHabits.length === 0 && (
-                <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                  No bad habits tracked yet.
-                </Text>
-              )}
-              {badHabits.map(habit => {
-                const avoided = habit.completedDates.includes(today);
-                return (
-                  <View
-                    key={habit.id}
-                    style={[styles.habitRow, { borderBottomColor: colors.border }]}
-                  >
-                    <TouchableOpacity
-                      onPress={() => handleToggleHabit(habit.id, today)}
-                      style={[
-                        styles.checkbox,
-                        {
-                          borderColor: avoided ? colors.danger : colors.textSecondary,
-                          backgroundColor: avoided ? colors.danger : 'transparent',
-                        },
-                      ]}
-                    >
-                      {avoided && <Text style={styles.checkmark}>✗</Text>}
-                    </TouchableOpacity>
-                    <View style={styles.habitInfo}>
-                      <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                      <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                        {avoided ? '⚠️ Marked today' : `${habit.streak} days avoided`}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => openRelapseForm(habit.id, habit.name)}
-                      style={[styles.relapseBtn, { borderColor: colors.danger }]}
-                    >
-                      <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </Card>
-          </View>
-
-          {/* Real World Wins Section */}
-          <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-              <Text style={[styles.subsectionLabel, { color: colors.success }]}>
-                Real World Wins
-              </Text>
-              <Button
-                title="+ Add"
-                variant="ghost"
-                size="small"
-                onPress={() => setShowAddWin(true)}
-              />
-            </View>
-            {realWorldWins.length === 0 && (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                No wins recorded yet. Celebrate your progress!
-              </Text>
+          <Card style={{ marginBottom: Spacing.md }}>
+            {goodHabits.length === 0 && (
+              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No good habits yet. Add some!</Text>
             )}
-            {realWorldWins.slice(0, 5).map(win => (
-              <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
-                <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
-                <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
-              </View>
-            ))}
-          </Card>
-
-          {/* Relapse Recovery Section */}
-          {relapseLog.length > 0 && (
-            <Card>
-              <Text style={[styles.subsectionLabel, { color: colors.danger, marginBottom: Spacing.md }]}>
-                Relapse Recovery
-              </Text>
-              {relapseLog.slice(0, 3).map(entry => (
-                <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
-                  <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>
-                    {entry.habitName}
-                  </Text>
-                  <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>
-                    Trigger: {entry.trigger}
-                  </Text>
-                  {entry.lesson && (
-                    <Text style={[styles.recoveryLesson, { color: colors.text }]}>
-                      Lesson: {entry.lesson}
+            {goodHabits.map(habit => {
+              const done = habit.completedDates.includes(today);
+              return (
+                <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+                  <TouchableOpacity
+                    onPress={() => handleToggleHabit(habit.id, today)}
+                    style={[
+                      styles.checkbox,
+                      {
+                        borderColor: colors.success,
+                        backgroundColor: done ? colors.success : 'transparent',
+                      },
+                    ]}
+                  >
+                    {done && <Text style={styles.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                  <View style={styles.habitInfo}>
+                    <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                    <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
+                      🔥 {habit.streak} day streak
                     </Text>
-                  )}
-                  <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>
-                    {formatDisplayDate(entry.date)}
-                  </Text>
-                </View>
-              ))}
-            </Card>
-          )}
-
-          {/* Why Journals Section */}
-          {journalEntries.length > 0 && (
-            <Card>
-              <Text style={[styles.subsectionLabel, { color: colors.accent, marginBottom: Spacing.md }]}>
-                Why Journals
-              </Text>
-              {journalEntries.slice(0, 5).map(entry => (
-                <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
-                  <View style={styles.journalEntryHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
-                      <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-                      <TouchableOpacity onPress={() => openJournalEdit(entry)}>
-                        <Ionicons name="pencil-outline" size={18} color={colors.accent} />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
-                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                      </TouchableOpacity>
-                    </View>
                   </View>
-                  <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+                  {done && (
+                    <TouchableOpacity
+                      onPress={() => openJournalForm(habit.id, habit.name)}
+                      style={[styles.whyBtn, { borderColor: colors.accent }]}
+                    >
+                      <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-              ))}
-            </Card>
-          )}
+              );
+            })}
+          </Card>
+        </View>
+
+        {/* Bad Habits */}
+        <View style={{ paddingHorizontal: contentPadding, paddingBottom: contentPadding }}>
+          <View style={styles.habitChecklistHeader}>
+            <View style={styles.habitChecklistHeaderLeft}>
+              <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Bad Habits</Text>
+            </View>
+            <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
           </View>
+          <Card style={{ marginBottom: Spacing.md }}>
+            {badHabits.length === 0 && (
+              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No bad habits tracked yet.</Text>
+            )}
+            {badHabits.map(habit => {
+              const avoided = habit.completedDates.includes(today);
+              return (
+                <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+                  <TouchableOpacity
+                    onPress={() => handleToggleHabit(habit.id, today)}
+                    style={[styles.checkbox, { borderColor: avoided ? colors.danger : colors.textSecondary, backgroundColor: avoided ? colors.danger : 'transparent' }]}
+                  >
+                    {avoided && <Text style={styles.checkmark}>✗</Text>}
+                  </TouchableOpacity>
+                  <View style={styles.habitInfo}>
+                    <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                    <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
+                      {avoided ? '⚠️ Marked today' : `${habit.streak} days avoided`}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
+                    <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </Card>
         </View>
       </ScrollView>
-  ) : (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { padding: contentPadding, paddingBottom: Spacing.xxl }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* ── STATS ─────────────────────────────────────────────────────── */}
-      <SectionHeader title="Dashboard" subtitle={`Today is ${formatDisplayDate(today)}`} />
-      <View style={styles.statRow}>
-        <StatCard label="XP" value={stats.xp} accent={colors.accent} />
-        <StatCard label="Level" value={stats.level} accent={colors.success} />
-        <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
-      </View>
 
-      {/* ── CHART ─────────────────────────────────────────────────────── */}
-      <Card style={styles.chartCard}>
-        <View style={styles.tabRow}>
-          {(['Week', 'Month', 'Year'] as const).map(tab => (
-            <TouchableOpacity
-              key={tab}
-              onPress={() => setChartTab(tab)}
-              style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
-            >
-              <Text style={[styles.tabText, { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary }]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* ━━ MIDDLE COLUMN: CALENDAR (Chart + Calendar) ━━ */}
+      <ScrollView
+        style={[styles.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]}
+        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Column Header */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
+          <SectionHeader title="Calendar" subtitle="Progress & schedule" />
         </View>
-        <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Good-habit completion %</Text>
-        <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginTop: Spacing.sm }]}>
-          <LineGraph data={chartData} labels={chartLabels} />
-        </View>
-      </Card>
 
-      {/* ── HABITS ────────────────────────────────────────────────────── */}
-      <View style={styles.habitChecklistHeader}>
-        <View style={styles.habitChecklistHeaderLeft}>
-          <SectionHeader title="Habits" subtitle="Today's checklist" />
-        </View>
-        <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
-      </View>
-
-      <Card style={{ marginBottom: Spacing.md }}>
-        <Text style={[styles.subsectionLabel, { color: colors.success }]}>Good Habits</Text>
-        {goodHabits.length === 0 && (
-          <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No good habits yet. Add some!</Text>
-        )}
-        {goodHabits.map(habit => {
-          const done = habit.completedDates.includes(today);
-          return (
-            <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-              <TouchableOpacity
-                onPress={() => handleToggleHabit(habit.id, today)}
-                style={[styles.checkbox, { borderColor: colors.success, backgroundColor: done ? colors.success : 'transparent' }]}
-              >
-                {done && <Text style={styles.checkmark}>✓</Text>}
-              </TouchableOpacity>
-              <View style={styles.habitInfo}>
-                <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>🔥 {habit.streak} day streak</Text>
-              </View>
-              {done && (
-                <TouchableOpacity onPress={() => openJournalForm(habit.id, habit.name)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-                  <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+        {/* Chart section */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
+          <Card style={[styles.chartCard, { paddingBottom: Spacing.sm }]}>
+            <View style={styles.tabRow}>
+              {(['Week', 'Month', 'Year'] as const).map(tab => (
+                <TouchableOpacity
+                  key={tab}
+                  onPress={() => setChartTab(tab)}
+                  style={[
+                    styles.tab,
+                    {
+                      backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary },
+                    ]}
+                  >
+                    {tab}
+                  </Text>
                 </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>
+              Good-habit completion %
+            </Text>
+            <View style={[styles.graphContainer, { marginLeft: -Spacing.md, marginRight: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
+              <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={Spacing.md} />
+            </View>
+          </Card>
+        </View>
+
+        {/* Calendar */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: contentPadding }}>
+          <Card>
+            <View style={styles.calHeader}>
+              <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
+                <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
+              </TouchableOpacity>
+              <Text style={[styles.calMonthLabel, { color: colors.text }]}>
+                {MONTH_NAMES[calMonth]} {calYear}
+              </Text>
+              <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
+                <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.calDayLabels}>
+              {(screenWidth < 500 ? DAY_LABELS_SHORT : DAY_LABELS).map((d, i) => (
+                <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
+              ))}
+            </View>
+
+            <View style={styles.calGrid}>
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <View key={`empty-${i}`} style={styles.calCell} />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = dateStr === today;
+                const hasEvent = eventDates.has(dateStr);
+                const isSelected = selectedDay === dateStr;
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    onPress={() => setSelectedDay(isSelected ? null : dateStr)}
+                    style={[
+                      styles.calCell,
+                      isToday && { backgroundColor: colors.accentLight },
+                      isSelected && { backgroundColor: colors.accent },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.calDayNum,
+                        { color: isSelected ? '#1A1A1A' : isToday ? colors.accent : colors.text },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                    {hasEvent && (
+                      <View style={[styles.eventDot, { backgroundColor: isSelected ? '#1A1A1A' : colors.accent }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {selectedDay && (
+              <View style={[styles.selectedDayPanel, { borderTopColor: colors.border }]}>
+                <Text style={[styles.selectedDayTitle, { color: colors.text }]}>
+                  {formatDisplayDate(selectedDay)}
+                </Text>
+                {selectedDayEvents.length === 0 ? (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
+                    No events — tap "Add Event" to create one.
+                  </Text>
+                ) : (
+                  selectedDayEvents.map(evt => (
+                    <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
+                      <View style={styles.eventRowInfo}>
+                        {evt.time && <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>}
+                        <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
+                        <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            <Button
+              title="+ Add Event"
+              variant="ghost"
+              size="small"
+              style={styles.addEventBtn}
+              onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }}
+            />
+          </Card>
+        </View>
+      </ScrollView>
+
+      {/* ━━ RIGHT COLUMN: JOURNALS (Wins + Relapse + Journals) ━━ */}
+      <ScrollView
+        style={[styles.scroll, { flex: 1 }]}
+        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Column Header */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
+          <SectionHeader title="Journals" subtitle="Reflections & wins" />
+        </View>
+
+        {/* Real World Wins */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
+          <Card style={{ marginBottom: Spacing.md }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: winsExpanded ? Spacing.md : 0 }}>
+              <TouchableOpacity onPress={() => setWinsExpanded(!winsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
+                <Text style={[styles.subsectionLabel, { color: colors.success }]}>Real World Wins</Text>
+                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({realWorldWins.length})</Text>
+                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                  {winsExpanded ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {winsExpanded && (
+                <Button title="+ Add" variant="ghost" size="small" onPress={() => setShowAddWin(true)} />
               )}
             </View>
-          );
-        })}
-      </Card>
-
-      <Card style={{ marginBottom: Spacing.md }}>
-        <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Bad Habits to Avoid</Text>
-        {badHabits.length === 0 && (
-          <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No bad habits tracked yet.</Text>
-        )}
-        {badHabits.map(habit => {
-          const avoided = habit.completedDates.includes(today);
-          return (
-            <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-              <TouchableOpacity
-                onPress={() => handleToggleHabit(habit.id, today)}
-                style={[styles.checkbox, { borderColor: avoided ? colors.danger : colors.textSecondary, backgroundColor: avoided ? colors.danger : 'transparent' }]}
-              >
-                {avoided && <Text style={styles.checkmark}>✗</Text>}
-              </TouchableOpacity>
-              <View style={styles.habitInfo}>
-                <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                  {avoided ? '⚠️ Marked today' : `${habit.streak} days avoided`}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
-                <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-      </Card>
-
-      {/* ── CALENDAR ──────────────────────────────────────────────────── */}
-      <SectionHeader title="Calendar" subtitle="Your schedule at a glance" />
-      <Card>
-        <View style={styles.calHeader}>
-          <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
-            <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
-          </TouchableOpacity>
-          <Text style={[styles.calMonthLabel, { color: colors.text }]}>{MONTH_NAMES[calMonth]} {calYear}</Text>
-          <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
-            <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.calDayLabels}>
-          {DAY_LABELS.map(d => (
-            <Text key={d} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
-          ))}
-        </View>
-        <View style={styles.calGrid}>
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <View key={`empty-${i}`} style={styles.calCell} />
-          ))}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isToday = dateStr === today;
-            const hasEvent = eventDates.has(dateStr);
-            const isSelected = selectedDay === dateStr;
-            return (
-              <TouchableOpacity
-                key={day}
-                style={[
-                  styles.calCell,
-                  isToday && { backgroundColor: colors.accentLight },
-                  isSelected && { borderWidth: 1, borderColor: colors.accent },
-                ]}
-                onPress={() => setSelectedDay(isSelected ? null : dateStr)}
-              >
-                <Text style={{ color: isToday ? colors.accent : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
-                  {day}
-                </Text>
-                {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent, marginTop: 2 }} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        {selectedDay && (
-          <View style={{ marginTop: Spacing.md }}>
-            <Text style={{ color: colors.accent, fontWeight: '700', marginBottom: Spacing.xs }}>{formatDisplayDate(selectedDay)}</Text>
-            {selectedDayEvents.length === 0 ? (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No events — tap "Add Event" to create one.</Text>
-            ) : (
-              selectedDayEvents.map(evt => (
-                <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
-                  <View style={styles.eventRowInfo}>
-                    {evt.time && <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>}
-                    <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
+            {winsExpanded && (
+              <>
+                {realWorldWins.length === 0 && (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins recorded yet. Celebrate your progress!</Text>
+                )}
+                {realWorldWins.slice(0, 3).map(win => (
+                  <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
+                    <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
+                    <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
-                    <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
+                ))}
+                {realWorldWins.length > 3 && (
+                  <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                      View All Wins ({realWorldWins.length})
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              ))
+                )}
+              </>
             )}
-          </View>
-        )}
-        <Button title="+ Add Event" variant="ghost" size="small" style={styles.addEventBtn}
-          onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }} />
-      </Card>
-
-      {/* ── REAL WORLD WINS ───────────────────────────────────────────── */}
-      <Card style={{ marginTop: Spacing.md }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-          <Text style={[styles.subsectionLabel, { color: colors.success }]}>Real World Wins</Text>
-          <Button title="+ Add" variant="ghost" size="small" onPress={() => setShowAddWin(true)} />
+          </Card>
         </View>
-        {realWorldWins.length === 0 && (
-          <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins recorded yet. Celebrate your progress!</Text>
-        )}
-        {realWorldWins.slice(0, 5).map(win => (
-          <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
-            <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
-            <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
-          </View>
+
+        {/* Relapse Recovery */}
+        <View style={{ paddingHorizontal: contentPadding, paddingBottom: Spacing.xs }}>
+          <Card style={{ marginBottom: Spacing.md }}>
+            <TouchableOpacity onPress={() => setRelapseExpanded(!relapseExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: relapseExpanded ? Spacing.md : 0 }}>
+              <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Relapse Recovery</Text>
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({relapseLog.length})</Text>
+              <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                {relapseExpanded ? '▲' : '▼'}
+              </Text>
+            </TouchableOpacity>
+            {relapseExpanded && (
+              <>
+                {relapseLog.length === 0 ? (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
+                ) : (
+                  <>
+                    {relapseLog.slice(0, 2).map(entry => (
+                      <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
+                        <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
+                        <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
+                        {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
+                        <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
+                      </View>
+                    ))}
+                    {relapseLog.length > 2 && (
+                      <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                          View History ({relapseLog.length})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </Card>
+        </View>
+
+        {/* Why Journals */}
+        <View style={{ paddingHorizontal: contentPadding, paddingBottom: contentPadding }}>
+          <Card>
+            <TouchableOpacity onPress={() => setJournalExpanded(!journalExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: journalExpanded ? Spacing.md : 0 }}>
+              <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Why Journals</Text>
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({journalEntries.length})</Text>
+              <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                {journalExpanded ? '▲' : '▼'}
+              </Text>
+            </TouchableOpacity>
+            {journalExpanded && (
+              <>
+                {journalEntries.length === 0 ? (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No journal entries yet. Tap "Why?" after completing a habit.</Text>
+                ) : (
+                  <>
+                    {journalEntries.slice(0, 2).map(entry => (
+                      <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
+                        <View style={styles.journalEntryHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
+                            <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                            <TouchableOpacity onPress={() => openJournalEdit(entry)}>
+                              <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
+                              <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+                      </View>
+                    ))}
+                    {journalEntries.length > 2 && (
+                      <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                          View All ({journalEntries.length})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </Card>
+        </View>
+      </ScrollView>
+    </View>
+  ) : (
+    // ━━━━━━━━ MOBILE/TABLET: TAB-BASED LAYOUT ━━━━━━━━
+    <>
+      {/* Tab Bar */}
+      <View
+        style={{
+          flexDirection: 'row',
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+      >
+        {(['habits', 'calendar', 'journals'] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            onPress={() => setActiveTab(tab)}
+            style={{
+              flex: 1,
+              paddingVertical: Spacing.md,
+              borderBottomWidth: activeTab === tab ? 2 : 0,
+              borderBottomColor: colors.accent,
+            }}
+          >
+            <Text
+              style={{
+                textAlign: 'center',
+                color: activeTab === tab ? colors.accent : colors.textSecondary,
+                fontWeight: activeTab === tab ? '700' : '400',
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
         ))}
-      </Card>
+      </View>
 
-      {/* ── RELAPSE RECOVERY ──────────────────────────────────────────── */}
-      <Card style={{ marginTop: Spacing.md }}>
-        <Text style={[styles.subsectionLabel, { color: colors.danger, marginBottom: Spacing.md }]}>Relapse Recovery</Text>
-        {relapseLog.length === 0 ? (
-          <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
-        ) : (
-          relapseLog.slice(0, 3).map(entry => (
-            <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
-              <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
-              <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
-              {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
-              <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
+      {/* Content */}
+      <ScrollView
+        style={[styles.scroll, { backgroundColor: colors.background }]}
+        contentContainerStyle={[styles.content, { padding: contentPadding, paddingBottom: Spacing.xxl }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ━━ HABITS TAB ━━ */}
+        {activeTab === 'habits' && (
+          <>
+            <View style={styles.statRow}>
+              <StatCard label="XP" value={stats.xp} accent={colors.accent} />
+              <StatCard label="Level" value={stats.level} accent={colors.success} />
+              <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
             </View>
-          ))
-        )}
-      </Card>
 
-      {/* ── WHY JOURNALS ──────────────────────────────────────────────── */}
-      <Card style={{ marginTop: Spacing.md }}>
-        <Text style={[styles.subsectionLabel, { color: colors.accent, marginBottom: Spacing.md }]}>Why Journals</Text>
-        {journalEntries.length === 0 ? (
-          <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No journal entries yet. Tap "Why?" after completing a habit.</Text>
-        ) : (
-          journalEntries.slice(0, 5).map(entry => (
-            <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
-              <View style={styles.journalEntryHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
-                  <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+            {/* Good Habits */}
+            <View style={{ marginTop: Spacing.md, marginBottom: Spacing.sm }}>
+              <View style={styles.habitChecklistHeader}>
+                <View style={styles.habitChecklistHeaderLeft}>
+                  <Text style={[styles.subsectionLabel, { color: colors.success }]}>Good Habits</Text>
                 </View>
-                <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-                  <TouchableOpacity onPress={() => openJournalEdit(entry)}>
-                    <Ionicons name="pencil-outline" size={18} color={colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  </TouchableOpacity>
-                </View>
+                <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
               </View>
-              <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+              <Card style={{ marginBottom: Spacing.md }}>
+                {goodHabits.length === 0 && (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No good habits yet. Add some!</Text>
+                )}
+                {goodHabits.map(habit => {
+                  const done = habit.completedDates.includes(today);
+                  return (
+                    <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+                      <TouchableOpacity
+                        onPress={() => handleToggleHabit(habit.id, today)}
+                        style={[
+                          styles.checkbox,
+                          {
+                            borderColor: colors.success,
+                            backgroundColor: done ? colors.success : 'transparent',
+                          },
+                        ]}
+                      >
+                        {done && <Text style={styles.checkmark}>✓</Text>}
+                      </TouchableOpacity>
+                      <View style={styles.habitInfo}>
+                        <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                        <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
+                          🔥 {habit.streak} day streak
+                        </Text>
+                      </View>
+                      {done && (
+                        <TouchableOpacity
+                          onPress={() => openJournalForm(habit.id, habit.name)}
+                          style={[styles.whyBtn, { borderColor: colors.accent }]}
+                        >
+                          <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </Card>
             </View>
-          ))
+
+            {/* Bad Habits */}
+            <View style={{ marginBottom: Spacing.md }}>
+              <View style={styles.habitChecklistHeader}>
+                <View style={styles.habitChecklistHeaderLeft}>
+                  <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Bad Habits</Text>
+                </View>
+                <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
+              </View>
+              <Card style={{ marginBottom: Spacing.md }}>
+                {badHabits.length === 0 && (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No bad habits tracked yet.</Text>
+                )}
+                {badHabits.map(habit => {
+                  const avoided = habit.completedDates.includes(today);
+                  return (
+                    <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+                      <TouchableOpacity
+                        onPress={() => handleToggleHabit(habit.id, today)}
+                        style={[styles.checkbox, { borderColor: avoided ? colors.danger : colors.textSecondary, backgroundColor: avoided ? colors.danger : 'transparent' }]}
+                      >
+                        {avoided && <Text style={styles.checkmark}>✗</Text>}
+                      </TouchableOpacity>
+                      <View style={styles.habitInfo}>
+                        <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                        <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
+                          {avoided ? '⚠️ Marked today' : `${habit.streak} days avoided`}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
+                        <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </Card>
+            </View>
+          </>
         )}
-      </Card>
-    </ScrollView>
+
+        {/* ━━ CALENDAR TAB ━━ */}
+        {activeTab === 'calendar' && (
+          <>
+            {/* Graph */}
+            <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
+              <View style={styles.tabRow}>
+                {(['Week', 'Month', 'Year'] as const).map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setChartTab(tab)}
+                    style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
+                  >
+                    <Text style={[styles.tabText, { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary }]}>
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Good-habit completion %</Text>
+              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
+                <LineGraph data={chartData} labels={chartLabels} />
+              </View>
+            </Card>
+
+            {/* Calendar */}
+            <Card>
+              <View style={styles.calHeader}>
+                <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
+                  <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
+                </TouchableOpacity>
+                <Text style={[styles.calMonthLabel, { color: colors.text }]}>{MONTH_NAMES[calMonth]} {calYear}</Text>
+                <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
+                  <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.calDayLabels}>
+                {(screenWidth < 500 ? DAY_LABELS_SHORT : DAY_LABELS).map((d, i) => (
+                  <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
+                ))}
+              </View>
+              <View style={styles.calGrid}>
+                {Array.from({ length: firstDay }).map((_, i) => (
+                  <View key={`empty-${i}`} style={styles.calCell} />
+                ))}
+                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                  const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const isToday = dateStr === today;
+                  const hasEvent = eventDates.has(dateStr);
+                  const isSelected = selectedDay === dateStr;
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.calCell,
+                        isToday && { backgroundColor: colors.accentLight },
+                        isSelected && { borderWidth: 1, borderColor: colors.accent },
+                      ]}
+                      onPress={() => setSelectedDay(isSelected ? null : dateStr)}
+                    >
+                      <Text style={{ color: isToday ? colors.accent : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
+                        {day}
+                      </Text>
+                      {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent, marginTop: 2 }} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {selectedDay && (
+                <View style={{ marginTop: Spacing.md }}>
+                  <Text style={{ color: colors.accent, fontWeight: '700', marginBottom: Spacing.xs }}>{formatDisplayDate(selectedDay)}</Text>
+                  {selectedDayEvents.length === 0 ? (
+                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No events — tap "Add Event" to create one.</Text>
+                  ) : (
+                    selectedDayEvents.map(evt => (
+                      <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
+                        <View style={styles.eventRowInfo}>
+                          {evt.time && <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>}
+                          <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
+                          <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+              <Button title="+ Add Event" variant="ghost" size="small" style={styles.addEventBtn}
+                onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }} />
+            </Card>
+          </>
+        )}
+
+        {/* ━━ JOURNALS TAB ━━ */}
+        {activeTab === 'journals' && (
+          <>
+            <Card style={{ marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: winsExpanded ? Spacing.md : 0 }}>
+                <TouchableOpacity onPress={() => setWinsExpanded(!winsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
+                  <Text style={[styles.subsectionLabel, { color: colors.success }]}>Real World Wins</Text>
+                  <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({realWorldWins.length})</Text>
+                  <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                    {winsExpanded ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+                {winsExpanded && (
+                  <Button title="+ Add" variant="ghost" size="small" onPress={() => setShowAddWin(true)} />
+                )}
+              </View>
+              {winsExpanded && (
+                <>
+                  {realWorldWins.length === 0 && (
+                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins recorded yet. Celebrate your progress!</Text>
+                  )}
+                  {realWorldWins.slice(0, 3).map(win => (
+                    <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
+                      <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
+                      <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
+                    </View>
+                  ))}
+                  {realWorldWins.length > 3 && (
+                    <TouchableOpacity
+                      style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
+                    >
+                      <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                        View All Wins ({realWorldWins.length})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </Card>
+
+            <Card style={{ marginBottom: Spacing.md }}>
+              <TouchableOpacity onPress={() => setRelapseExpanded(!relapseExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: relapseExpanded ? Spacing.md : 0 }}>
+                <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Relapse Recovery</Text>
+                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({relapseLog.length})</Text>
+                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                  {relapseExpanded ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {relapseExpanded && (
+                <>
+                  {relapseLog.length === 0 ? (
+                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
+                  ) : (
+                    <>
+                      {relapseLog.slice(0, 2).map(entry => (
+                        <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
+                          <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
+                          <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
+                          {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
+                          <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
+                        </View>
+                      ))}
+                      {relapseLog.length > 2 && (
+                        <TouchableOpacity
+                          style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
+                        >
+                          <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                            View History ({relapseLog.length})
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </Card>
+
+            <Card>
+              <TouchableOpacity onPress={() => setJournalExpanded(!journalExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: journalExpanded ? Spacing.md : 0 }}>
+                <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Why Journals</Text>
+                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({journalEntries.length})</Text>
+                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                  {journalExpanded ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {journalExpanded && (
+                <>
+                  {journalEntries.length === 0 ? (
+                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No journal entries yet. Tap "Why?" after completing a habit.</Text>
+                  ) : (
+                    <>
+                      {journalEntries.slice(0, 2).map(entry => (
+                        <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
+                          <View style={styles.journalEntryHeader}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
+                              <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                              <TouchableOpacity onPress={() => openJournalEdit(entry)}>
+                                <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
+                                <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+                        </View>
+                      ))}
+                      {journalEntries.length > 2 && (
+                        <TouchableOpacity
+                          style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
+                        >
+                          <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
+                            View All ({journalEntries.length})
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </Card>
+          </>
+        )}
+      </ScrollView>
+    </>
   );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RETURN (Render with modals)
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -1109,6 +1265,7 @@ export default function DashboardScreen() {
               value={newEventTitle}
               onChangeText={setNewEventTitle}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              accessibilityLabel="Event title input"
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Date (YYYY-MM-DD)</Text>
@@ -1118,6 +1275,7 @@ export default function DashboardScreen() {
               value={newEventDate}
               onChangeText={setNewEventDate}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              accessibilityLabel="Event date input, format YYYY-MM-DD"
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Time (HH:MM, optional)</Text>
@@ -1127,6 +1285,7 @@ export default function DashboardScreen() {
               value={newEventTime}
               onChangeText={setNewEventTime}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              accessibilityLabel="Event time input, optional, format HH:MM"
             />
 
             <View style={styles.formButtonRow}>
@@ -1172,6 +1331,7 @@ export default function DashboardScreen() {
               multiline
               numberOfLines={4}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border, minHeight: 100, textAlignVertical: 'top' }]}
+              accessibilityLabel="Journal entry textarea, describe what motivated you and how it made you feel"
             />
             <View style={styles.formButtonRow}>
               <Button
@@ -1218,6 +1378,7 @@ export default function DashboardScreen() {
               value={relapseTrigger}
               onChangeText={setRelapseTrigger}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              accessibilityLabel="Relapse trigger input, describe what caused the relapse"
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>What did you learn? *</Text>
@@ -1229,6 +1390,7 @@ export default function DashboardScreen() {
               multiline
               numberOfLines={3}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border, minHeight: 80, textAlignVertical: 'top' }]}
+              accessibilityLabel="Relapse lesson textarea, describe what you learned from this relapse"
             />
 
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Micro-habit to retry (optional)</Text>
@@ -1238,6 +1400,7 @@ export default function DashboardScreen() {
               value={relapseMicro}
               onChangeText={setRelapseMicro}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              accessibilityLabel="Micro-habit input, optional, describe a tiny step to try next time"
             />
 
             <View style={styles.formButtonRow}>
@@ -1279,6 +1442,7 @@ export default function DashboardScreen() {
               multiline
               numberOfLines={3}
               style={[styles.textInput, { color: colors.text, borderColor: colors.border, minHeight: 80, textAlignVertical: 'top' }]}
+              accessibilityLabel="Real world win textarea, describe what you accomplished"
             />
             <View style={styles.formButtonRow}>
               <Button
@@ -1318,7 +1482,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowEditHabits(false)}
                 style={styles.editHabitsCloseBtn}
               >
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Text style={{ color: colors.text, fontSize: 24 }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -1359,10 +1523,14 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                   <TouchableOpacity
-                    onPress={() => removeHabit(habit.id)}
+                    onPress={() => {
+                      setEditingHabitId(habit.id);
+                      setEditHabitName(habit.name);
+                      setEditHabitType(habit.type);
+                    }}
                     style={styles.deleteHabitBtn}
                   >
-                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -1378,6 +1546,7 @@ export default function DashboardScreen() {
                   value={newHabitName}
                   onChangeText={setNewHabitName}
                   style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+                  accessibilityLabel="Habit name input"
                 />
 
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Type</Text>
@@ -1405,6 +1574,7 @@ export default function DashboardScreen() {
                   onChangeText={setNewHabitDescription}
                   multiline
                   style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+                  accessibilityLabel="Habit description input, optional"
                 />
 
                 <Button
@@ -1415,6 +1585,71 @@ export default function DashboardScreen() {
                   style={styles.saveHabitBtn}
                 />
               </View>
+
+              {/* Edit Habit form */}
+              {editingHabitId && (
+                <View style={[styles.addHabitForm, { borderTopColor: colors.border, marginTop: Spacing.lg }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                    <Text style={[styles.addHabitFormTitle, { color: colors.text }]}>Edit Habit</Text>
+                    <TouchableOpacity onPress={() => setEditingHabitId(null)}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 20 }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Name *</Text>
+                  <TextInput
+                    placeholder="e.g. Morning run"
+                    placeholderTextColor={colors.textSecondary}
+                    value={editHabitName}
+                    onChangeText={setEditHabitName}
+                    style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+                  />
+
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Type</Text>
+                  <View style={styles.habitTypeToggleRow}>
+                    <Text style={[styles.habitTypeLabel, { color: editHabitType === 'good' ? colors.success : colors.textSecondary }]}>
+                      Good
+                    </Text>
+                    <Switch
+                      value={editHabitType === 'bad'}
+                      onValueChange={val => setEditHabitType(val ? 'bad' : 'good')}
+                      trackColor={{ false: colors.success, true: colors.danger }}
+                      thumbColor="#FFFFFF"
+                      style={styles.habitTypeSwitch}
+                    />
+                    <Text style={[styles.habitTypeLabel, { color: editHabitType === 'bad' ? colors.danger : colors.textSecondary }]}>
+                      Bad
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md }}>
+                    <Button
+                      title="Update"
+                      variant="primary"
+                      size="small"
+                      onPress={() => {
+                        if (editHabitName.trim() && editingHabitId) {
+                          updateHabit(editingHabitId, { name: editHabitName.trim(), type: editHabitType });
+                          setEditingHabitId(null);
+                        }
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      title="Delete"
+                      variant="ghost"
+                      size="small"
+                      onPress={() => {
+                        if (editingHabitId) {
+                          removeHabit(editingHabitId);
+                          setEditingHabitId(null);
+                        }
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -1447,11 +1682,11 @@ const styles = StyleSheet.create({
   // Stats
   statRow: {
     flexDirection: 'row',
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
   chartCard: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   graphContainer: {
     overflow: 'hidden',
@@ -1482,7 +1717,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   habitChecklistHeaderLeft: {
     flex: 1,
@@ -1491,12 +1726,12 @@ const styles = StyleSheet.create({
   // Habit cards container - responsive layout
   habitCardsRow: {
     flexDirection: 'column',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
 
   // Quick stats card (right panel)
   quickStatsCard: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   quickStatRow: {
     flexDirection: 'row',
@@ -1519,16 +1754,16 @@ const styles = StyleSheet.create({
   journalEntryCompact: {
     borderLeftWidth: 3,
     paddingLeft: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
 
   // Real World Wins section
   winEntry: {
     borderLeftWidth: 3,
     paddingLeft: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   winText: {
     fontSize: FontSize.sm,
@@ -1543,8 +1778,8 @@ const styles = StyleSheet.create({
   recoveryEntry: {
     borderLeftWidth: 3,
     paddingLeft: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   recoveryHabit: {
     fontSize: FontSize.sm,
@@ -1567,8 +1802,8 @@ const styles = StyleSheet.create({
   subsectionLabel: {
     fontSize: FontSize.sm,
     fontWeight: '800',
-    marginBottom: Spacing.md,
-    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    marginTop: 0,
     textTransform: 'uppercase',
     letterSpacing: 1,
     lineHeight: FontSize.sm * 1.3,
@@ -1576,7 +1811,7 @@ const styles = StyleSheet.create({
   habitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
   checkbox: {
@@ -1655,7 +1890,8 @@ const styles = StyleSheet.create({
   calDayLabel: {
     width: `${100 / 7}%`,
     textAlign: 'center',
-    fontSize: FontSize.xs,
+    // Responsive: smaller font on mobile (< 500px), normal on larger screens
+    fontSize: screenWidth < 500 ? FontSize.xs - 2 : FontSize.xs,
     fontWeight: '600',
   },
   calGrid: {

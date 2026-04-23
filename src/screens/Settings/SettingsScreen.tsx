@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Switch, Alert, Modal
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -143,7 +142,7 @@ export default function SettingsScreen() {
         <Text style={s.value}>{value}</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-        <Ionicons name={(icon as any) || 'chevron-forward'} size={18} color={colors.textSecondary} />
+        <Text style={{ color: colors.textSecondary, fontSize: 16 }}>→</Text>
       </View>
     </TouchableOpacity>
   );
@@ -166,7 +165,7 @@ export default function SettingsScreen() {
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Level {stats.level} · {stats.xp} XP</Text>
             </View>
             <TouchableOpacity onPress={() => setShowStats(!showStats)}>
-              <Ionicons name="stats-chart-outline" size={22} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontSize: 20 }}>📊</Text>
             </TouchableOpacity>
           </View>
 
@@ -396,10 +395,10 @@ export default function SettingsScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <TouchableOpacity onPress={() => setEditingPartner(true)}>
-                    <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 16 }}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={removePartner}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -411,27 +410,10 @@ export default function SettingsScreen() {
                   <Text style={s.label}>Add Accountability Partner</Text>
                   <Text style={s.value}>Keep each other accountable via email</Text>
                 </View>
-                <Ionicons name="person-add-outline" size={18} color={colors.accent} />
+                <Text style={{ color: colors.accent, fontSize: 16 }}>➕</Text>
               </View>
             </TouchableOpacity>
           )}
-        </Card>
-
-
-        {/* App philosophy */}
-        <Text style={s.sectionLabel}>ABOUT ASCEND</Text>
-        <Card>
-          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 22 }}>
-            Ascend is designed to be used less, not more.{'\n\n'}
-            Success here means:{'\n'}
-            · Lower daily app time{'\n'}
-            · More real-world event attendance{'\n'}
-            · Longer time between sessions{'\n'}
-            · Habits that stick
-          </Text>
-          <View style={{ marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
-            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Version 1.0.0</Text>
-          </View>
         </Card>
 
       </ScrollView>

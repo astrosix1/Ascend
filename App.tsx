@@ -50,19 +50,32 @@ function Root() {
         if (isSupabaseReady()) {
           const session = await getSession();
           if (session?.user) {
+            console.log('[Auth] Found existing session for:', session.user.email);
             setAuth({ checked: true, userId: session.user.id, email: session.user.email || null, isGuest: false });
             setCurrentUser(session.user.id, session.user.email || '');
-            syncUserData(session.user.id);
+            // Sync in background (fire and forget)
+            syncUserData(session.user.id).then(() => {
+              console.log('[Auth] Cloud data synced');
+            }).catch(err => {
+              console.error('[Auth] Sync failed for existing session:', err);
+            });
             return;
           }
 
           // Subscribe to future auth changes
           const result = onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session?.user) {
+              console.log('[Auth] Sign in event:', session.user.email);
               setAuth({ checked: true, userId: session.user.id, email: session.user.email || null, isGuest: false });
               setCurrentUser(session.user.id, session.user.email || '');
-              syncUserData(session.user.id);
+              // Sync in background (fire and forget)
+              syncUserData(session.user.id).then(() => {
+                console.log('[Auth] Cloud data synced after sign in');
+              }).catch(err => {
+                console.error('[Auth] Sync failed after sign in:', err);
+              });
             } else if (event === 'SIGNED_OUT') {
+              console.log('[Auth] Sign out event');
               setAuth({ checked: true, userId: null, email: null, isGuest: false });
               setCurrentUser(null, '');
             }
@@ -99,9 +112,17 @@ function Root() {
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
         <AuthScreen
           onAuthenticated={(userId, email) => {
+            console.log('[Auth] Authenticated user:', email);
             setAuth({ checked: true, userId, email, isGuest: false });
+            // Set current user with timeout to prevent hanging
+            // Sync happens in background but don't block login
             setCurrentUser(userId, email);
-            syncUserData(userId);
+            // Sync in background (fire and forget)
+            syncUserData(userId).then(() => {
+              console.log('[Auth] Cloud data synced after authentication');
+            }).catch(err => {
+              console.error('[Auth] Sync failed after authentication:', err);
+            });
           }}
           onGuest={async () => {
             // Clear all user data when entering guest mode

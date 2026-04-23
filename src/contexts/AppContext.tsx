@@ -15,6 +15,7 @@ interface AppState {
   addHabit: (habit: Habit) => void;
   toggleHabit: (habitId: string, date: string) => void;
   removeHabit: (habitId: string) => void;
+  updateHabit: (habitId: string, updates: Partial<Habit>) => void;
 
   // Stats
   stats: UserStats;
@@ -85,6 +86,7 @@ interface AppState {
   signOutUser: () => void;
   resetAuth: () => Promise<void>;
   resetSignal: number;
+  isSyncing: boolean;
 
   // Loading
   isLoading: boolean;
@@ -132,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [reflectionResponses, setReflectionResponses] = useState<ReflectionResponse[]>([]);
   const [alarms, setAlarmsState] = useState<Alarm[]>([]);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
@@ -306,6 +309,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [persist]);
 
+  const updateHabit = useCallback((habitId: string, updates: Partial<Habit>) => {
+    setHabits(prev => {
+      const updated = prev.map(h => h.id === habitId ? { ...h, ...updates } : h);
+      persist(KEYS.HABITS, updated);
+      return updated;
+    });
+  }, [persist]);
+
   const addXP = useCallback((amount: number) => {
     setStats(prev => {
       const updated = {
@@ -358,7 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       persist(KEYS.REAL_WORLD_WINS, updated);
       return updated;
     });
-    addXP(20);
+    addXP(1);
   }, [persist, addXP]);
 
   const addJournalEntry = useCallback((entry: JournalEntry) => {
@@ -426,30 +437,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncUserData = useCallback(async (userId: string) => {
+    setIsSyncing(true);
     try {
+      console.log('[Sync] Starting cloud sync for user:', userId);
       const remote = await loadUserData(userId);
+
       if (remote) {
+        console.log('[Sync] Remote data found, loading into local state');
         // Remote data exists — load it into state (remote wins on fresh login)
         const safeJsonParse = (jsonStr: string, fallback: any = null) => {
           try {
             return JSON.parse(jsonStr);
           } catch (e) {
-            console.error('JSON parse error:', e);
+            console.error('[Sync] JSON parse error:', e);
             return fallback;
           }
         };
 
         if (remote.habits) {
           const d = safeJsonParse(remote.habits, []);
-          if (d && d.length >= 0) { setHabits(d); await persist(KEYS.HABITS, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} habits from cloud`);
+            setHabits(d);
+            await persist(KEYS.HABITS, d);
+          }
         }
         if (remote.stats) {
           const d = safeJsonParse(remote.stats, defaultStats);
-          if (d) { setStats(d); await persist(KEYS.STATS, d); }
+          if (d) {
+            console.log('[Sync] Loaded stats from cloud');
+            setStats(d);
+            await persist(KEYS.STATS, d);
+          }
         }
         if (remote.settings) {
           const d = safeJsonParse(remote.settings, defaultSettings);
           if (d) {
+            console.log('[Sync] Loaded settings from cloud');
             setSettings(d);
             setTheme(d.theme || 'dark');
             await persist(KEYS.SETTINGS, d);
@@ -457,25 +481,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         if (remote.calendar_events) {
           const d = safeJsonParse(remote.calendar_events, []);
-          if (d && d.length >= 0) { setCalendarEvents(d); await persist(KEYS.CALENDAR_EVENTS, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} calendar events from cloud`);
+            setCalendarEvents(d);
+            await persist(KEYS.CALENDAR_EVENTS, d);
+          }
         }
         if (remote.real_world_wins) {
           const d = safeJsonParse(remote.real_world_wins, []);
-          if (d && d.length >= 0) { setRealWorldWins(d); await persist(KEYS.REAL_WORLD_WINS, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} wins from cloud`);
+            setRealWorldWins(d);
+            await persist(KEYS.REAL_WORLD_WINS, d);
+          }
         }
         if (remote.journal_entries) {
           const d = safeJsonParse(remote.journal_entries, []);
-          if (d && d.length >= 0) { setJournalEntries(d); await persist(KEYS.JOURNAL_ENTRIES, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} journal entries from cloud`);
+            setJournalEntries(d);
+            await persist(KEYS.JOURNAL_ENTRIES, d);
+          }
         }
         if (remote.relapse_log) {
           const d = safeJsonParse(remote.relapse_log, []);
-          if (d && d.length >= 0) { setRelapseLog(d); await persist(KEYS.RELAPSE_LOG, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} relapse entries from cloud`);
+            setRelapseLog(d);
+            await persist(KEYS.RELAPSE_LOG, d);
+          }
         }
         if (remote.reflection_responses) {
           const d = safeJsonParse(remote.reflection_responses, []);
-          if (d && d.length >= 0) { setReflectionResponses(d); await persist(KEYS.REFLECTION_RESPONSES, d); }
+          if (d && d.length >= 0) {
+            console.log(`[Sync] Loaded ${d.length} reflection responses from cloud`);
+            setReflectionResponses(d);
+            await persist(KEYS.REFLECTION_RESPONSES, d);
+          }
         }
+        console.log('[Sync] Cloud data loaded successfully');
       } else {
+        console.log('[Sync] No remote data found, pushing local data to cloud');
         // No remote data yet — push local data to cloud
         const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections] =
           await Promise.all([
@@ -488,6 +534,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getData<RelapseEntry[]>(KEYS.RELAPSE_LOG),
             getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
           ]);
+
+        console.log('[Sync] Pushing initial data to cloud:', {
+          habits: localHabits?.length || 0,
+          stats: !!localStats,
+          settings: !!localSettings,
+          wins: localWins?.length || 0,
+        });
+
         await saveUserData(userId, {
           habits: JSON.stringify(localHabits || []),
           stats: JSON.stringify(localStats || {}),
@@ -498,16 +552,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           relapse_log: JSON.stringify(localRelapse || []),
           reflection_responses: JSON.stringify(localReflections || []),
         });
+        console.log('[Sync] Initial data pushed to cloud');
       }
     } catch (e) {
-      console.error('Sync error:', e);
+      console.error('[Sync] Sync error:', e);
+      setSyncError('Failed to sync cloud data. Check your connection.');
+      throw e; // Re-throw so caller knows sync failed
+    } finally {
+      setIsSyncing(false);
     }
   }, [persist]);
 
   // Push to cloud whenever key data changes (debounce via useEffect)
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || isSyncing) return; // Skip auto-save while syncing
     const timer = setTimeout(() => {
+      console.log('[Sync] Auto-saving data to cloud for user:', currentUserId);
       saveUserData(currentUserId, {
         habits: JSON.stringify(habits),
         stats: JSON.stringify(stats),
@@ -517,10 +577,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         journal_entries: JSON.stringify(journalEntries),
         relapse_log: JSON.stringify(relapseLog),
         reflection_responses: JSON.stringify(reflectionResponses),
-      }).catch(() => setSyncError('Could not sync to cloud. Check your connection.'));
+      }).then(() => {
+        console.log('[Sync] Auto-save completed');
+        setSyncError(null); // Clear any previous errors
+      }).catch((err) => {
+        console.error('[Sync] Auto-save failed:', err);
+        setSyncError('Could not sync to cloud. Check your connection.');
+      });
     }, 2000); // 2s debounce
     return () => clearTimeout(timer);
-  }, [currentUserId, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses]);
+  }, [currentUserId, isSyncing, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses]);
 
   const signOutUser = useCallback(async () => {
     // Clear Supabase session (if authenticated)
@@ -634,6 +700,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addHabit,
       toggleHabit,
       removeHabit,
+      updateHabit,
       stats,
       addXP,
       settings,
@@ -674,6 +741,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOutUser,
       resetAuth,
       resetSignal,
+      isSyncing,
       isLoading,
     }}>
       {children}

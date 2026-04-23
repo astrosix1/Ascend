@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../contexts/AppContext';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { useApp } from '../contexts/AppContext';
 import { useScreenWidth, BREAKPOINTS } from '../utils/responsive';
 import DesktopSidebar from '../components/DesktopSidebar';
 import TopHeader from '../components/TopHeader';
@@ -170,12 +169,12 @@ function GuestBanner() {
       backgroundColor: colors.accent, flexDirection: 'row',
       alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10,
     }}>
-      <Ionicons name="cloud-outline" size={16} color="#fff" />
+      <Text style={{ color: '#fff', fontSize: 14 }}>☁️</Text>
       <Text style={{ color: '#fff', fontSize: 13, flex: 1, fontWeight: '500' }}>
         You're in guest mode — your data won't be saved if you clear the browser.
       </Text>
       <TouchableOpacity onPress={() => setDismissed(true)}>
-        <Ionicons name="close" size={18} color="#fff" />
+        <Text style={{ color: '#fff', fontSize: 18 }}>✕</Text>
       </TouchableOpacity>
     </View>
   );
@@ -204,22 +203,14 @@ function SyncErrorToast() {
       backgroundColor: '#c0392b', flexDirection: 'row',
       alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10,
     }}>
-      <Ionicons name="cloud-offline-outline" size={16} color="#fff" />
+      <Text style={{ color: '#fff', fontSize: 14 }}>⚠️</Text>
       <Text style={{ color: '#fff', fontSize: 13, flex: 1 }}>{syncError}</Text>
       <TouchableOpacity onPress={clearSyncError}>
-        <Ionicons name="close" size={18} color="#fff" />
+        <Text style={{ color: '#fff', fontSize: 18 }}>✕</Text>
       </TouchableOpacity>
     </Animated.View>
   );
 }
-
-const tabIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: 'home-outline',
-  Clock: 'time-outline',
-  Discover: 'book-outline',
-  Community: 'people-outline',
-  Settings: 'settings-outline',
-};
 
 // Screen map for desktop navigation
 const screenMap: Record<string, React.ComponentType<any>> = {
@@ -238,9 +229,7 @@ function MobileNavigator() {
     <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={tabIcons[route.name] || 'ellipse-outline'} size={size} color={color} />
-        ),
+        headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
@@ -249,17 +238,6 @@ function MobileNavigator() {
           borderTopWidth: 1,
           paddingBottom: 4,
           height: 60,
-        },
-        headerStyle: {
-          backgroundColor: colors.background,
-          elevation: 0,
-          shadowOpacity: 0,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '700',
         },
       })}
     >
