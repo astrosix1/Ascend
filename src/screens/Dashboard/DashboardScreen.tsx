@@ -666,7 +666,7 @@ export default function DashboardScreen() {
 
             <View style={styles.calDayLabels}>
               {(screenWidth < 500 ? DAY_LABELS_SHORT : DAY_LABELS).map((d, i) => (
-                <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
+                <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary, fontSize: screenWidth < 500 ? FontSize.xs - 2 : FontSize.xs }]}>{d}</Text>
               ))}
             </View>
 
@@ -1053,7 +1053,7 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.calDayLabels}>
                 {(screenWidth < 500 ? DAY_LABELS_SHORT : DAY_LABELS).map((d, i) => (
-                  <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary }]}>{d}</Text>
+                  <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary, fontSize: screenWidth < 500 ? FontSize.xs - 2 : FontSize.xs }]}>{d}</Text>
                 ))}
               </View>
               <View style={styles.calGrid}>
@@ -1890,8 +1890,7 @@ const styles = StyleSheet.create({
   calDayLabel: {
     width: `${100 / 7}%`,
     textAlign: 'center',
-    // Responsive: smaller font on mobile (< 500px), normal on larger screens
-    fontSize: screenWidth < 500 ? FontSize.xs - 2 : FontSize.xs,
+    fontSize: FontSize.xs,
     fontWeight: '600',
   },
   calGrid: {
