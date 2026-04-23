@@ -325,11 +325,14 @@ export async function saveUserData(userId: string, payload: Omit<DBUserData, 'us
   }
   try {
     console.log('[DB] Saving user data for userId:', userId);
-    const { error } = await sb.from('user_data').upsert({
-      user_id: userId,
-      ...payload,
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await sb.from('user_data').upsert(
+      {
+        user_id: userId,
+        ...payload,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
     if (error) {
       console.error('[DB] Failed to save user data:', error);
       // Check if it's an RLS policy error
@@ -466,7 +469,7 @@ export async function saveUserDataPartial(
       updateData[`last_${dataType}_sync`] = metadata.lastSyncTime;
     });
 
-    const { error } = await sb.from('user_data').upsert(updateData);
+    const { error } = await sb.from('user_data').upsert(updateData, { onConflict: 'user_id' });
 
     if (error) {
       console.error('[DB] Failed to save partial user data:', error);
@@ -592,10 +595,13 @@ export async function appendToHistory(
       updated_at: new Date().toISOString(),
     };
 
-    const { error: updateError } = await sb.from('user_data').upsert({
-      user_id: userId,
-      ...updateData,
-    });
+    const { error: updateError } = await sb.from('user_data').upsert(
+      {
+        user_id: userId,
+        ...updateData,
+      },
+      { onConflict: 'user_id' }
+    );
 
     if (updateError) {
       console.error(`[DB] Failed to append to ${dataType}:`, updateError);
