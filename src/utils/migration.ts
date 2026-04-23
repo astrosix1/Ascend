@@ -151,21 +151,29 @@ function mergeGuestDataWithExisting(
  * Merge two arrays by deduplicating by ID and keeping newer entries
  */
 function mergeArraysByTimestamp<T extends { id?: string; updatedAt?: number }>(
-  local: T[],
-  remote: T[]
+  local: T[] | any,
+  remote: T[] | any
 ): T[] {
   const map = new Map<string, T>();
 
+  // Ensure remote is an array
+  const remoteArray = Array.isArray(remote) ? remote : [];
+  const localArray = Array.isArray(local) ? local : [];
+
   // Add all remote entries
-  remote.forEach((item) => {
-    const key = item.id || JSON.stringify(item);
-    map.set(key, item);
+  remoteArray.forEach((item) => {
+    if (item) {
+      const key = item.id || JSON.stringify(item);
+      map.set(key, item);
+    }
   });
 
   // Add/overwrite with local entries (local wins)
-  local.forEach((item) => {
-    const key = item.id || JSON.stringify(item);
-    map.set(key, item);
+  localArray.forEach((item) => {
+    if (item) {
+      const key = item.id || JSON.stringify(item);
+      map.set(key, item);
+    }
   });
 
   return Array.from(map.values());
