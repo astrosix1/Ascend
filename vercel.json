@@ -2,10 +2,10 @@
   "framework": "other",
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "web-build",
-  "env": [
-    "SUPABASE_URL",
-    "SUPABASE_KEY"
-  ],
+  "env": {
+    "SUPABASE_URL": "@supabase_url",
+    "SUPABASE_KEY": "@supabase_key"
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
