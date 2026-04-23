@@ -1,8 +1,7 @@
 {
-  "buildCommand": "npm ci && npm run export",
+  "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "web-build",
   "nodeVersion": "20.x",
-  "ignoreCommand": "git diff --quiet $VERCEL_GIT_PREVIOUS_SHA $VERCEL_GIT_COMMIT -- . ':!node_modules' ':!.next'",
   "env": [
     "SUPABASE_URL",
     "SUPABASE_KEY"
