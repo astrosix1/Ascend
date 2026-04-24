@@ -8,7 +8,6 @@ import {
   Modal,
   StyleSheet,
   Alert,
-  Switch,
 } from 'react-native';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
@@ -468,6 +467,7 @@ export default function DashboardScreen() {
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   const [editHabitName, setEditHabitName] = useState('');
   const [editHabitType, setEditHabitType] = useState<'good' | 'bad'>('good');
+  const [showAddForm, setShowAddForm] = useState(false);
 
   function handleAddHabit() {
     if (!newHabitName.trim()) return;
@@ -1469,17 +1469,25 @@ export default function DashboardScreen() {
         visible={showEditHabits}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEditHabits(false)}
+        onRequestClose={() => {
+          setShowEditHabits(false);
+          setEditingHabitId(null);
+          setShowAddForm(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, styles.editHabitsModalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {/* Modal header */}
+            {/* Header */}
             <View style={styles.editHabitsHeader}>
               <Text style={[styles.modalTitle, styles.editHabitsTitle, { color: colors.text }]}>
-                Edit Habits
+                Manage Habits
               </Text>
               <TouchableOpacity
-                onPress={() => setShowEditHabits(false)}
+                onPress={() => {
+                  setShowEditHabits(false);
+                  setEditingHabitId(null);
+                  setShowAddForm(false);
+                }}
                 style={styles.editHabitsCloseBtn}
               >
                 <Text style={{ color: colors.text, fontSize: 24 }}>✕</Text>
@@ -1491,165 +1499,182 @@ export default function DashboardScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {/* Habit list */}
-              {habits.length === 0 && (
-                <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                  No habits yet. Add one below!
-                </Text>
-              )}
-              {habits.map(habit => (
-                <View
-                  key={habit.id}
-                  style={[styles.editHabitRow, { borderBottomColor: colors.border }]}
+              {/* ── Add Habit ── */}
+              {!showAddForm ? (
+                <TouchableOpacity
+                  style={[styles.addHabitTrigger, { borderColor: colors.accent }]}
+                  onPress={() => {
+                    setShowAddForm(true);
+                    setEditingHabitId(null);
+                  }}
                 >
-                  <View style={styles.editHabitInfo}>
-                    <Text style={[styles.editHabitName, { color: colors.text }]} numberOfLines={1}>
-                      {habit.name}
-                    </Text>
-                    <View style={styles.editHabitMeta}>
-                      <View
-                        style={[
-                          styles.typeBadge,
-                          { backgroundColor: habit.type === 'good' ? colors.success : colors.danger },
-                        ]}
-                      >
-                        <Text style={styles.typeBadgeText}>
-                          {habit.type === 'good' ? 'GOOD' : 'BAD'}
-                        </Text>
-                      </View>
-                      <Text style={[styles.editHabitStreak, { color: colors.textSecondary }]}>
-                        🔥 {habit.streak} streak
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditingHabitId(habit.id);
-                      setEditHabitName(habit.name);
-                      setEditHabitType(habit.type);
-                    }}
-                    style={styles.deleteHabitBtn}
-                  >
-                    <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {/* Add Habit form */}
-              <View style={[styles.addHabitForm, { borderTopColor: colors.border }]}>
-                <Text style={[styles.addHabitFormTitle, { color: colors.text }]}>Add Habit</Text>
-
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Name *</Text>
-                <TextInput
-                  placeholder="e.g. Morning run"
-                  placeholderTextColor={colors.textSecondary}
-                  value={newHabitName}
-                  onChangeText={setNewHabitName}
-                  style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
-                  accessibilityLabel="Habit name input"
-                />
-
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Type</Text>
-                <View style={styles.habitTypeToggleRow}>
-                  <Text style={[styles.habitTypeLabel, { color: newHabitType === 'good' ? colors.success : colors.textSecondary }]}>
-                    Good
-                  </Text>
-                  <Switch
-                    value={newHabitType === 'bad'}
-                    onValueChange={val => setNewHabitType(val ? 'bad' : 'good')}
-                    trackColor={{ false: colors.success, true: colors.danger }}
-                    thumbColor="#FFFFFF"
-                    style={styles.habitTypeSwitch}
+                  <Text style={[styles.addHabitTriggerText, { color: colors.accent }]}>＋  New Habit</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.inlineForm, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                  <TextInput
+                    placeholder="Habit name…"
+                    placeholderTextColor={colors.textSecondary}
+                    value={newHabitName}
+                    onChangeText={setNewHabitName}
+                    style={[styles.textInput, { color: colors.text, borderColor: colors.border, marginBottom: 0 }]}
+                    autoFocus
+                    accessibilityLabel="New habit name"
                   />
-                  <Text style={[styles.habitTypeLabel, { color: newHabitType === 'bad' ? colors.danger : colors.textSecondary }]}>
-                    Bad
-                  </Text>
-                </View>
-
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Description (optional)</Text>
-                <TextInput
-                  placeholder="Brief description…"
-                  placeholderTextColor={colors.textSecondary}
-                  value={newHabitDescription}
-                  onChangeText={setNewHabitDescription}
-                  multiline
-                  style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
-                  accessibilityLabel="Habit description input, optional"
-                />
-
-                <Button
-                  title="Save Habit"
-                  variant="primary"
-                  size="small"
-                  onPress={handleAddHabit}
-                  style={styles.saveHabitBtn}
-                />
-              </View>
-
-              {/* Edit Habit form */}
-              {editingHabitId && (
-                <View style={[styles.addHabitForm, { borderTopColor: colors.border, marginTop: Spacing.lg }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-                    <Text style={[styles.addHabitFormTitle, { color: colors.text }]}>Edit Habit</Text>
-                    <TouchableOpacity onPress={() => setEditingHabitId(null)}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 20 }}>✕</Text>
+                  <View style={styles.typePillRow}>
+                    <TouchableOpacity
+                      style={[styles.typePill, { borderColor: colors.success }, newHabitType === 'good' && { backgroundColor: colors.success }]}
+                      onPress={() => setNewHabitType('good')}
+                    >
+                      <Text style={[styles.typePillText, newHabitType === 'good' && styles.typePillTextActive]}>
+                        Good
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typePill, { borderColor: colors.danger }, newHabitType === 'bad' && { backgroundColor: colors.danger }]}
+                      onPress={() => setNewHabitType('bad')}
+                    >
+                      <Text style={[styles.typePillText, newHabitType === 'bad' && styles.typePillTextActive]}>
+                        Bad
+                      </Text>
                     </TouchableOpacity>
                   </View>
-
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Name *</Text>
                   <TextInput
-                    placeholder="e.g. Morning run"
+                    placeholder="Description (optional)"
                     placeholderTextColor={colors.textSecondary}
-                    value={editHabitName}
-                    onChangeText={setEditHabitName}
-                    style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+                    value={newHabitDescription}
+                    onChangeText={setNewHabitDescription}
+                    multiline
+                    style={[styles.textInput, { color: colors.text, borderColor: colors.border, marginBottom: 0 }]}
+                    accessibilityLabel="New habit description, optional"
                   />
-
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Type</Text>
-                  <View style={styles.habitTypeToggleRow}>
-                    <Text style={[styles.habitTypeLabel, { color: editHabitType === 'good' ? colors.success : colors.textSecondary }]}>
-                      Good
-                    </Text>
-                    <Switch
-                      value={editHabitType === 'bad'}
-                      onValueChange={val => setEditHabitType(val ? 'bad' : 'good')}
-                      trackColor={{ false: colors.success, true: colors.danger }}
-                      thumbColor="#FFFFFF"
-                      style={styles.habitTypeSwitch}
-                    />
-                    <Text style={[styles.habitTypeLabel, { color: editHabitType === 'bad' ? colors.danger : colors.textSecondary }]}>
-                      Bad
-                    </Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md }}>
-                    <Button
-                      title="Update"
-                      variant="primary"
-                      size="small"
+                  <View style={styles.inlineFormActions}>
+                    <TouchableOpacity
+                      style={[styles.inlineActionBtn, { borderColor: colors.border }]}
                       onPress={() => {
-                        if (editHabitName.trim() && editingHabitId) {
-                          updateHabit(editingHabitId, { name: editHabitName.trim(), type: editHabitType });
-                          setEditingHabitId(null);
-                        }
+                        setShowAddForm(false);
+                        setNewHabitName('');
+                        setNewHabitType('good');
+                        setNewHabitDescription('');
                       }}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="Delete"
-                      variant="ghost"
-                      size="small"
+                    >
+                      <Text style={[styles.inlineActionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.inlineActionBtn, styles.inlineActionBtnPrimary, { backgroundColor: colors.accent }]}
                       onPress={() => {
-                        if (editingHabitId) {
-                          removeHabit(editingHabitId);
-                          setEditingHabitId(null);
-                        }
+                        handleAddHabit();
+                        setShowAddForm(false);
                       }}
-                      style={{ flex: 1 }}
-                    />
+                    >
+                      <Text style={[styles.inlineActionBtnText, { color: '#fff' }]}>Add</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
+
+              {/* ── Habit list ── */}
+              {habits.length === 0 && !showAddForm && (
+                <Text style={[styles.emptyNote, { color: colors.textSecondary, textAlign: 'center', marginTop: Spacing.lg }]}>
+                  No habits yet. Tap "＋ New Habit" to get started!
+                </Text>
+              )}
+              {habits.length > 0 && (
+                <Text style={[styles.habitListLabel, { color: colors.textSecondary }]}>
+                  YOUR HABITS
+                </Text>
+              )}
+
+              {habits.map(habit => (
+                <View key={habit.id}>
+                  {/* Row */}
+                  <View style={[styles.editHabitRow, { borderBottomColor: editingHabitId === habit.id ? 'transparent' : colors.border }]}>
+                    <View style={[styles.typeDot, { backgroundColor: habit.type === 'good' ? colors.success : colors.danger }]} />
+                    <View style={styles.editHabitInfo}>
+                      <Text style={[styles.editHabitName, { color: colors.text }]} numberOfLines={1}>
+                        {habit.name}
+                      </Text>
+                      <Text style={[styles.editHabitStreak, { color: colors.textSecondary }]}>
+                        🔥 {habit.streak}-day streak
+                      </Text>
+                    </View>
+                    {editingHabitId !== habit.id && (
+                      <View style={styles.habitRowActions}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditingHabitId(habit.id);
+                            setEditHabitName(habit.name);
+                            setEditHabitType(habit.type);
+                            setShowAddForm(false);
+                          }}
+                          style={styles.habitActionBtn}
+                          accessibilityLabel={`Edit ${habit.name}`}
+                        >
+                          <Text style={{ fontSize: 16 }}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => removeHabit(habit.id)}
+                          style={styles.habitActionBtn}
+                          accessibilityLabel={`Delete ${habit.name}`}
+                        >
+                          <Text style={{ fontSize: 16 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Inline edit form — expands right below the row */}
+                  {editingHabitId === habit.id && (
+                    <View style={[styles.inlineForm, { borderColor: colors.border, backgroundColor: colors.background, marginBottom: Spacing.xs }]}>
+                      <TextInput
+                        placeholder="Habit name…"
+                        placeholderTextColor={colors.textSecondary}
+                        value={editHabitName}
+                        onChangeText={setEditHabitName}
+                        style={[styles.textInput, { color: colors.text, borderColor: colors.border, marginBottom: 0 }]}
+                        autoFocus
+                      />
+                      <View style={styles.typePillRow}>
+                        <TouchableOpacity
+                          style={[styles.typePill, { borderColor: colors.success }, editHabitType === 'good' && { backgroundColor: colors.success }]}
+                          onPress={() => setEditHabitType('good')}
+                        >
+                          <Text style={[styles.typePillText, editHabitType === 'good' && styles.typePillTextActive]}>
+                            Good
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.typePill, { borderColor: colors.danger }, editHabitType === 'bad' && { backgroundColor: colors.danger }]}
+                          onPress={() => setEditHabitType('bad')}
+                        >
+                          <Text style={[styles.typePillText, editHabitType === 'bad' && styles.typePillTextActive]}>
+                            Bad
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.inlineFormActions}>
+                        <TouchableOpacity
+                          style={[styles.inlineActionBtn, { borderColor: colors.border }]}
+                          onPress={() => setEditingHabitId(null)}
+                        >
+                          <Text style={[styles.inlineActionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.inlineActionBtn, styles.inlineActionBtnPrimary, { backgroundColor: colors.accent }]}
+                          onPress={() => {
+                            if (editHabitName.trim() && editingHabitId) {
+                              updateHabit(editingHabitId, { name: editHabitName.trim(), type: editHabitType });
+                              setEditingHabitId(null);
+                            }
+                          }}
+                        >
+                          <Text style={[styles.inlineActionBtnText, { color: '#fff' }]}>Save</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              ))}
             </ScrollView>
           </View>
         </View>
@@ -2108,11 +2133,40 @@ const styles = StyleSheet.create({
   editHabitsScroll: {
     flexGrow: 0,
   },
+  // ＋ New Habit trigger button
+  addHabitTrigger: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  addHabitTriggerText: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+  // Section label above habit list
+  habitListLabel: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  // Habit row
   editHabitRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
+    gap: Spacing.sm,
+  },
+  typeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
   },
   editHabitInfo: {
     flex: 1,
@@ -2121,55 +2175,62 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '600',
   },
-  editHabitMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  typeBadge: {
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
   editHabitStreak: {
     fontSize: FontSize.xs,
+    marginTop: 2,
   },
-  deleteHabitBtn: {
+  habitRowActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  habitActionBtn: {
     padding: Spacing.xs,
-    marginLeft: Spacing.sm,
   },
-  addHabitForm: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-  },
-  addHabitFormTitle: {
-    fontSize: FontSize.md,
-    fontWeight: '700',
+  // Inline form (shared by Add and Edit)
+  inlineForm: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  habitTypeToggleRow: {
+  typePillRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.xs,
   },
-  habitTypeLabel: {
+  typePill: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    alignItems: 'center',
+  },
+  typePillText: {
     fontSize: FontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#888',
   },
-  habitTypeSwitch: {
-    marginHorizontal: Spacing.xs,
+  typePillTextActive: {
+    color: '#fff',
   },
-  saveHabitBtn: {
-    marginTop: Spacing.sm,
+  inlineFormActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  inlineActionBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  inlineActionBtnPrimary: {
+    borderWidth: 0,
+  },
+  inlineActionBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
   },
 
   bottomPad: {
