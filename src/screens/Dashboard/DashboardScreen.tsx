@@ -175,6 +175,7 @@ export default function DashboardScreen() {
     removeHabit,
     addHabit,
     updateHabit,
+    addXP,
   } = useApp();
 
   const today = getToday();
@@ -224,9 +225,11 @@ export default function DashboardScreen() {
   const [chartTab, setChartTab] = useState<'Week' | 'Month' | 'Year'>('Week');
   const [bonusEarnedToday, setBonusEarnedToday] = useState(false);
   const [lastBonusDate, setLastBonusDate] = useState<string | null>(null);
+  const [lastBadHabitXpDate, setLastBadHabitXpDate] = useState<string | null>(null);
 
   // Reset bonus state when day changes (fixed to handle edge cases at midnight)
   // Uses persistent timestamp instead of just date string to handle app restarts
+  // Also awards 1 XP for each unchecked bad habit at day end
   useEffect(() => {
     const resetBonusIfDateChanged = async () => {
       try {
@@ -239,6 +242,17 @@ export default function DashboardScreen() {
           await setData('bonus_last_reset_date', today);
           setLastBonusDate(today);
           setBonusEarnedToday(false);
+
+          // Award 1 XP for each avoided (unchecked) bad habit
+          const badHabits = habits.filter(h => h.type === 'bad');
+          const avoidedCount = badHabits.filter(h => !h.completedDates.includes(today)).length;
+          if (avoidedCount > 0) {
+            // Award 1 XP for each avoided bad habit
+            addXP(avoidedCount);
+          }
+          // Mark that we've awarded bad habit XP for today
+          await setData('bad_habit_xp_date', today);
+          setLastBadHabitXpDate(today);
         } else {
           // Same day, check if bonus should be set based on completed habits
           const goodHabits = habits.filter(h => h.type === 'good');
@@ -517,20 +531,26 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Good Habits */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: Spacing.xs }}>
+        {/* Habits (combined Good + Bad) */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: contentPadding }}>
           <View style={styles.habitChecklistHeader}>
             <View style={styles.habitChecklistHeaderLeft}>
-              <Text style={[styles.subsectionLabel, { color: colors.success }]}>Good Habits</Text>
+              <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Habits</Text>
             </View>
-            <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
+            <Button title="Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
           </View>
           <Card style={{ marginBottom: Spacing.md }}>
-            {goodHabits.length === 0 && (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No good habits yet. Add some!</Text>
+            {habits.length === 0 && (
+              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet. Tap "Add/Edit" to create one!</Text>
             )}
-            {goodHabits.map(habit => {
-              const done = habit.completedDates.includes(today);
+            {habits.map((habit, idx) => {
+              const isCompleted = habit.completedDates.includes(today);
+              const isGood = habit.type === 'good';
+              const habitColor = isGood ? colors.success : colors.danger;
+              const streakText = isGood
+                ? `🔥 ${habit.streak} day streak`
+                : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
+
               return (
                 <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
                   <TouchableOpacity
@@ -538,20 +558,20 @@ export default function DashboardScreen() {
                     style={[
                       styles.checkbox,
                       {
-                        borderColor: colors.success,
-                        backgroundColor: done ? colors.success : 'transparent',
+                        borderColor: habitColor,
+                        backgroundColor: isCompleted ? habitColor : 'transparent',
                       },
                     ]}
                   >
-                    {done && <Text style={styles.checkmark}>✓</Text>}
+                    {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
                   </TouchableOpacity>
                   <View style={styles.habitInfo}>
                     <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
                     <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                      🔥 {habit.streak} day streak
+                      {streakText}
                     </Text>
                   </View>
-                  {done && (
+                  {isCompleted && isGood && (
                     <TouchableOpacity
                       onPress={() => openJournalForm(habit.id, habit.name)}
                       style={[styles.whyBtn, { borderColor: colors.accent }]}
@@ -559,43 +579,14 @@ export default function DashboardScreen() {
                       <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
                     </TouchableOpacity>
                   )}
-                </View>
-              );
-            })}
-          </Card>
-        </View>
-
-        {/* Bad Habits */}
-        <View style={{ paddingHorizontal: contentPadding, paddingBottom: contentPadding }}>
-          <View style={styles.habitChecklistHeader}>
-            <View style={styles.habitChecklistHeaderLeft}>
-              <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Bad Habits</Text>
-            </View>
-            <Button title="Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
-          </View>
-          <Card style={{ marginBottom: Spacing.md }}>
-            {badHabits.length === 0 && (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No bad habits tracked yet.</Text>
-            )}
-            {badHabits.map(habit => {
-              const avoided = habit.completedDates.includes(today);
-              return (
-                <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-                  <TouchableOpacity
-                    onPress={() => handleToggleHabit(habit.id, today)}
-                    style={[styles.checkbox, { borderColor: avoided ? colors.danger : colors.textSecondary, backgroundColor: avoided ? colors.danger : 'transparent' }]}
-                  >
-                    {avoided && <Text style={styles.checkmark}>✗</Text>}
-                  </TouchableOpacity>
-                  <View style={styles.habitInfo}>
-                    <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                    <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                      {avoided ? '⚠️ Marked today' : `${habit.streak} days avoided`}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
-                    <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-                  </TouchableOpacity>
+                  {isCompleted && !isGood && (
+                    <TouchableOpacity
+                      onPress={() => openRelapseForm(habit.id, habit.name)}
+                      style={[styles.relapseBtn, { borderColor: colors.danger }]}
+                    >
+                      <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
