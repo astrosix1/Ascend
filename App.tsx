@@ -44,13 +44,19 @@ function Root() {
     }
   }, [currentUserId, auth.checked, auth.userId]);
 
-  // Trigger guest data migration when user signs in
+  // Trigger guest data migration when user signs in (runs once per user, ever)
   useEffect(() => {
     if (!currentUserId || prevUserIdRef.current === currentUserId) {
-      return; // User not logged in or already processed
+      return; // User not logged in or already processed this session
     }
 
     prevUserIdRef.current = currentUserId;
+
+    // Only migrate once per user — flag persists across page loads
+    const migrationKey = `ascend_migrated_${currentUserId}`;
+    if (localStorage.getItem(migrationKey)) {
+      return; // Already migrated, skip
+    }
 
     // Check if there's guest data to migrate
     if (hasGuestDataToMigrate(appContext as any)) {
@@ -61,6 +67,7 @@ function Root() {
         setMigrationState(state);
       }).then((result) => {
         if (result.success) {
+          localStorage.setItem(migrationKey, 'true'); // Mark migration as done
           console.log('[Migration] Migration completed successfully');
           // Trigger full sync after migration to ensure all data is fresh
           syncUserData(currentUserId).catch((err) => {
@@ -70,6 +77,9 @@ function Root() {
           console.error('[Migration] Migration failed:', result.error);
         }
       });
+    } else {
+      // No guest data — mark as done so we never run the check again
+      localStorage.setItem(migrationKey, 'true');
     }
   }, [currentUserId]);
 

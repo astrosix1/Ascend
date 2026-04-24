@@ -546,6 +546,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
             await persist(KEYS.REFLECTION_RESPONSES, d);
           }
         }
+        if (remote.forum_favorites) {
+          const d = safeJsonParse(remote.forum_favorites, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} forum favorites from cloud`);
+            setForumFavorites(d);
+            await persist(KEYS.FORUM_FAVORITES, d);
+          }
+        }
+        if (remote.detox_history) {
+          const d = safeJsonParse(remote.detox_history, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} detox sessions from cloud`);
+            setDetoxHistory(d);
+            await persist(KEYS.DETOX_HISTORY, d);
+          }
+        }
+        if (remote.alarms) {
+          const d = safeJsonParse(remote.alarms, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} alarms from cloud`);
+            setAlarmsState(d);
+            await persist(KEYS.ALARMS, d);
+          }
+        }
+        if (remote.pomodoro_history) {
+          const d = safeJsonParse(remote.pomodoro_history, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} pomodoro sessions from cloud`);
+            setPomodoroHistory(d);
+            await persist(KEYS.POMODORO_HISTORY, d);
+          }
+        }
         console.log('[Sync] Cloud data loaded successfully');
       } else {
         console.log('[Sync] No remote data found, pushing local data to cloud');
