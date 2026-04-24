@@ -29,6 +29,50 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+// Motivation quotes for daily inspiration
+const MOTIVATION_QUOTES = [
+  '🔥 Every day is a chance to build a better you.',
+  '💪 Small steps lead to big changes.',
+  '🎯 You\'re stronger than you think.',
+  '✨ Progress over perfection.',
+  '🚀 Consistency beats intensity.',
+  '🏆 Your future self is watching you right now.',
+  '💡 You don\'t have to be great to start. You have to start to be great.',
+  '⚡ The only way to do great work is to love what you do.',
+  '🌟 You are capable of amazing things.',
+  '💥 Success is the sum of small efforts.',
+  '🎪 Believe you can and you\'re halfway there.',
+  '🔑 Your time is limited, don\'t waste it.',
+  '💎 Habits are the compound interest of self-improvement.',
+  '🌱 Plant seeds of good habits; reap harvests of success.',
+  '🎯 One small habit, done consistently, changes everything.',
+  '✅ You\'ve got this. Keep going.',
+  '🌈 Every habit is a vote for the person you want to be.',
+  '⭐ Your consistency will astonish you.',
+  '🔔 The secret of getting ahead is getting started.',
+  '🎨 You are the artist of your own life.',
+  '💪 Progress requires effort. You are not afraid of effort.',
+  '🎁 Today is a gift. That\'s why it\'s called the present.',
+  '🌍 Change your habits, change your world.',
+  '🔥 Be so good they can\'t ignore you.',
+  '📈 Track it, build it, own it.',
+  '🏅 Champion habits create champion results.',
+  '🎯 Focus on the process, trust the progress.',
+  '⚙️ Systems are the solution.',
+  '🌟 You are one habit away from a different life.',
+  '💖 Fall in love with the process, not just the result.',
+  '🚀 Dream big, start small, act now.',
+  '🎪 Make it easy, make it obvious, make it attractive.',
+  '🌸 Bloom where you are planted.',
+  '⚡ Energy and enthusiasm are fuel.',
+  '🎯 Be the energy you want to attract.',
+  '💫 Your vibe attracts your tribe.',
+  '🏆 Show up for yourself, always.',
+  '✨ You are worthy of your own effort.',
+  '🔥 Discipline is choosing between what you want now and what you want most.',
+  '🌟 Every morning is a new opportunity.',
+];
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function getToday(): string {
@@ -47,6 +91,60 @@ function getDaysInMonth(year: number, month: number): number {
 
 function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
+}
+
+// Get consistent daily motivation quote
+function getQuoteForDay(date: string): string {
+  const seed = parseInt(date.replace(/-/g, ''));
+  return MOTIVATION_QUOTES[seed % MOTIVATION_QUOTES.length];
+}
+
+// Calculate completion rate for a habit
+function getHabitCompletionRate(habit: { completedDates: string[]; createdAt: string }): number {
+  const daysSinceCreated = Math.max(1,
+    Math.floor((Date.now() - new Date(habit.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+  );
+  return Math.round((habit.completedDates.length / daysSinceCreated) * 100);
+}
+
+// Calculate week statistics
+function calculateWeekStats(habits: any[], today: string) {
+  const weekAgo = new Date(new Date(today).getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth() + 1).padStart(2, '0')}-${String(weekAgo.getDate()).padStart(2, '0')}`;
+
+  const goodHabits = habits.filter(h => h.type === 'good');
+  const badHabits = habits.filter(h => h.type === 'bad');
+
+  const goodCompleted = goodHabits.reduce((count, habit) => {
+    return count + habit.completedDates.filter((d: string) => d >= weekAgoStr && d <= today).length;
+  }, 0);
+
+  const badAvoided = badHabits.filter(h => !h.completedDates.includes(today)).length;
+
+  const goodDays = goodHabits.length * 7;
+  const completionRate = goodDays > 0 ? Math.round((goodCompleted / goodDays) * 100) : 0;
+
+  return { completedCount: goodCompleted, completionRate, avoidedBadCount: badAvoided };
+}
+
+// Calculate month statistics
+function calculateMonthStats(habits: any[], today: string) {
+  const monthAgo = new Date(new Date(today).getTime() - 30 * 24 * 60 * 60 * 1000);
+  const monthAgoStr = `${monthAgo.getFullYear()}-${String(monthAgo.getMonth() + 1).padStart(2, '0')}-${String(monthAgo.getDate()).padStart(2, '0')}`;
+
+  const goodHabits = habits.filter(h => h.type === 'good');
+  const badHabits = habits.filter(h => h.type === 'bad');
+
+  const goodCompleted = goodHabits.reduce((count, habit) => {
+    return count + habit.completedDates.filter((d: string) => d >= monthAgoStr && d <= today).length;
+  }, 0);
+
+  const badAvoided = badHabits.filter(h => !h.completedDates.includes(today)).length;
+
+  const goodDays = goodHabits.length * 30;
+  const completionRate = goodDays > 0 ? Math.round((goodCompleted / goodDays) * 100) : 0;
+
+  return { completedCount: goodCompleted, completionRate, avoidedBadCount: badAvoided };
 }
 
 // Build weekly bar-chart data (last 7 days completion %)
@@ -226,6 +324,13 @@ export default function DashboardScreen() {
   const [bonusEarnedToday, setBonusEarnedToday] = useState(false);
   const [lastBonusDate, setLastBonusDate] = useState<string | null>(null);
   const [lastBadHabitXpDate, setLastBadHabitXpDate] = useState<string | null>(null);
+
+  // ── Analytics & gamification state ──────────────────────────────────────────
+  const [summaryMode, setSummaryMode] = useState<'week' | 'month'>('week');
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showHabitHistory, setShowHabitHistory] = useState(false);
+  const [selectedHabitForHistory, setSelectedHabitForHistory] = useState<string | null>(null);
+  const [historyDateFilter, setHistoryDateFilter] = useState<'week' | 'month' | 'all'>('all');
 
   // Reset bonus state when day changes (fixed to handle edge cases at midnight)
   // Uses persistent timestamp instead of just date string to handle app restarts
@@ -424,6 +529,38 @@ export default function DashboardScreen() {
 
   const goodHabits = habits.filter(h => h.type === 'good');
   const completedGoodHabits = goodHabits.filter(h => h.completedDates.includes(today));
+
+  // ── Analytics calculations ──────────────────────────────────────────────────
+  const longestStreak = useMemo(() =>
+    habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0,
+    [habits]
+  );
+
+  const habitWithLongestStreak = useMemo(() =>
+    habits.find(h => h.streak === longestStreak),
+    [habits, longestStreak]
+  );
+
+  const avoidedBadHabitsCount = useMemo(() => {
+    return badHabits.filter(h => !h.completedDates.includes(today)).length;
+  }, [badHabits, today]);
+
+  const dailyQuote = getQuoteForDay(today);
+
+  const weekStats = useMemo(() => calculateWeekStats(habits, today), [habits, today]);
+  const monthStats = useMemo(() => calculateMonthStats(habits, today), [habits, today]);
+
+  const bestHabits = useMemo(() => {
+    return [...habits]
+      .sort((a, b) => getHabitCompletionRate(b) - getHabitCompletionRate(a))
+      .slice(0, 3);
+  }, [habits]);
+
+  const worstHabits = useMemo(() => {
+    return [...habits]
+      .sort((a, b) => getHabitCompletionRate(a) - getHabitCompletionRate(b))
+      .slice(0, 3);
+  }, [habits]);
 
   function openJournalForm(habitId: string, habitName: string) {
     setJournalHabitId(habitId);
@@ -920,6 +1057,109 @@ export default function DashboardScreen() {
               <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
             </View>
 
+            {/* ── Daily Motivation Quote ── */}
+            <Card style={{ marginTop: Spacing.md, marginBottom: Spacing.md, paddingVertical: Spacing.lg }}>
+              <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
+                {dailyQuote}
+              </Text>
+            </Card>
+
+            {/* ── Streak Highlight ── */}
+            {habitWithLongestStreak && longestStreak > 0 && (
+              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.accentLight, paddingVertical: Spacing.lg }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.streakHighlightText, { color: colors.text, fontSize: FontSize.xl, fontWeight: '700', marginBottom: Spacing.xs }]}>
+                    🔥 Your Best Streak
+                  </Text>
+                  <Text style={[styles.streakHighlightNumber, { color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }]}>
+                    {longestStreak} days
+                  </Text>
+                  <Text style={[styles.streakHighlightHabit, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.sm }]}>
+                    {habitWithLongestStreak.name}
+                  </Text>
+                </View>
+              </Card>
+            )}
+
+            {/* ── Avoided Bad Habits Summary ── */}
+            {avoidedBadHabitsCount > 0 && (
+              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
+                    ✨ You avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
+                  </Text>
+                  <Text style={[styles.avoidedHabitsXp, { color: colors.accent, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
+                    (+{avoidedBadHabitsCount} XP)
+                  </Text>
+                </View>
+              </Card>
+            )}
+
+            {/* ── Weekly/Monthly Summary ── */}
+            <Card style={{ marginBottom: Spacing.md }}>
+              <View style={{ marginBottom: Spacing.md }}>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                  <TouchableOpacity
+                    style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                    onPress={() => setSummaryMode('week')}
+                  >
+                    <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
+                      This Week
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                    onPress={() => setSummaryMode('month')}
+                  >
+                    <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
+                      This Month
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {summaryMode === 'week' ? (
+                  <View>
+                    <View style={{ marginBottom: Spacing.sm }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
+                      </View>
+                      <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
+                    </View>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                      Good habits completed: {weekStats.completedCount}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                      Bad habits avoided: {weekStats.avoidedBadCount}
+                    </Text>
+                  </View>
+                ) : (
+                  <View>
+                    <View style={{ marginBottom: Spacing.sm }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                      </View>
+                      <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
+                    </View>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                      Good habits completed: {monthStats.completedCount}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                      Bad habits avoided: {monthStats.avoidedBadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Button
+                title="📊 View Full Analytics"
+                variant="ghost"
+                size="small"
+                onPress={() => setShowAnalytics(true)}
+                style={{ marginTop: Spacing.sm }}
+              />
+            </Card>
+
             {/* Habits (combined Good + Bad) */}
             <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
               <View style={styles.habitChecklistHeader}>
@@ -941,9 +1181,20 @@ export default function DashboardScreen() {
                     : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
 
                   return (
-                    <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+                    <TouchableOpacity
+                      key={habit.id}
+                      style={[styles.habitRow, { borderBottomColor: colors.border }]}
+                      onPress={() => {
+                        setSelectedHabitForHistory(habit.id);
+                        setShowHabitHistory(true);
+                      }}
+                      activeOpacity={0.6}
+                    >
                       <TouchableOpacity
-                        onPress={() => handleToggleHabit(habit.id, today)}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleToggleHabit(habit.id, today);
+                        }}
                         style={[
                           styles.checkbox,
                           {
@@ -962,7 +1213,10 @@ export default function DashboardScreen() {
                       </View>
                       {isCompleted && isGood && (
                         <TouchableOpacity
-                          onPress={() => openJournalForm(habit.id, habit.name)}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openJournalForm(habit.id, habit.name);
+                          }}
                           style={[styles.whyBtn, { borderColor: colors.accent }]}
                         >
                           <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
@@ -970,13 +1224,16 @@ export default function DashboardScreen() {
                       )}
                       {isCompleted && !isGood && (
                         <TouchableOpacity
-                          onPress={() => openRelapseForm(habit.id, habit.name)}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openRelapseForm(habit.id, habit.name);
+                          }}
                           style={[styles.relapseBtn, { borderColor: colors.danger }]}
                         >
                           <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </Card>
@@ -1647,6 +1904,189 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── ANALYTICS MODAL ────────────────────────────────────────────────────── */}
+      <Modal
+        visible={showAnalytics}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAnalytics(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, styles.analyticsModal, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>📊 Analytics</Text>
+              <TouchableOpacity onPress={() => setShowAnalytics(false)}>
+                <Text style={{ color: colors.text, fontSize: 24 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {/* Best Habits */}
+              <View style={{ marginBottom: Spacing.lg }}>
+                <Text style={[styles.subsectionLabel, { color: colors.success, marginBottom: Spacing.md }]}>Top Performing Habits</Text>
+                {bestHabits.length > 0 ? (
+                  <>
+                    {bestHabits.map(habit => (
+                      <View key={habit.id} style={[styles.habitAnalyticsRow, { borderBottomColor: colors.border }]}>
+                        <View style={styles.habitAnalyticsName}>
+                          <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                        </View>
+                        <Text style={[styles.habitAnalyticsRate, { color: colors.success }]}>
+                          {getHabitCompletionRate(habit)}%
+                        </Text>
+                      </View>
+                    ))}
+                  </>
+                ) : (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet</Text>
+                )}
+              </View>
+
+              {/* Worst Habits */}
+              <View style={{ marginBottom: Spacing.lg }}>
+                <Text style={[styles.subsectionLabel, { color: colors.danger, marginBottom: Spacing.md }]}>Habits Needing Attention</Text>
+                {worstHabits.length > 0 ? (
+                  <>
+                    {worstHabits.map(habit => (
+                      <View key={habit.id} style={[styles.habitAnalyticsRow, { borderBottomColor: colors.border }]}>
+                        <View style={styles.habitAnalyticsName}>
+                          <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                        </View>
+                        <Text style={[styles.habitAnalyticsRate, { color: colors.danger }]}>
+                          {getHabitCompletionRate(habit)}%
+                        </Text>
+                      </View>
+                    ))}
+                  </>
+                ) : (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet</Text>
+                )}
+              </View>
+
+              {/* Month Summary */}
+              <View>
+                <Text style={[styles.subsectionLabel, { color: colors.accent, marginBottom: Spacing.md }]}>30-Day Summary</Text>
+                <View style={{ gap: Spacing.sm }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                    <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                  </View>
+                  <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                    Good habits completed: {monthStats.completedCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
+                    Bad habits avoided: {monthStats.avoidedBadCount}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── HABIT HISTORY MODAL ───────────────────────────────────────────────── */}
+      <Modal
+        visible={showHabitHistory && !!selectedHabitForHistory}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowHabitHistory(false);
+          setSelectedHabitForHistory(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, styles.analyticsModal, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {selectedHabitForHistory && habits.find(h => h.id === selectedHabitForHistory) && (() => {
+              const habit = habits.find(h => h.id === selectedHabitForHistory)!;
+              const isGood = habit.type === 'good';
+              const completionRate = getHabitCompletionRate(habit);
+              let filteredDates = [...habit.completedDates].sort().reverse();
+
+              if (historyDateFilter === 'week') {
+                const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                const weekAgoStr = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth() + 1).padStart(2, '0')}-${String(weekAgo.getDate()).padStart(2, '0')}`;
+                filteredDates = filteredDates.filter(d => d >= weekAgoStr);
+              } else if (historyDateFilter === 'month') {
+                const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                const monthAgoStr = `${monthAgo.getFullYear()}-${String(monthAgo.getMonth() + 1).padStart(2, '0')}-${String(monthAgo.getDate()).padStart(2, '0')}`;
+                filteredDates = filteredDates.filter(d => d >= monthAgoStr);
+              }
+
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                    <Text style={[styles.historyModalTitle, { color: colors.text }]}>{habit.name}</Text>
+                    <TouchableOpacity onPress={() => { setShowHabitHistory(false); setSelectedHabitForHistory(null); }}>
+                      <Text style={{ color: colors.text, fontSize: 24 }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Stats Summary */}
+                  <View style={{ backgroundColor: colors.surfaceLight, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.md }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Current Streak</Text>
+                        <Text style={{ color: isGood ? colors.success : colors.danger, fontSize: FontSize.lg, fontWeight: '700' }}>
+                          {habit.streak}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Best Streak</Text>
+                        <Text style={{ color: colors.accent, fontSize: FontSize.lg, fontWeight: '700' }}>
+                          {habit.bestStreak}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Completion</Text>
+                        <Text style={{ color: colors.success, fontSize: FontSize.lg, fontWeight: '700' }}>
+                          {completionRate}%
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Date Filter */}
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                    {(['week', 'month', 'all'] as const).map(filter => (
+                      <TouchableOpacity
+                        key={filter}
+                        style={[styles.summaryTab, historyDateFilter === filter && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                        onPress={() => setHistoryDateFilter(filter)}
+                      >
+                        <Text style={[styles.summaryTabText, historyDateFilter === filter && { color: colors.text, fontWeight: '700' }]}>
+                          {filter === 'week' ? 'Week' : filter === 'month' ? 'Month' : 'All'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Completion History */}
+                  <ScrollView keyboardShouldPersistTaps="handled">
+                    {filteredDates.length > 0 ? (
+                      filteredDates.map((date, idx) => (
+                        <View key={`${date}-${idx}`} style={[styles.historyDateEntry, { borderBottomColor: colors.border }]}>
+                          <Text style={[styles.historyDateText, { color: colors.text }]}>
+                            {formatDisplayDate(date)}
+                          </Text>
+                          <Text style={{ color: isGood ? colors.success : colors.danger, fontSize: FontSize.md }}>
+                            {isGood ? '✓' : '✗'}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={[styles.emptyNote, { color: colors.textSecondary, textAlign: 'center' }]}>
+                        No {historyDateFilter === 'week' ? 'this week' : historyDateFilter === 'month' ? 'this month' : ''} completions
+                      </Text>
+                    )}
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -2203,5 +2643,86 @@ const styles = StyleSheet.create({
 
   bottomPad: {
     height: Spacing.xl,
+  },
+
+  // Analytics & Gamification Styles
+  dailyQuote: {
+    fontStyle: 'italic',
+  },
+  streakHighlightText: {
+    textAlign: 'center',
+  },
+  streakHighlightNumber: {
+    textAlign: 'center',
+  },
+  streakHighlightHabit: {
+    textAlign: 'center',
+  },
+  avoidedHabitsText: {
+    textAlign: 'center',
+  },
+  avoidedHabitsXp: {
+    textAlign: 'center',
+  },
+  summaryTab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  summaryTabText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: '#888',
+  },
+  analyticsModal: {
+    maxHeight: '90%',
+    paddingBottom: Spacing.lg,
+  },
+  analyticsTab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  analyticsTabText: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  habitAnalyticsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    gap: Spacing.md,
+  },
+  habitAnalyticsName: {
+    flex: 1,
+  },
+  habitAnalyticsRate: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    minWidth: 45,
+    textAlign: 'right',
+  },
+  historyModalTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '800',
+    marginBottom: Spacing.sm,
+  },
+  historyDateEntry: {
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyDateText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
   },
 });
