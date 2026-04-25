@@ -469,9 +469,31 @@ export async function saveUserDataPartial(
       updateData[`last_${dataType}_sync`] = metadata.lastSyncTime;
     });
 
+    // Try upsert first
     const { error } = await sb.from('user_data').upsert(updateData, { onConflict: 'user_id' });
 
     if (error) {
+      // If upsert fails with constraint violation, fall back to explicit update
+      if (error.code === '23505' || error.message?.includes('duplicate key')) {
+        console.log('[DB] Constraint violation on insert, attempting explicit update...');
+
+        // Remove user_id from update data (can't update primary key)
+        const { user_id: _ignored, ...updateDataWithoutId } = updateData;
+
+        const { error: updateError } = await sb
+          .from('user_data')
+          .update(updateDataWithoutId)
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error('[DB] Fallback update also failed:', updateError);
+          throw updateError;
+        }
+
+        console.log('[DB] Fallback update succeeded');
+        return;
+      }
+
       console.error('[DB] Failed to save partial user data:', error);
       if (error.message?.includes('policy') || error.code === 'PGRST301' || error.code === 'PGRST302') {
         console.error('[DB] RLS Policy Error - user may not have permission to save');
