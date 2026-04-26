@@ -30,7 +30,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// Motivation quotes for daily inspiration
+// Motivation quotes for daily inspiration (v2.1)
 const MOTIVATION_QUOTES = [
   '🔥 Every day is a chance to build a better you.',
   '💪 Small steps lead to big changes.',
