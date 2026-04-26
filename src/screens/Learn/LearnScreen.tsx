@@ -190,7 +190,7 @@ export default function LearnScreen() {
       <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         {([
           { key: 'discover',  label: '🔍 Discover' },
-          { key: 'generator', label: '🤖 AI Generator' },
+          { key: 'generator', label: 'Generator' },
         ] as const).map(({ key, label }) => (
           <TouchableOpacity
             key={key}
