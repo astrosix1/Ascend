@@ -1855,6 +1855,19 @@ export default function DashboardScreen() {
 
   return (
     <>
+      {/* ── DESKTOP CUSTOMIZE BAR ─────────────────────────────────────────── */}
+      {desktop && (
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs }}>
+          <TouchableOpacity
+            onPress={() => { setLocalPrefs(prefs); setShowCustomizeModal(true); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm }}
+          >
+            <Text style={{ fontSize: 16 }}>⚙️</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Customize</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {mainContent}
 
       {/* ── ADD EVENT MODAL ────────────────────────────────────────────────── */}
