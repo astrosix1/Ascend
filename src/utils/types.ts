@@ -117,6 +117,19 @@ export interface RelapseEntry {
   date: string;
 }
 
+export interface GoalEntry {
+  id: string;
+  title: string;
+  description: string;
+  targetDate: string; // YYYY-MM-DD
+  status: 'active' | 'completed' | 'abandoned';
+  progress: number; // 0-100%
+  relatedHabits: string[]; // habitIds that support this goal
+  createdAt: string;
+  updatedAt: string;
+  notes: string;
+}
+
 export interface DetoxSession {
   id: string;
   startTime: string;
@@ -148,6 +161,22 @@ export interface UserSettings {
   } | null;
   pomodoroStudyTime: number;
   pomodoroBreakTime: number;
+  // Profile customization (v2.1)
+  realName?: string;
+  profilePictureUrl?: string;
+  profilePictureBase64?: string;
+  // Dashboard preferences (v2.1)
+  dashboardPreferences?: {
+    showMotivationQuote: boolean;
+    showStreakHighlight: boolean;
+    showAvoidedBadHabits: boolean;
+    showSummary: boolean;
+    showAnalyticsButton: boolean;
+    showCalendar: boolean;
+    showWins: boolean;
+    showRelapse: boolean;
+    showJournals: boolean;
+  };
 }
 
 export interface LearnHabit {

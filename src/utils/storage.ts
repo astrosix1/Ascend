@@ -14,6 +14,7 @@ const KEYS = {
   CALENDAR_EVENTS: 'ascend_calendar_events',
   DETOX_HISTORY: 'ascend_detox_history',
   RELAPSE_LOG: 'ascend_relapse_log',
+  GOALS: 'ascend_goals',
   REFLECTION_RESPONSES: 'ascend_reflection_responses',
   WEEKLY_COMPLETION: 'ascend_weekly_completion',
   USERNAME_LAST_CHANGED: 'ascend_username_last_changed',

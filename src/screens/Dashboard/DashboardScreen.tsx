@@ -71,6 +71,25 @@ const MOTIVATION_QUOTES = [
   '✨ You are worthy of your own effort.',
   '🔥 Discipline is choosing between what you want now and what you want most.',
   '🌟 Every morning is a new opportunity.',
+  // Subscription-focused quotes (motivate users to cancel streaming services, etc.)
+  '🎬 Netflix costs money. You cost more. Invest in yourself.',
+  '💰 That subscription? Cancel it. Invest those hours in building real skills.',
+  '📺 Streaming services are designed to keep you scrolling. Break free.',
+  '🎮 Cancel the subscription. Your time is your most valuable asset.',
+  '☕ Every subscription cancelled = more time for habits that matter.',
+  '💪 Quit paying for entertainment. Create your own story instead.',
+  '📚 One hour of Netflix = One chapter of a book you\'ve always wanted to read.',
+  '🎯 The best entertainment is becoming the best version of yourself.',
+  '✨ Stop consuming. Start creating. Cancel that subscription.',
+  '🌟 What if you spent that subscription money on yourself instead?',
+  '🚀 Replace streaming with dreaming. What\'s your real goal?',
+  '💡 That show will be there tomorrow. Your goals won\'t wait.',
+  '🏆 Replace passive scrolling with active progress.',
+  '🔥 Your favorite series doesn\'t love you back. But your goals do.',
+  '⚡ Unsubscribe from distraction. Subscribe to your own growth.',
+  '🎨 The world needs your talent, not another viewer statistic.',
+  '💎 Real binge-watching? Watching yourself transform.',
+  '🌈 Life is the greatest series. And you\'re the protagonist.',
 ];
 
 // ─── helpers ────────────────────────────────────────────────────────────────

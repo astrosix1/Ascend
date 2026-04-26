@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Colors, ThemeColors } from '../utils/theme';
 import { getData, setData, KEYS } from '../utils/storage';
-import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm } from '../utils/types';
+import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm } from '../utils/types';
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
@@ -49,6 +49,12 @@ interface AppState {
   // Relapse
   relapseLog: RelapseEntry[];
   addRelapseEntry: (entry: RelapseEntry) => void;
+
+  // Goals (v2.1)
+  goals: GoalEntry[];
+  addGoal: (goal: GoalEntry) => void;
+  updateGoal: (goalId: string, updates: Partial<GoalEntry>) => void;
+  deleteGoal: (goalId: string) => void;
 
   // Detox
   detoxHistory: DetoxSession[];
@@ -134,6 +140,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [realWorldWins, setRealWorldWins] = useState<RealWorldWin[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [relapseLog, setRelapseLog] = useState<RelapseEntry[]>([]);
+  const [goals, setGoals] = useState<GoalEntry[]>([]);
   const [detoxHistory, setDetoxHistory] = useState<DetoxSession[]>([]);
   const [forumFavorites, setForumFavorites] = useState<string[]>([]);
   const [reflectionResponses, setReflectionResponses] = useState<ReflectionResponse[]>([]);
@@ -427,6 +434,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRelapseLog(prev => {
       const updated = [entry, ...prev];
       persist(KEYS.RELAPSE_LOG, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const addGoal = useCallback((goal: GoalEntry) => {
+    setGoals(prev => {
+      const updated = [goal, ...prev];
+      persist(KEYS.GOALS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const updateGoal = useCallback((goalId: string, updates: Partial<GoalEntry>) => {
+    setGoals(prev => {
+      const updated = prev.map(g => g.id === goalId ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g);
+      persist(KEYS.GOALS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const deleteGoal = useCallback((goalId: string) => {
+    setGoals(prev => {
+      const updated = prev.filter(g => g.id !== goalId);
+      persist(KEYS.GOALS, updated);
       return updated;
     });
   }, [persist]);
@@ -878,6 +909,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteJournalEntry,
       relapseLog,
       addRelapseEntry,
+      goals,
+      addGoal,
+      updateGoal,
+      deleteGoal,
       detoxHistory,
       addDetoxSession,
       activeTimer,
