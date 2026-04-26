@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Switch, Alert, Modal
+  StyleSheet, Switch, Alert, Modal, Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -28,6 +29,9 @@ export default function SettingsScreen() {
   const [partnerName, setPartnerName] = useState(settings.accountabilityPartner?.name || '');
   const [partnerContact, setPartnerContact] = useState(settings.accountabilityPartner?.contact || '');
   const [showStats, setShowStats] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [realNameInput, setRealNameInput] = useState(settings.realName || '');
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(settings.profilePictureUrl || settings.profilePictureBase64 || null);
 
   const canChangeUsername = () => {
     if (!settings.usernameLastChanged) return true;
@@ -77,6 +81,35 @@ export default function SettingsScreen() {
       updateSettings({ pomodoroStudyTime: study, pomodoroBreakTime: brk });
       setEditingPomodoro(false);
     }
+  };
+
+  const pickProfileImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        // For web, use the URI directly; for mobile, convert to base64
+        setProfilePicturePreview(uri);
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const saveProfile = () => {
+    updateSettings({
+      realName: realNameInput.trim(),
+      profilePictureUrl: profilePicturePreview && profilePicturePreview.startsWith('http') ? profilePicturePreview : undefined,
+      profilePictureBase64: profilePicturePreview && !profilePicturePreview.startsWith('http') ? profilePicturePreview : undefined,
+    });
+    setEditingProfile(false);
   };
 
   const sendWelcomeEmail = (name: string, email: string, username: string) => {
@@ -155,13 +188,20 @@ export default function SettingsScreen() {
         <Text style={s.sectionLabel}>PROFILE</Text>
         <Card>
           <View style={[s.row, { marginBottom: Spacing.md }]}>
-            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: FontSize.xl, color: colors.accent, fontWeight: '700' }}>
-                {settings.username.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            {settings.profilePictureUrl || settings.profilePictureBase64 ? (
+              <Image
+                source={{ uri: settings.profilePictureUrl || settings.profilePictureBase64 || undefined }}
+                style={{ width: 52, height: 52, borderRadius: 26 }}
+              />
+            ) : (
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: FontSize.xl, color: colors.accent, fontWeight: '700' }}>
+                  {settings.username.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <View style={{ flex: 1, marginLeft: Spacing.md }}>
-              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.lg }}>{settings.username}</Text>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.lg }}>{settings.realName || settings.username}</Text>
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Level {stats.level} · {stats.xp} XP</Text>
             </View>
             <TouchableOpacity onPress={() => setShowStats(!showStats)}>
@@ -233,7 +273,64 @@ export default function SettingsScreen() {
               </>
             )}
           </View>
+
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: Spacing.md, paddingTop: Spacing.md }}>
+            <Button
+              title="✏️ Edit Profile"
+              variant="ghost"
+              size="small"
+              onPress={() => setEditingProfile(true)}
+            />
+          </View>
         </Card>
+
+        {/* Edit Profile Modal */}
+        {editingProfile && (
+          <Card>
+            <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.md }}>Edit Profile</Text>
+
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>Real Name (optional)</Text>
+            <TextInput
+              style={s.input}
+              value={realNameInput}
+              onChangeText={setRealNameInput}
+              placeholder="Enter your real name"
+              placeholderTextColor={colors.textSecondary}
+            />
+
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs, marginTop: Spacing.md }}>Profile Picture (optional)</Text>
+            {profilePicturePreview ? (
+              <View style={{ marginBottom: Spacing.md }}>
+                <Image
+                  source={{ uri: profilePicturePreview }}
+                  style={{ width: '100%', height: 200, borderRadius: BorderRadius.md, marginBottom: Spacing.sm }}
+                />
+                <Button
+                  title="Change Picture"
+                  variant="ghost"
+                  size="small"
+                  onPress={pickProfileImage}
+                />
+              </View>
+            ) : (
+              <Button
+                title="Pick a Picture"
+                variant="ghost"
+                size="small"
+                onPress={pickProfileImage}
+              />
+            )}
+
+            <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md }}>
+              <Button title="Save" onPress={saveProfile} style={{ flex: 1 }} />
+              <Button title="Cancel" variant="ghost" onPress={() => {
+                setEditingProfile(false);
+                setRealNameInput(settings.realName || '');
+                setProfilePicturePreview(settings.profilePictureUrl || settings.profilePictureBase64 || null);
+              }} style={{ flex: 1 }} />
+            </View>
+          </Card>
+        )}
 
         {/* Username */}
         {editingUsername ? (
