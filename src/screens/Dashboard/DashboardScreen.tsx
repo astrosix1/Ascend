@@ -16,7 +16,7 @@ import SectionHeader from '../../components/SectionHeader';
 import ProgressBar from '../../components/ProgressBar';
 import LineGraph from '../../components/LineGraph';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
-import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry } from '../../utils/types';
+import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry } from '../../utils/types';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 
