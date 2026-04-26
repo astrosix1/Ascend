@@ -23,6 +23,7 @@ const KEYS = {
   SUPABASE_URL: 'ascend_supabase_url',
   SUPABASE_ANON_KEY: 'ascend_supabase_anon_key',
   MEETUP_KEY: 'ascend_meetup_key',
+  ANTHROPIC_KEY: 'ascend_anthropic_key',
   // Auth session cache
   AUTH_SESSION: 'ascend_auth_session',
 };
