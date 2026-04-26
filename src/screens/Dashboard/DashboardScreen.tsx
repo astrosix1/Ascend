@@ -118,6 +118,20 @@ function getQuoteForDay(date: string): string {
   return MOTIVATION_QUOTES[seed % MOTIVATION_QUOTES.length];
 }
 
+// Get daily habit completion level (0-3) for calendar heatmap
+// Returns: 0=no activity, 1=1-2 habits, 2=3+ habits, 3=all good habits completed
+function getDailyCompletionLevel(date: string, habits: any[]): number {
+  const goodHabits = habits.filter(h => h.type === 'good');
+  if (goodHabits.length === 0) return 0;
+
+  const completedCount = goodHabits.filter(h => h.completedDates.includes(date)).length;
+
+  if (completedCount === 0) return 0;
+  if (completedCount === goodHabits.length) return 3; // Perfect day
+  if (completedCount >= 3) return 2; // Most habits
+  return 1; // Some habits
+}
+
 // Calculate completion rate for a habit
 function getHabitCompletionRate(habit: { completedDates: string[]; createdAt: string }): number {
   const daysSinceCreated = Math.max(1,
@@ -549,6 +563,77 @@ export default function DashboardScreen() {
   const goodHabits = habits.filter(h => h.type === 'good');
   const completedGoodHabits = goodHabits.filter(h => h.completedDates.includes(today));
 
+  // ── Goals state ─────────────────────────────────────────────────────────────
+  const [goalsExpanded, setGoalsExpanded] = useState(false);
+  const [showAddGoalModal, setShowAddGoalModal] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
+  const [goalTargetDate, setGoalTargetDate] = useState('');
+  const [goalProgress, setGoalProgress] = useState(0);
+  const [goalRelatedHabits, setGoalRelatedHabits] = useState<string[]>([]);
+  const [goalNotes, setGoalNotes] = useState('');
+
+  const activeGoals = goals.filter(g => g.status === 'active');
+  const completedGoals = goals.filter(g => g.status === 'completed');
+  const abandonedGoals = goals.filter(g => g.status === 'abandoned');
+
+  function handleAddGoal() {
+    if (!goalTitle.trim()) return;
+
+    const goalEntry: GoalEntry = editingGoalId ? {
+      id: editingGoalId,
+      title: goalTitle,
+      description: goalDescription,
+      targetDate: goalTargetDate,
+      status: 'active',
+      progress: goalProgress,
+      relatedHabits: goalRelatedHabits,
+      createdAt: goals.find(g => g.id === editingGoalId)?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      notes: goalNotes,
+    } : {
+      id: Date.now().toString(),
+      title: goalTitle,
+      description: goalDescription,
+      targetDate: goalTargetDate,
+      status: 'active',
+      progress: goalProgress,
+      relatedHabits: goalRelatedHabits,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      notes: goalNotes,
+    };
+
+    if (editingGoalId) {
+      updateGoal(editingGoalId, goalEntry);
+      setEditingGoalId(null);
+    } else {
+      addGoal(goalEntry);
+    }
+
+    // Reset form
+    setGoalTitle('');
+    setGoalDescription('');
+    setGoalTargetDate('');
+    setGoalProgress(0);
+    setGoalRelatedHabits([]);
+    setGoalNotes('');
+    setShowAddGoalModal(false);
+  }
+
+  function openEditGoal(goal: GoalEntry) {
+    setEditingGoalId(goal.id);
+    setGoalTitle(goal.title);
+    setGoalDescription(goal.description);
+    setGoalTargetDate(goal.targetDate);
+    setGoalProgress(goal.progress);
+    setGoalRelatedHabits(goal.relatedHabits);
+    setGoalNotes(goal.notes);
+    setShowAddGoalModal(true);
+    setGoalsExpanded(true);
+  }
+
   // ── Analytics calculations ──────────────────────────────────────────────────
   const longestStreak = useMemo(() =>
     habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0,
@@ -937,20 +1022,29 @@ export default function DashboardScreen() {
                 const isToday = dateStr === today;
                 const hasEvent = eventDates.has(dateStr);
                 const isSelected = selectedDay === dateStr;
+                const completionLevel = getDailyCompletionLevel(dateStr, habits);
+
+                // Color intensity based on completion level
+                let heatmapColor = colors.surface; // No activity - gray
+                if (completionLevel === 1) heatmapColor = '#66BB6A'; // Light green - some habits
+                if (completionLevel === 2) heatmapColor = colors.success; // Bright green - most habits
+                if (completionLevel === 3) heatmapColor = colors.accent; // Gold - perfect day
+
                 return (
                   <TouchableOpacity
                     key={day}
                     onPress={() => setSelectedDay(isSelected ? null : dateStr)}
                     style={[
                       styles.calCell,
-                      isToday && { backgroundColor: colors.accentLight },
+                      !isSelected && { backgroundColor: heatmapColor },
+                      isToday && !isSelected && { borderWidth: 2, borderColor: colors.accent },
                       isSelected && { backgroundColor: colors.accent },
                     ]}
                   >
                     <Text
                       style={[
                         styles.calDayNum,
-                        { color: isSelected ? '#1A1A1A' : isToday ? colors.accent : colors.text },
+                        { color: isSelected ? '#1A1A1A' : completionLevel > 0 ? '#1A1A1A' : colors.text },
                       ]}
                     >
                       {day}
@@ -1078,6 +1172,76 @@ export default function DashboardScreen() {
                           View History ({relapseLog.length})
                         </Text>
                       </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </Card>
+        </View>
+
+        {/* Goals */}
+        <View style={{ paddingHorizontal: contentPadding, paddingBottom: Spacing.xs }}>
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: goalsExpanded ? Spacing.md : 0 }}>
+              <TouchableOpacity onPress={() => setGoalsExpanded(!goalsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
+                <Text style={[styles.subsectionLabel, { color: colors.warning }]}>📍 Goals</Text>
+                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({activeGoals.length})</Text>
+                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
+                  {goalsExpanded ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {goalsExpanded && (
+                <Button title="+" variant="ghost" size="small" onPress={() => { setEditingGoalId(null); setGoalTitle(''); setGoalDescription(''); setGoalTargetDate(''); setGoalProgress(0); setGoalRelatedHabits([]); setGoalNotes(''); setShowAddGoalModal(true); }} />
+              )}
+            </View>
+            {goalsExpanded && (
+              <>
+                {activeGoals.length === 0 && completedGoals.length === 0 && abandonedGoals.length === 0 ? (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No goals yet. Tap "+" to create one!</Text>
+                ) : (
+                  <>
+                    {/* Active Goals */}
+                    {activeGoals.length > 0 && (
+                      <>
+                        <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm }}>Active Goals</Text>
+                        {activeGoals.map((goal) => (
+                          <TouchableOpacity key={goal.id} onPress={() => openEditGoal(goal)} style={{ marginBottom: Spacing.md }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+                              <Text style={{ color: colors.text, fontWeight: '600' }}>{goal.title}</Text>
+                              <TouchableOpacity onPress={() => deleteGoal(goal.id)}>
+                                <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <ProgressBar progress={goal.progress / 100} color={colors.warning} />
+                            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>{goal.progress}% · Target: {formatDisplayDate(goal.targetDate)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Completed Goals */}
+                    {completedGoals.length > 0 && (
+                      <>
+                        <Text style={{ color: colors.success, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm, marginTop: Spacing.md }}>✓ Completed ({completedGoals.length})</Text>
+                        {completedGoals.map((goal) => (
+                          <View key={goal.id} style={{ marginBottom: Spacing.sm }}>
+                            <Text style={{ color: colors.success, fontWeight: '600', textDecorationLine: 'line-through' }}>{goal.title}</Text>
+                          </View>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Abandoned Goals */}
+                    {abandonedGoals.length > 0 && (
+                      <>
+                        <Text style={{ color: colors.textSecondary, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm, marginTop: Spacing.md }}>Abandoned ({abandonedGoals.length})</Text>
+                        {abandonedGoals.map((goal) => (
+                          <View key={goal.id} style={{ marginBottom: Spacing.sm }}>
+                            <Text style={{ color: colors.textSecondary, fontWeight: '600', textDecorationLine: 'line-through' }}>{goal.title}</Text>
+                          </View>
+                        ))}
+                      </>
                     )}
                   </>
                 )}
@@ -1420,20 +1584,29 @@ export default function DashboardScreen() {
                   const isToday = dateStr === today;
                   const hasEvent = eventDates.has(dateStr);
                   const isSelected = selectedDay === dateStr;
+                  const completionLevel = getDailyCompletionLevel(dateStr, habits);
+
+                  // Color intensity based on completion level
+                  let heatmapColor = colors.surface; // No activity
+                  if (completionLevel === 1) heatmapColor = '#66BB6A'; // Light green
+                  if (completionLevel === 2) heatmapColor = colors.success; // Bright green
+                  if (completionLevel === 3) heatmapColor = colors.accent; // Gold
+
                   return (
                     <TouchableOpacity
                       key={day}
                       style={[
                         styles.calCell,
-                        isToday && { backgroundColor: colors.accentLight },
-                        isSelected && { borderWidth: 1, borderColor: colors.accent },
+                        !isSelected && { backgroundColor: heatmapColor },
+                        isToday && !isSelected && { borderWidth: 2, borderColor: colors.accent },
+                        isSelected && { backgroundColor: colors.accent },
                       ]}
                       onPress={() => setSelectedDay(isSelected ? null : dateStr)}
                     >
-                      <Text style={{ color: isToday ? colors.accent : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
+                      <Text style={{ color: isSelected ? '#1A1A1A' : completionLevel > 0 ? '#1A1A1A' : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
                         {day}
                       </Text>
-                      {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent, marginTop: 2 }} />}
+                      {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? '#1A1A1A' : colors.accent, marginTop: 2 }} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -1774,6 +1947,112 @@ export default function DashboardScreen() {
                 style={styles.formBtnFlex}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── ADD/EDIT GOAL MODAL ───────────────────────────────────────────── */}
+      <Modal
+        visible={showAddGoalModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowAddGoalModal(false); setEditingGoalId(null); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: '85%' }]}>
+            <ScrollView>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{editingGoalId ? '📍 Edit Goal' : '📍 Create a Goal'}</Text>
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: Spacing.md }]}>Goal Title</Text>
+              <TextInput
+                placeholder="e.g. Run a 5K, Read 12 books…"
+                placeholderTextColor={colors.textSecondary}
+                value={goalTitle}
+                onChangeText={setGoalTitle}
+                style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: Spacing.md }]}>Description (optional)</Text>
+              <TextInput
+                placeholder="What's your motivation for this goal?"
+                placeholderTextColor={colors.textSecondary}
+                value={goalDescription}
+                onChangeText={setGoalDescription}
+                multiline
+                numberOfLines={2}
+                style={[styles.textInput, { color: colors.text, borderColor: colors.border, minHeight: 60, textAlignVertical: 'top' }]}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: Spacing.md }]}>Target Date</Text>
+              <TextInput
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textSecondary}
+                value={goalTargetDate}
+                onChangeText={setGoalTargetDate}
+                style={[styles.textInput, { color: colors.text, borderColor: colors.border }]}
+              />
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: Spacing.md }]}>Progress: {goalProgress}%</Text>
+              <View style={{ marginBottom: Spacing.md }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                  {[0, 25, 50, 75, 100].map(pct => (
+                    <TouchableOpacity key={pct} onPress={() => setGoalProgress(pct)} style={[styles.progressBtn, { backgroundColor: goalProgress === pct ? colors.accent : colors.surfaceLight }]}>
+                      <Text style={{ color: goalProgress === pct ? '#1A1A1A' : colors.text, fontWeight: '600' }}>{pct}%</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Related Habits</Text>
+              <View style={{ marginBottom: Spacing.md }}>
+                {goodHabits.map(habit => (
+                  <TouchableOpacity
+                    key={habit.id}
+                    onPress={() => {
+                      setGoalRelatedHabits(prev =>
+                        prev.includes(habit.id)
+                          ? prev.filter(id => id !== habit.id)
+                          : [...prev, habit.id]
+                      );
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm }}
+                  >
+                    <View style={[{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, marginRight: Spacing.sm }, { borderColor: goalRelatedHabits.includes(habit.id) ? colors.accent : colors.border, backgroundColor: goalRelatedHabits.includes(habit.id) ? colors.accent : 'transparent' }]}>
+                      {goalRelatedHabits.includes(habit.id) && <Text style={{ color: '#1A1A1A', fontWeight: '700' }}>✓</Text>}
+                    </View>
+                    <Text style={{ color: colors.text }}>{habit.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Notes (optional)</Text>
+              <TextInput
+                placeholder="Add any notes about this goal…"
+                placeholderTextColor={colors.textSecondary}
+                value={goalNotes}
+                onChangeText={setGoalNotes}
+                multiline
+                numberOfLines={2}
+                style={[styles.textInput, { color: colors.text, borderColor: colors.border, minHeight: 60, textAlignVertical: 'top' }]}
+              />
+
+              <View style={[styles.formButtonRow, { marginTop: Spacing.md }]}>
+                <Button
+                  title={editingGoalId ? 'Update Goal' : 'Create Goal'}
+                  variant="primary"
+                  size="small"
+                  onPress={handleAddGoal}
+                  style={styles.formBtnFlex}
+                />
+                <Button
+                  title="Cancel"
+                  variant="ghost"
+                  size="small"
+                  onPress={() => { setShowAddGoalModal(false); setEditingGoalId(null); }}
+                  style={styles.formBtnFlex}
+                />
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2854,5 +3133,13 @@ const styles = StyleSheet.create({
   historyDateText: {
     fontSize: FontSize.sm,
     fontWeight: '600',
+  },
+  progressBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    flex: 1,
+    marginHorizontal: 2,
+    alignItems: 'center',
   },
 });
