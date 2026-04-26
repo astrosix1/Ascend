@@ -668,6 +668,50 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {/* ── Daily Motivation Quote ── */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
+          <Card style={{ paddingVertical: Spacing.lg }}>
+            <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
+              {dailyQuote}
+            </Text>
+          </Card>
+        </View>
+
+        {/* ── Streak Highlight ── */}
+        {habitWithLongestStreak && longestStreak > 0 && (
+          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
+            <Card style={{ backgroundColor: colors.accentLight, paddingVertical: Spacing.lg }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[styles.streakHighlightText, { color: colors.text, fontSize: FontSize.xl, fontWeight: '700', marginBottom: Spacing.xs }]}>
+                  🔥 Your Best Streak
+                </Text>
+                <Text style={[styles.streakHighlightNumber, { color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }]}>
+                  {longestStreak} days
+                </Text>
+                <Text style={[styles.streakHighlightHabit, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.sm }]}>
+                  {habitWithLongestStreak.name}
+                </Text>
+              </View>
+            </Card>
+          </View>
+        )}
+
+        {/* ── Avoided Bad Habits Summary ── */}
+        {avoidedBadHabitsCount > 0 && (
+          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
+            <Card style={{ backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
+                  ✨ You avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
+                </Text>
+                <Text style={[styles.avoidedHabitsXp, { color: colors.accent, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
+                  (+{avoidedBadHabitsCount} XP)
+                </Text>
+              </View>
+            </Card>
+          </View>
+        )}
+
         {/* Habits (combined Good + Bad) */}
         <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: contentPadding }}>
           <View style={styles.habitChecklistHeader}>
@@ -727,6 +771,73 @@ export default function DashboardScreen() {
                 </View>
               );
             })}
+          </Card>
+        </View>
+
+        {/* ── Weekly/Monthly Summary ── */}
+        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: contentPadding }}>
+          <Card style={{ marginBottom: Spacing.md }}>
+            <View style={{ marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                <TouchableOpacity
+                  style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                  onPress={() => setSummaryMode('week')}
+                >
+                  <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
+                    This Week
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                  onPress={() => setSummaryMode('month')}
+                >
+                  <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
+                    This Month
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {summaryMode === 'week' ? (
+                <View>
+                  <View style={{ marginBottom: Spacing.sm }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
+                    </View>
+                    <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                    Good habits completed: {weekStats.completedCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                    Bad habits avoided: {weekStats.avoidedBadCount}
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <View style={{ marginBottom: Spacing.sm }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                    </View>
+                    <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                    Good habits completed: {monthStats.completedCount}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                    Bad habits avoided: {monthStats.avoidedBadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Button
+              title="📊 View Full Analytics"
+              variant="ghost"
+              size="small"
+              onPress={() => setShowAnalytics(true)}
+              style={{ marginTop: Spacing.sm }}
+            />
           </Card>
         </View>
       </ScrollView>
