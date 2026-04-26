@@ -805,20 +805,7 @@ export default function DashboardScreen() {
 
   // 3-column responsive layout (desktop) + tab-based layout (mobile/tablet)
   const mainContent = desktop ? (
-    <View style={{ flex: 1, flexDirection: 'column', backgroundColor: colors.background }}>
-      {/* ━━ DESKTOP TOP BAR: Customize button ━━ */}
-      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs }}>
-        <TouchableOpacity
-          onPress={() => { setLocalPrefs(prefs); setShowCustomizeModal(true); }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: colors.border }}
-        >
-          <Text style={{ fontSize: 16 }}>⚙️</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Customize</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* ━━ 3-COLUMN LAYOUT ━━ */}
-      <View style={{ flex: 1, flexDirection: 'row' }}>
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
       {/* ━━ LEFT COLUMN: HABITS (Stats + Habits) ━━ */}
       <ScrollView
         style={[styles.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]}
@@ -1380,7 +1367,6 @@ export default function DashboardScreen() {
           </Card>
         </View>
       </ScrollView>
-      </View>
     </View>
   ) : (
     // ━━━━━━━━ MOBILE/TABLET: TAB-BASED LAYOUT ━━━━━━━━
