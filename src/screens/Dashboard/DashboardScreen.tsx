@@ -19,6 +19,7 @@ import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry } from '../../utils/types';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
+import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 
 type DashboardTab = 'habits' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)
@@ -638,6 +639,31 @@ export default function DashboardScreen() {
     setGoalsExpanded(true);
   }
 
+  // ── Temptation state ────────────────────────────────────────────────────────
+  const [showTemptationModal, setShowTemptationModal] = useState(false);
+  const [temptationHabitId, setTemptationHabitId] = useState('');
+  const [temptationHabitName, setTemptationHabitName] = useState('');
+  const [temptationAdvice, setTemptationAdvice] = useState('');
+
+  function openTemptationModal(habitId: string, habitName: string) {
+    setTemptationHabitId(habitId);
+    setTemptationHabitName(habitName);
+    const advice = getRandomAdviceForHabit(habitName);
+    setTemptationAdvice(advice);
+    setShowTemptationModal(true);
+  }
+
+  function handleIResisted() {
+    // Award XP for resisting temptation
+    addXP(2);
+    setShowTemptationModal(false);
+  }
+
+  function handleLogRelapse() {
+    openRelapseForm(temptationHabitId, temptationHabitName);
+    setShowTemptationModal(false);
+  }
+
   // ── Analytics calculations ──────────────────────────────────────────────────
   const longestStreak = useMemo(() =>
     habits.length > 0 ? Math.max(...habits.map(h => h.streak)) : 0,
@@ -874,6 +900,14 @@ export default function DashboardScreen() {
                       style={[styles.relapseBtn, { borderColor: colors.danger }]}
                     >
                       <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!isCompleted && !isGood && (
+                    <TouchableOpacity
+                      onPress={() => openTemptationModal(habit.id, habit.name)}
+                      style={[styles.temptedBtn, { borderColor: colors.warning }]}
+                    >
+                      <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1531,6 +1565,17 @@ export default function DashboardScreen() {
                           <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
                         </TouchableOpacity>
                       )}
+                      {!isCompleted && !isGood && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openTemptationModal(habit.id, habit.name);
+                          }}
+                          style={[styles.temptedBtn, { borderColor: colors.warning }]}
+                        >
+                          <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -2057,6 +2102,49 @@ export default function DashboardScreen() {
                 />
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── TEMPTATION ADVICE MODAL ───────────────────────────────────────── */}
+      <Modal
+        visible={showTemptationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTemptationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>💪 I Feel Tempted: {temptationHabitName}</Text>
+
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, marginTop: Spacing.md }]}>Here's a tip:</Text>
+            <View style={[styles.adviceBox, { backgroundColor: colors.surfaceLight, borderLeftColor: colors.warning }]}>
+              <Text style={[styles.adviceText, { color: colors.text }]}>{temptationAdvice}</Text>
+            </View>
+
+            <View style={styles.formButtonRow}>
+              <Button
+                title="I Resisted! 🎉"
+                variant="primary"
+                size="small"
+                onPress={handleIResisted}
+                style={styles.formBtnFlex}
+              />
+              <Button
+                title="Log Relapse"
+                variant="ghost"
+                size="small"
+                onPress={handleLogRelapse}
+                style={styles.formBtnFlex}
+              />
+            </View>
+            <Button
+              title="Close"
+              variant="ghost"
+              size="small"
+              onPress={() => setShowTemptationModal(false)}
+              style={{ marginTop: Spacing.sm }}
+            />
           </View>
         </View>
       </Modal>
@@ -2709,6 +2797,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: '700',
   },
+  temptedBtn: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    marginLeft: Spacing.xs,
+  },
+  temptedBtnText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
 
   // Calendar
   calHeader: {
@@ -2932,6 +3031,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     fontWeight: '800',
     marginBottom: Spacing.md,
+  },
+  adviceBox: {
+    borderLeftWidth: 4,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  adviceText: {
+    fontSize: FontSize.md,
+    lineHeight: FontSize.md * 1.5,
+    fontWeight: '500',
   },
 
   // Edit Habits Modal
