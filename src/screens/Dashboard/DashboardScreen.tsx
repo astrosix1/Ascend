@@ -8,6 +8,7 @@ import {
   Modal,
   StyleSheet,
   Alert,
+  Switch,
 } from 'react-native';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
@@ -292,6 +293,8 @@ export default function DashboardScreen() {
     colors,
     habits,
     stats,
+    settings,
+    updateSettings,
     calendarEvents,
     realWorldWins,
     relapseLog,
@@ -662,6 +665,27 @@ export default function DashboardScreen() {
   function handleLogRelapse() {
     openRelapseForm(temptationHabitId, temptationHabitName);
     setShowTemptationModal(false);
+  }
+
+  // ── Dashboard Customization ─────────────────────────────────────────────────
+  const defaultPrefs = {
+    showMotivationQuote: true,
+    showStreakHighlight: true,
+    showAvoidedBadHabits: true,
+    showSummary: true,
+    showAnalyticsButton: true,
+    showCalendar: true,
+    showWins: true,
+    showRelapse: true,
+    showJournals: true,
+  };
+  const prefs = { ...defaultPrefs, ...(settings.dashboardPreferences || {}) };
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [localPrefs, setLocalPrefs] = useState(prefs);
+
+  function savePrefs() {
+    updateSettings({ dashboardPreferences: localPrefs });
+    setShowCustomizeModal(false);
   }
 
   // ── Analytics calculations ──────────────────────────────────────────────────
@@ -1372,6 +1396,9 @@ export default function DashboardScreen() {
             </Text>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity onPress={() => { setLocalPrefs(prefs); setShowCustomizeModal(true); }} style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md }}>
+          <Text style={{ fontSize: 18 }}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -1390,14 +1417,16 @@ export default function DashboardScreen() {
             </View>
 
             {/* ── Daily Motivation Quote ── */}
-            <Card style={{ marginTop: Spacing.md, marginBottom: Spacing.md, paddingVertical: Spacing.lg }}>
-              <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
-                {dailyQuote}
-              </Text>
-            </Card>
+            {prefs.showMotivationQuote && (
+              <Card style={{ marginTop: Spacing.md, marginBottom: Spacing.md, paddingVertical: Spacing.lg }}>
+                <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
+                  {dailyQuote}
+                </Text>
+              </Card>
+            )}
 
             {/* ── Streak Highlight ── */}
-            {habitWithLongestStreak && longestStreak > 0 && (
+            {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
               <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.accentLight, paddingVertical: Spacing.lg }}>
                 <View style={{ alignItems: 'center' }}>
                   <Text style={[styles.streakHighlightText, { color: colors.text, fontSize: FontSize.xl, fontWeight: '700', marginBottom: Spacing.xs }]}>
@@ -1414,7 +1443,7 @@ export default function DashboardScreen() {
             )}
 
             {/* ── Avoided Bad Habits Summary ── */}
-            {avoidedBadHabitsCount > 0 && (
+            {prefs.showAvoidedBadHabits && avoidedBadHabitsCount > 0 && (
               <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
                 <View style={{ alignItems: 'center' }}>
                   <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
@@ -1428,69 +1457,73 @@ export default function DashboardScreen() {
             )}
 
             {/* ── Weekly/Monthly Summary ── */}
-            <Card style={{ marginBottom: Spacing.md }}>
-              <View style={{ marginBottom: Spacing.md }}>
-                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
-                  <TouchableOpacity
-                    style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                    onPress={() => setSummaryMode('week')}
-                  >
-                    <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
-                      This Week
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                    onPress={() => setSummaryMode('month')}
-                  >
-                    <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
-                      This Month
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+            {prefs.showSummary && (
+              <Card style={{ marginBottom: Spacing.md }}>
+                <View style={{ marginBottom: Spacing.md }}>
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                    <TouchableOpacity
+                      style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                      onPress={() => setSummaryMode('week')}
+                    >
+                      <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
+                        This Week
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                      onPress={() => setSummaryMode('month')}
+                    >
+                      <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
+                        This Month
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-                {summaryMode === 'week' ? (
-                  <View>
-                    <View style={{ marginBottom: Spacing.sm }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
+                  {summaryMode === 'week' ? (
+                    <View>
+                      <View style={{ marginBottom: Spacing.sm }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                          <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
+                        </View>
+                        <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
                       </View>
-                      <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                        Good habits completed: {weekStats.completedCount}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                        Bad habits avoided: {weekStats.avoidedBadCount}
+                      </Text>
                     </View>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                      Good habits completed: {weekStats.completedCount}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                      Bad habits avoided: {weekStats.avoidedBadCount}
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    <View style={{ marginBottom: Spacing.sm }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                  ) : (
+                    <View>
+                      <View style={{ marginBottom: Spacing.sm }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                          <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                        </View>
+                        <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
                       </View>
-                      <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                        Good habits completed: {monthStats.completedCount}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                        Bad habits avoided: {monthStats.avoidedBadCount}
+                      </Text>
                     </View>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                      Good habits completed: {monthStats.completedCount}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                      Bad habits avoided: {monthStats.avoidedBadCount}
-                    </Text>
-                  </View>
+                  )}
+                </View>
+                {prefs.showAnalyticsButton && (
+                  <Button
+                    title="📊 View Full Analytics"
+                    variant="ghost"
+                    size="small"
+                    onPress={() => setShowAnalytics(true)}
+                    style={{ marginTop: Spacing.sm }}
+                  />
                 )}
-              </View>
-              <Button
-                title="📊 View Full Analytics"
-                variant="ghost"
-                size="small"
-                onPress={() => setShowAnalytics(true)}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </Card>
+              </Card>
+            )}
 
             {/* Habits (combined Good + Bad) */}
             <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
@@ -2585,6 +2618,58 @@ export default function DashboardScreen() {
                 </>
               );
             })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── DASHBOARD CUSTOMIZE MODAL ─────────────────────────────────────── */}
+      <Modal
+        visible={showCustomizeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCustomizeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>⚙️ Customize Dashboard</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: Spacing.md }]}>
+              Toggle cards on or off. Save to keep your preferences.
+            </Text>
+            <ScrollView>
+              {([
+                { key: 'showMotivationQuote', label: '💬 Daily Motivation Quote' },
+                { key: 'showStreakHighlight', label: '🔥 Streak Highlight' },
+                { key: 'showAvoidedBadHabits', label: '✨ Avoided Bad Habits Badge' },
+                { key: 'showSummary', label: '📈 Weekly/Monthly Summary' },
+                { key: 'showAnalyticsButton', label: '📊 Analytics Button' },
+              ] as const).map(({ key, label }) => (
+                <View key={key} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <Text style={{ color: colors.text, fontSize: FontSize.sm }}>{label}</Text>
+                  <Switch
+                    value={localPrefs[key]}
+                    onValueChange={(val) => setLocalPrefs(p => ({ ...p, [key]: val }))}
+                    thumbColor={localPrefs[key] ? colors.accent : colors.border}
+                    trackColor={{ false: colors.surfaceLight, true: colors.accentLight }}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+            <View style={[styles.formButtonRow, { marginTop: Spacing.md }]}>
+              <Button
+                title="Save"
+                variant="primary"
+                size="small"
+                onPress={savePrefs}
+                style={styles.formBtnFlex}
+              />
+              <Button
+                title="Cancel"
+                variant="ghost"
+                size="small"
+                onPress={() => setShowCustomizeModal(false)}
+                style={styles.formBtnFlex}
+              />
+            </View>
           </View>
         </View>
       </Modal>
