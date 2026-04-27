@@ -404,7 +404,7 @@ export default function CommunityScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={eventsLoading} onRefresh={loadEvents} tintColor={colors.accent} />}
       >
-        <SectionHeader title="Local Events" subtitle={settings.location ? `Near ${settings.location}` : 'Set your location in Settings'} />
+        {!desktop && <SectionHeader title="Local Events" subtitle={settings.location ? `Near ${settings.location}` : 'Set your location in Settings'} />}
 
         {!settings.location && (
           <Card style={{ borderLeftWidth: 3, borderLeftColor: colors.warning }}>
@@ -1461,16 +1461,55 @@ export default function CommunityScreen() {
   };
 
   if (desktop) {
-    // Desktop: Split pane layout with Events (33%), Forums Posts (33%), Forum Detail (33%)
+    // Desktop: Sidebar + content panel
     return (
       <View style={[s.container, { flexDirection: 'row' }]}>
-        {/* Events Panel (33%) */}
-        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: colors.border }}>
-          {renderEvents()}
+        {/* Sidebar */}
+        <View style={{ width: 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
+          <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.5 }}>Community</Text>
+          </View>
+          {([
+            { id: 'events' as CommunityTab, label: 'Local Events', icon: '📅', sub: settings.location ? 'Near ' + settings.location : 'Set location first' },
+            { id: 'forums' as CommunityTab, label: 'Forums', icon: '💬', sub: 'Anonymous · Supportive' },
+          ]).map(cat => {
+            const isActive = activeTab === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setActiveTab(cat.id)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+                  paddingHorizontal: Spacing.md, paddingVertical: 12,
+                  backgroundColor: isActive ? colors.accentLight : 'transparent',
+                  borderRightWidth: isActive ? 3 : 0, borderRightColor: colors.accent,
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: FontSize.sm, fontWeight: isActive ? '700' : '500', color: isActive ? colors.accent : colors.text }}>{cat.label}</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{cat.sub}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* Forums Panel (two-column split) */}
-        {renderForumsDesktopFlattened()}
+        {/* Content panel */}
+        <View style={{ flex: 1, overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
+            <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+              {activeTab === 'events' ? 'Local Events' : 'Community Forums'}
+            </Text>
+            <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>
+              {activeTab === 'events'
+                ? (settings.location ? 'Near ' + settings.location : 'Set location in Settings')
+                : 'Anonymous · Supportive'}
+            </Text>
+          </View>
+          {activeTab === 'events' ? renderEvents() : renderForumsDesktopFlattened()}
+        </View>
       </View>
     );
   }

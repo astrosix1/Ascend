@@ -21,6 +21,7 @@ import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry } fr
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
+import DailyProgressRing from '../../components/DailyProgressRing';
 
 type DashboardTab = 'habits' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)
@@ -373,6 +374,11 @@ export default function DashboardScreen() {
   const [selectedHabitForHistory, setSelectedHabitForHistory] = useState<string | null>(null);
   const [historyDateFilter, setHistoryDateFilter] = useState<'week' | 'month' | 'all'>('all');
 
+  // ── Dashboard category & sidebar state (must be before useEffect at line 432) ──
+  const [dashboardCategory, setDashboardCategory] = useState<'today' | 'progress' | 'journals' | 'calendar'>('today');
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   // Reset bonus state when day changes (fixed to handle edge cases at midnight)
   // Uses persistent timestamp instead of just date string to handle app restarts
   // Also awards 1 XP for each unchecked bad habit at day end
@@ -427,6 +433,21 @@ export default function DashboardScreen() {
     resetBonusIfDateChanged();
   }, [today, habits]);
 
+  // ── Keyboard shortcuts: 1=Today 2=Progress 3=Journals 4=Calendar ──────────
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handleKey = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+      if (e.key === '1') setDashboardCategory('today');
+      if (e.key === '2') setDashboardCategory('progress');
+      if (e.key === '3') setDashboardCategory('journals');
+      if (e.key === '4') { setDashboardCategory('calendar'); if (!selectedDay) setSelectedDay(today); }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [today, selectedDay]);
+
   const weeklyData = useMemo(() => buildWeeklyData(habits), [habits]);
   const monthlyData = useMemo(() => buildMonthlyData(habits), [habits]);
   const yearlyData = useMemo(() => buildYearlyData(habits), [habits]);
@@ -461,7 +482,6 @@ export default function DashboardScreen() {
   // ── Calendar state ─────────────────────────────────────────────────────────
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventTime, setNewEventTime] = useState('');
@@ -479,6 +499,11 @@ export default function DashboardScreen() {
     () => (selectedDay ? calendarEvents.filter(e => e.date === selectedDay) : []),
     [calendarEvents, selectedDay],
   );
+
+  const currentMonthEventCount = useMemo(() => {
+    const prefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+    return calendarEvents.filter(e => e.date.startsWith(prefix)).length;
+  }, [calendarEvents, calYear, calMonth]);
 
   function handlePrevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -506,6 +531,12 @@ export default function DashboardScreen() {
 
   // ── Real World Wins state ──────────────────────────────────────────────────
   const [winsExpanded, setWinsExpanded] = useState(true);
+  const [quickAddText, setQuickAddText] = useState('');
+  const [quickAddType, setQuickAddType] = useState<'good' | 'bad'>('good');
+  const [quickAddBuildText, setQuickAddBuildText] = useState('');
+  const [quickAddBreakText, setQuickAddBreakText] = useState('');
+  const [inlineJournalHabitId, setInlineJournalHabitId] = useState<string | null>(null);
+  const [inlineJournalText, setInlineJournalText] = useState('');
   const [showAddWin, setShowAddWin] = useState(false);
   const [newWinText, setNewWinText] = useState('');
 
@@ -795,6 +826,21 @@ export default function DashboardScreen() {
     setNewHabitDescription('');
   }
 
+  function handleQuickAdd() {
+    if (!quickAddText.trim()) return;
+    addHabit({ id: Date.now().toString(), name: quickAddText.trim(), type: quickAddType, streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() });
+    setQuickAddText('');
+  }
+
+  function handleInlineJournalSave() {
+    if (!inlineJournalText.trim() || !inlineJournalHabitId) return;
+    const h = habits.find(x => x.id === inlineJournalHabitId);
+    if (!h) return;
+    addJournalEntry({ id: Date.now().toString(), habitId: inlineJournalHabitId, habitName: h.name, text: inlineJournalText.trim(), date: today });
+    setInlineJournalHabitId(null);
+    setInlineJournalText('');
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -803,570 +849,700 @@ export default function DashboardScreen() {
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const contentPadding = desktop ? Spacing.md : Spacing.sm;
 
+  // Helper for greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
+  };
+
+  // ── Shared habit row renderer (used by Build + Break sections) ──────────────
+  const renderHabitRow = (habit: typeof habits[number]) => {
+    const isCompleted = habit.completedDates.includes(today);
+    const isGood = habit.type === 'good';
+    const habitColor = isGood ? colors.success : colors.danger;
+    const accentBarColor = isCompleted ? (isGood ? colors.accent : colors.danger) : colors.border;
+    const streakText = isGood
+      ? `🔥 ${habit.streak} day streak`
+      : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
+    const streakColor = isGood && habit.streak > 0 ? colors.warning : colors.textSecondary;
+    return (
+      <View
+        key={habit.id}
+        style={{
+          flexDirection: 'row', alignItems: 'center',
+          paddingVertical: Spacing.md, paddingRight: contentPadding, paddingLeft: contentPadding - 4,
+          borderBottomWidth: 1, borderBottomColor: colors.border,
+          borderLeftWidth: 4, borderLeftColor: accentBarColor,
+          backgroundColor: colors.surface,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => handleToggleHabit(habit.id, today)}
+          style={{
+            width: 32, height: 32, borderRadius: 8, borderWidth: 2,
+            borderColor: habitColor, backgroundColor: isCompleted ? habitColor : 'transparent',
+            alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm,
+          }}
+        >
+          {isCompleted && <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }}>{isGood ? '✓' : '✗'}</Text>}
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: FontSize.md, fontWeight: '600', color: colors.text, lineHeight: FontSize.md * 1.3 }}>{habit.name}</Text>
+          <Text style={{ fontSize: FontSize.xs, color: streakColor, marginTop: 2, fontWeight: habit.streak > 0 && isGood ? '600' : '400' }}>{streakText}</Text>
+        </View>
+        {isCompleted && isGood && (
+          inlineJournalHabitId === habit.id ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+              <TextInput
+                placeholder="Why did you do this?"
+                value={inlineJournalText}
+                onChangeText={setInlineJournalText}
+                onSubmitEditing={handleInlineJournalSave}
+                style={{ width: 150, fontSize: FontSize.xs, color: colors.text, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 2, paddingHorizontal: Spacing.xs }}
+                placeholderTextColor={colors.textTertiary}
+                autoFocus
+                returnKeyType="done"
+              />
+              <TouchableOpacity onPress={handleInlineJournalSave} style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: Spacing.sm, paddingVertical: 3 }}>
+                <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>✓</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setInlineJournalHabitId(null)}>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+            </TouchableOpacity>
+          )
+        )}
+        {isCompleted && !isGood && (
+          <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
+            <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+          </TouchableOpacity>
+        )}
+        {!isCompleted && !isGood && (
+          <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
+            <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   // 3-column responsive layout (desktop) + tab-based layout (mobile/tablet)
   const mainContent = desktop ? (
-    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
-      {/* ━━ LEFT COLUMN: HABITS (Stats + Habits) ━━ */}
-      <ScrollView
-        style={[styles.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Column Header */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
-          <SectionHeader title="Habits" subtitle={`${goodHabits.length} good · ${badHabits.length} bad`} />
-        </View>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
 
-        {/* Stats row */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
-          <View style={styles.statRow}>
-            <StatCard label="XP" value={stats.xp} accent={colors.accent} />
-            <StatCard label="Level" value={stats.level} accent={colors.success} />
-            <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
-          </View>
-        </View>
+      {/* ━━ SIDEBAR + CONTENT PANEL ━━ */}
+      <View style={{ flex: 1, flexDirection: 'row' }}>
 
-        {/* ── Daily Motivation Quote ── */}
-        {prefs.showMotivationQuote && (
-          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
-            <Card style={{ paddingVertical: Spacing.lg }}>
-              <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
-                {dailyQuote}
-              </Text>
-            </Card>
-          </View>
-        )}
-
-        {/* ── Streak Highlight ── */}
-        {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
-          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
-            <Card style={{ backgroundColor: colors.accentLight, paddingVertical: Spacing.lg }}>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={[styles.streakHighlightText, { color: colors.text, fontSize: FontSize.xl, fontWeight: '700', marginBottom: Spacing.xs }]}>
-                  🔥 Your Best Streak
-                </Text>
-                <Text style={[styles.streakHighlightNumber, { color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }]}>
-                  {longestStreak} days
-                </Text>
-                <Text style={[styles.streakHighlightHabit, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.sm }]}>
-                  {habitWithLongestStreak.name}
-                </Text>
-              </View>
-            </Card>
-          </View>
-        )}
-
-        {/* ── Avoided Bad Habits Summary ── */}
-        {prefs.showAvoidedBadHabits && avoidedBadHabitsCount > 0 && (
-          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.sm }}>
-            <Card style={{ backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
-                  ✨ You avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
-                </Text>
-                <Text style={[styles.avoidedHabitsXp, { color: colors.accent, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
-                  (+{avoidedBadHabitsCount} XP)
-                </Text>
-              </View>
-            </Card>
-          </View>
-        )}
-
-        {/* Habits (combined Good + Bad) */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: contentPadding }}>
-          <View style={styles.habitChecklistHeader}>
-            <View style={styles.habitChecklistHeaderLeft}>
-              <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Habits</Text>
-            </View>
-            <Button title="Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
-          </View>
-          <Card style={{ marginBottom: Spacing.md }}>
-            {habits.length === 0 && (
-              <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet. Tap "Add/Edit" to create one!</Text>
+        {/* Sidebar */}
+        <View style={{ width: sidebarCollapsed ? 48 : 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
+          {/* Dashboard title + collapse toggle */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: sidebarCollapsed ? Spacing.xs : Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            {!sidebarCollapsed && (
+              <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>Dashboard</Text>
             )}
-            {habits.map((habit, idx) => {
-              const isCompleted = habit.completedDates.includes(today);
-              const isGood = habit.type === 'good';
-              const habitColor = isGood ? colors.success : colors.danger;
-              const streakText = isGood
-                ? `🔥 ${habit.streak} day streak`
-                : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
-
-              return (
-                <View key={habit.id} style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-                  <TouchableOpacity
-                    onPress={() => handleToggleHabit(habit.id, today)}
-                    style={[
-                      styles.checkbox,
-                      {
-                        borderColor: habitColor,
-                        backgroundColor: isCompleted ? habitColor : 'transparent',
-                      },
-                    ]}
-                  >
-                    {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
-                  </TouchableOpacity>
-                  <View style={styles.habitInfo}>
-                    <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                    <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                      {streakText}
-                    </Text>
-                  </View>
-                  {isCompleted && isGood && (
-                    <TouchableOpacity
-                      onPress={() => openJournalForm(habit.id, habit.name)}
-                      style={[styles.whyBtn, { borderColor: colors.accent }]}
-                    >
-                      <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-                    </TouchableOpacity>
-                  )}
-                  {isCompleted && !isGood && (
-                    <TouchableOpacity
-                      onPress={() => openRelapseForm(habit.id, habit.name)}
-                      style={[styles.relapseBtn, { borderColor: colors.danger }]}
-                    >
-                      <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-                    </TouchableOpacity>
-                  )}
-                  {!isCompleted && !isGood && (
-                    <TouchableOpacity
-                      onPress={() => openTemptationModal(habit.id, habit.name)}
-                      style={[styles.temptedBtn, { borderColor: colors.warning }]}
-                    >
-                      <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
-                    </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSidebarCollapsed(c => !c)} style={{ padding: Spacing.xs }}>
+              <Text style={{ fontSize: FontSize.md, color: colors.textSecondary }}>{sidebarCollapsed ? '›' : '‹'}</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Category nav */}
+          {([
+            { id: 'today' as const, label: "Today's Habits", icon: '🏠', sub: completedGoodHabits.length + '/' + goodHabits.length + ' completed' },
+            { id: 'progress' as const, label: 'Progress', icon: '📊', sub: 'Ring · Chart' },
+            { id: 'journals' as const, label: 'Journals', icon: '📓', sub: 'Wins · Goals · Notes' },
+            { id: 'calendar' as const, label: 'Calendar', icon: '📅', sub: MONTH_NAMES[calMonth] + ' ' + calYear + (currentMonthEventCount > 0 ? ' · ' + currentMonthEventCount + ' event' + (currentMonthEventCount !== 1 ? 's' : '') : '') },
+          ]).map(cat => {
+            const isActive = dashboardCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => { setDashboardCategory(cat.id); if (cat.id === 'calendar' && !selectedDay) setSelectedDay(today); }}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+                  paddingHorizontal: sidebarCollapsed ? 0 : Spacing.md,
+                  paddingVertical: 12,
+                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                  backgroundColor: isActive ? colors.accentLight : 'transparent',
+                  borderRightWidth: isActive ? 3 : 0, borderRightColor: colors.accent,
+                }}
+              >
+                <View style={{ position: 'relative' }}>
+                  <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  {cat.id === 'today' && sidebarCollapsed && (goodHabits.length - completedGoodHabits.length) > 0 && (
+                    <View style={{ position: 'absolute', top: -4, right: -6, backgroundColor: colors.warning, borderRadius: 6, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '700' }}>{goodHabits.length - completedGoodHabits.length}</Text>
+                    </View>
                   )}
                 </View>
-              );
-            })}
-          </Card>
+                {!sidebarCollapsed && (
+                  <>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: FontSize.sm, fontWeight: isActive ? '700' : '500', color: isActive ? colors.accent : colors.text }}>{cat.label}</Text>
+                      <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{cat.sub}</Text>
+                    </View>
+                    {cat.id === 'today' && (goodHabits.length - completedGoodHabits.length) > 0 && (
+                      <View style={{ backgroundColor: colors.warning, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                        <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>{goodHabits.length - completedGoodHabits.length}</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* ── Weekly/Monthly Summary ── */}
-        {prefs.showSummary && (
-          <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: contentPadding }}>
-            <Card style={{ marginBottom: Spacing.md }}>
-              <View style={{ marginBottom: Spacing.md }}>
+        {/* Content panel */}
+        <View style={{ flex: 1, overflow: 'hidden' }}>
+          {/* Panel header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
+            <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+              {dashboardCategory === 'today' ? "Today's Habits" : dashboardCategory === 'progress' ? 'Progress' : dashboardCategory === 'journals' ? 'Journals' : 'Calendar'}
+            </Text>
+            {dashboardCategory === 'today' && (
+              <Button title="+ Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
+            )}
+            {dashboardCategory === 'progress' && (
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>Ring · Chart</Text>
+            )}
+            {dashboardCategory === 'journals' && (
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>Wins · Goals · Notes</Text>
+            )}
+            {dashboardCategory === 'calendar' && (
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>{MONTH_NAMES[calMonth]} {calYear}</Text>
+            )}
+          </View>
+
+        {/* ━━ TODAY content ━━ */}
+        {dashboardCategory === 'today' && (
+        <View style={{ flex: 1 }}>
+
+          {/* Daily quote (compact banner) */}
+          {prefs.showMotivationQuote && (
+            <View style={{
+              paddingHorizontal: contentPadding,
+              paddingVertical: Spacing.sm,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              backgroundColor: colors.accentLight,
+            }}>
+              <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontStyle: 'italic', lineHeight: FontSize.sm * 1.5 }} numberOfLines={2}>
+                {dailyQuote}
+              </Text>
+            </View>
+          )}
+
+          {/* Habit list — scrollable, split into Build + Break sections */}
+          <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
+            {habits.length === 0 && (
+              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
+                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
+                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center', lineHeight: FontSize.sm * 1.6 }}>
+                  Tap "+ Add/Edit" to create your first habit.
+                </Text>
+              </View>
+            )}
+
+            {/* ── BUILD: habits to grow ── */}
+            {goodHabits.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
+                <View style={{ width: 3, height: 12, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.xs }} />
+                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Build</Text>
+                <Text style={{ fontSize: FontSize.xs, color: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent : colors.textSecondary, fontWeight: '600' }}>
+                  {completedGoodHabits.length}/{goodHabits.length} done
+                </Text>
+              </View>
+            )}
+            {goodHabits.map(renderHabitRow)}
+
+            {/* ── Quick-add build habit ── */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+              <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 13 }}>✅</Text>
+              </View>
+              <TextInput
+                placeholder='Quick-add a build habit…'
+                value={quickAddBuildText}
+                onChangeText={setQuickAddBuildText}
+                onSubmitEditing={() => { if (quickAddBuildText.trim()) { addHabit({ name: quickAddBuildText.trim(), type: 'good' }); setQuickAddBuildText(''); } }}
+                style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="done"
+              />
+              {quickAddBuildText.trim().length > 0 && (
+                <TouchableOpacity onPress={() => { if (quickAddBuildText.trim()) { addHabit({ name: quickAddBuildText.trim(), type: 'good' }); setQuickAddBuildText(''); } }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* ── BREAK: habits to quit ── */}
+            {badHabits.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.md, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
+                <View style={{ width: 3, height: 12, backgroundColor: colors.danger, borderRadius: 2, marginRight: Spacing.xs }} />
+                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Break</Text>
+                <Text style={{ fontSize: FontSize.xs, color: colors.success, fontWeight: '600' }}>
+                  {badHabits.filter(h => !h.completedDates.includes(today)).length} avoided today
+                </Text>
+              </View>
+            )}
+            {badHabits.map(renderHabitRow)}
+
+            {/* ── Quick-add break habit ── */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+              <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#FFE8E8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 13 }}>🚫</Text>
+              </View>
+              <TextInput
+                placeholder='Quick-add a break habit…'
+                value={quickAddBreakText}
+                onChangeText={setQuickAddBreakText}
+                onSubmitEditing={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
+                style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="done"
+              />
+              {quickAddBreakText.trim().length > 0 && (
+                <TouchableOpacity onPress={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }} style={{ backgroundColor: colors.danger, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Summary section at bottom */}
+            {prefs.showSummary && (
+              <View style={{ padding: contentPadding, borderTopWidth: habits.length > 0 ? 1 : 0, borderTopColor: colors.border }}>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
                   <TouchableOpacity
                     style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
                     onPress={() => setSummaryMode('week')}
                   >
-                    <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
-                      This Week
-                    </Text>
+                    <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: '#FFFFFF', fontWeight: '700' }]}>Week</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
                     onPress={() => setSummaryMode('month')}
                   >
-                    <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
-                      This Month
-                    </Text>
+                    <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: '#FFFFFF', fontWeight: '700' }]}>Month</Text>
                   </TouchableOpacity>
                 </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                  <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                    {(summaryMode === 'week' ? weekStats : monthStats).completionRate}%
+                  </Text>
+                </View>
+                <ProgressBar progress={(summaryMode === 'week' ? weekStats : monthStats).completionRate / 100} color={colors.success} />
+                {prefs.showAnalyticsButton && (
+                  <Button title="📊 Analytics" variant="ghost" size="small" onPress={() => setShowAnalytics(true)} style={{ marginTop: Spacing.md }} />
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
 
-                {summaryMode === 'week' ? (
-                  <View>
-                    <View style={{ marginBottom: Spacing.sm }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
-                      </View>
-                      <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
-                    </View>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                      Good habits completed: {weekStats.completedCount}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                      Bad habits avoided: {weekStats.avoidedBadCount}
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    <View style={{ marginBottom: Spacing.sm }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
-                      </View>
-                      <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
-                    </View>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                      Good habits completed: {monthStats.completedCount}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                      Bad habits avoided: {monthStats.avoidedBadCount}
-                    </Text>
+        )}
+        {dashboardCategory === 'progress' && (
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+
+            {/* ── Compact stats row ── */}
+            <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              {([
+                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}% done`, color: colors.accent },
+                { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
+                { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
+                { label: 'Lvl', value: `${stats.level}`, sub: `${stats.xp} XP`, color: colors.accent },
+                { label: 'Current Streak', value: `${stats.currentStreak}d`, sub: '100% days', color: colors.warning },
+                { label: 'Longest Streak', value: `${longestStreak}d`, sub: 'best run', color: colors.warning },
+              ] as const).map((s, i) => (
+                <View key={i} style={{ flex: 1, alignItems: 'center', paddingVertical: Spacing.sm, borderRightWidth: i < 5 ? 1 : 0, borderRightColor: colors.border }}>
+                  <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginBottom: 2 }}>{s.label}</Text>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: s.color }}>{s.value}</Text>
+                  <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }} numberOfLines={1}>{s.sub}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* ── Ring + Chart side by side ── */}
+            <View style={{ flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
+
+              {/* Ring pane */}
+              <View style={{ width: 210, borderRightWidth: 1, borderRightColor: colors.border, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg }}>
+                <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
+                {bonusEarnedToday && (
+                  <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
+                    <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
                   </View>
                 )}
               </View>
-              {prefs.showAnalyticsButton && (
-                <Button
-                  title="📊 View Full Analytics"
-                  variant="ghost"
-                  size="small"
-                  onPress={() => setShowAnalytics(true)}
-                  style={{ marginTop: Spacing.sm }}
-                />
-              )}
-            </Card>
+
+              {/* Chart pane */}
+              <View style={{ flex: 1, overflow: 'hidden', padding: contentPadding }}>
+                <View style={styles.tabRow}>
+                  {(['Week', 'Month', 'Year'] as const).map(tab => (
+                    <TouchableOpacity
+                      key={tab}
+                      onPress={() => setChartTab(tab)}
+                      style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
+                    >
+                      <Text style={[styles.tabText, { color: chartTab === tab ? '#FFFFFF' : colors.textSecondary }]}>{tab}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>Good-habit completion %</Text>
+                <View style={{ marginHorizontal: -contentPadding, flex: 1, height: 140 }}>
+                  <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={contentPadding} />
+                </View>
+              </View>
+
+            </View>
           </View>
         )}
-      </ScrollView>
+        {dashboardCategory === 'journals' && (
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+            <View style={{ padding: contentPadding, gap: Spacing.sm }}>
 
-      {/* ━━ MIDDLE COLUMN: CALENDAR (Chart + Calendar) ━━ */}
-      <ScrollView
-        style={[styles.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Column Header */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
-          <SectionHeader title="Calendar" subtitle="Progress & schedule" />
-        </View>
+              {/* Best streak highlight */}
+              {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
+                <View style={{
+                  backgroundColor: colors.accentLight,
+                  borderRadius: BorderRadius.lg,
+                  padding: Spacing.md,
+                  alignItems: 'center',
+                  borderLeftWidth: 4,
+                  borderLeftColor: colors.accent,
+                }}>
+                  <Text style={{ color: colors.text, fontSize: FontSize.sm, fontWeight: '700', marginBottom: Spacing.xs }}>🔥 Best Streak</Text>
+                  <Text style={{ color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }}>{longestStreak}d</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>{habitWithLongestStreak.name}</Text>
+                </View>
+              )}
 
-        {/* Chart section */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
-          <Card style={[styles.chartCard, { paddingBottom: Spacing.sm }]}>
-            <View style={styles.tabRow}>
-              {(['Week', 'Month', 'Year'] as const).map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  onPress={() => setChartTab(tab)}
-                  style={[
-                    styles.tab,
-                    {
-                      backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary },
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>
-              Good-habit completion %
-            </Text>
-            <View style={[styles.graphContainer, { marginLeft: -Spacing.md, marginRight: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
-              <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={Spacing.md} />
-            </View>
-          </Card>
-        </View>
-
-        {/* Calendar */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: contentPadding }}>
-          <Card>
-            <View style={styles.calHeader}>
-              <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
-                <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
-              </TouchableOpacity>
-              <Text style={[styles.calMonthLabel, { color: colors.text }]}>
-                {MONTH_NAMES[calMonth]} {calYear}
-              </Text>
-              <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
-                <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.calDayLabels}>
-              {(screenWidth < 500 ? DAY_LABELS_SHORT : DAY_LABELS).map((d, i) => (
-                <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary, fontSize: screenWidth < 500 ? FontSize.xs - 2 : FontSize.xs }]}>{d}</Text>
-              ))}
-            </View>
-
-            <View style={styles.calGrid}>
-              {Array.from({ length: firstDay }).map((_, i) => (
-                <View key={`empty-${i}`} style={styles.calCell} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isToday = dateStr === today;
-                const hasEvent = eventDates.has(dateStr);
-                const isSelected = selectedDay === dateStr;
-                const completionLevel = getDailyCompletionLevel(dateStr, habits);
-
-                // Color intensity based on completion level
-                let heatmapColor = colors.surface; // No activity - gray
-                if (completionLevel === 1) heatmapColor = '#66BB6A'; // Light green - some habits
-                if (completionLevel === 2) heatmapColor = colors.success; // Bright green - most habits
-                if (completionLevel === 3) heatmapColor = colors.accent; // Gold - perfect day
-
-                return (
+              {/* Real World Wins */}
+              {prefs.showWins && (
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
                   <TouchableOpacity
-                    key={day}
-                    onPress={() => setSelectedDay(isSelected ? null : dateStr)}
-                    style={[
-                      styles.calCell,
-                      !isSelected && { backgroundColor: heatmapColor },
-                      isToday && !isSelected && { borderWidth: 2, borderColor: colors.accent },
-                      isSelected && { backgroundColor: colors.accent },
-                    ]}
+                    onPress={() => setWinsExpanded(!winsExpanded)}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
                   >
-                    <Text
-                      style={[
-                        styles.calDayNum,
-                        { color: isSelected ? '#1A1A1A' : completionLevel > 0 ? '#1A1A1A' : colors.text },
-                      ]}
-                    >
-                      {day}
+                    <Text style={{ color: colors.success, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
+                      🏆 Real World Wins ({realWorldWins.length})
                     </Text>
-                    {hasEvent && (
-                      <View style={[styles.eventDot, { backgroundColor: isSelected ? '#1A1A1A' : colors.accent }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {selectedDay && (
-              <View style={[styles.selectedDayPanel, { borderTopColor: colors.border }]}>
-                <Text style={[styles.selectedDayTitle, { color: colors.text }]}>
-                  {formatDisplayDate(selectedDay)}
-                </Text>
-                {selectedDayEvents.length === 0 ? (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>
-                    No events — tap "Add Event" to create one.
-                  </Text>
-                ) : (
-                  selectedDayEvents.map(evt => (
-                    <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
-                      <View style={styles.eventRowInfo}>
-                        {evt.time && <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>}
-                        <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
-                      </View>
-                      <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
-                        <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
-                      </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+                      {winsExpanded && (
+                        <TouchableOpacity onPress={() => setShowAddWin(true)}>
+                          <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.sm }}>+ Add</Text>
+                        </TouchableOpacity>
+                      )}
+                      <Text style={{ color: colors.textSecondary }}>{winsExpanded ? '▲' : '▼'}</Text>
                     </View>
-                  ))
-                )}
-              </View>
-            )}
-
-            <Button
-              title="+ Add Event"
-              variant="ghost"
-              size="small"
-              style={styles.addEventBtn}
-              onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }}
-            />
-          </Card>
-        </View>
-      </ScrollView>
-
-      {/* ━━ RIGHT COLUMN: JOURNALS (Wins + Relapse + Journals) ━━ */}
-      <ScrollView
-        style={[styles.scroll, { flex: 1 }]}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Column Header */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: contentPadding, paddingBottom: Spacing.xs }}>
-          <SectionHeader title="Journals" subtitle="Reflections & wins" />
-        </View>
-
-        {/* Real World Wins */}
-        <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
-          <Card style={{ marginBottom: Spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: winsExpanded ? Spacing.md : 0 }}>
-              <TouchableOpacity onPress={() => setWinsExpanded(!winsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
-                <Text style={[styles.subsectionLabel, { color: colors.success }]}>Real World Wins</Text>
-                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({realWorldWins.length})</Text>
-                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                  {winsExpanded ? '▲' : '▼'}
-                </Text>
-              </TouchableOpacity>
-              {winsExpanded && (
-                <Button title="+ Add" variant="ghost" size="small" onPress={() => setShowAddWin(true)} />
-              )}
-            </View>
-            {winsExpanded && (
-              <>
-                {realWorldWins.length === 0 && (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins recorded yet. Celebrate your progress!</Text>
-                )}
-                {realWorldWins.slice(0, 3).map(win => (
-                  <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
-                    <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
-                    <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
-                  </View>
-                ))}
-                {realWorldWins.length > 3 && (
-                  <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                      View All Wins ({realWorldWins.length})
-                    </Text>
                   </TouchableOpacity>
-                )}
-              </>
-            )}
-          </Card>
-        </View>
+                  {winsExpanded && (
+                    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
+                      {realWorldWins.length === 0 ? (
+                        <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins yet. Celebrate your progress!</Text>
+                      ) : (
+                        realWorldWins.slice(0, 3).map(win => (
+                          <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
+                            <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
+                            <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
 
-        {/* Relapse Recovery */}
-        <View style={{ paddingHorizontal: contentPadding, paddingBottom: Spacing.xs }}>
-          <Card style={{ marginBottom: Spacing.md }}>
-            <TouchableOpacity onPress={() => setRelapseExpanded(!relapseExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: relapseExpanded ? Spacing.md : 0 }}>
-              <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Relapse Recovery</Text>
-              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({relapseLog.length})</Text>
-              <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                {relapseExpanded ? '▲' : '▼'}
-              </Text>
-            </TouchableOpacity>
-            {relapseExpanded && (
-              <>
-                {relapseLog.length === 0 ? (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
-                ) : (
-                  <>
-                    {relapseLog.slice(0, 2).map(entry => (
-                      <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
-                        <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
-                        <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
-                        {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
-                        <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
-                      </View>
-                    ))}
-                    {relapseLog.length > 2 && (
-                      <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
-                        <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                          View History ({relapseLog.length})
-                        </Text>
+              {/* Relapse Recovery */}
+              {prefs.showRelapse && (
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                  <TouchableOpacity
+                    onPress={() => setRelapseExpanded(!relapseExpanded)}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
+                  >
+                    <Text style={{ color: colors.danger, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
+                      Relapse Recovery ({relapseLog.length})
+                    </Text>
+                    <Text style={{ color: colors.textSecondary }}>{relapseExpanded ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {relapseExpanded && (
+                    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
+                      {relapseLog.length === 0 ? (
+                        <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
+                      ) : (
+                        relapseLog.slice(0, 2).map(entry => (
+                          <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
+                            <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
+                            <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
+                            {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
+                            <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Goals */}
+              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                <TouchableOpacity
+                  onPress={() => setGoalsExpanded(!goalsExpanded)}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
+                >
+                  <Text style={{ color: colors.warning, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
+                    📍 Goals ({activeGoals.length})
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+                    {goalsExpanded && (
+                      <TouchableOpacity onPress={() => {
+                        setEditingGoalId(null);
+                        setGoalTitle('');
+                        setGoalDescription('');
+                        setGoalTargetDate('');
+                        setGoalProgress(0);
+                        setGoalRelatedHabits([]);
+                        setGoalNotes('');
+                        setShowAddGoalModal(true);
+                      }}>
+                        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.md }}>+</Text>
                       </TouchableOpacity>
                     )}
-                  </>
-                )}
-              </>
-            )}
-          </Card>
-        </View>
-
-        {/* Goals */}
-        <View style={{ paddingHorizontal: contentPadding, paddingBottom: Spacing.xs }}>
-          <Card>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: goalsExpanded ? Spacing.md : 0 }}>
-              <TouchableOpacity onPress={() => setGoalsExpanded(!goalsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
-                <Text style={[styles.subsectionLabel, { color: colors.warning }]}>📍 Goals</Text>
-                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({activeGoals.length})</Text>
-                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                  {goalsExpanded ? '▲' : '▼'}
-                </Text>
-              </TouchableOpacity>
-              {goalsExpanded && (
-                <Button title="+" variant="ghost" size="small" onPress={() => { setEditingGoalId(null); setGoalTitle(''); setGoalDescription(''); setGoalTargetDate(''); setGoalProgress(0); setGoalRelatedHabits([]); setGoalNotes(''); setShowAddGoalModal(true); }} />
-              )}
-            </View>
-            {goalsExpanded && (
-              <>
-                {activeGoals.length === 0 && completedGoals.length === 0 && abandonedGoals.length === 0 ? (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No goals yet. Tap "+" to create one!</Text>
-                ) : (
-                  <>
-                    {/* Active Goals */}
-                    {activeGoals.length > 0 && (
+                    <Text style={{ color: colors.textSecondary }}>{goalsExpanded ? '▲' : '▼'}</Text>
+                  </View>
+                </TouchableOpacity>
+                {goalsExpanded && (
+                  <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
+                    {activeGoals.length === 0 && completedGoals.length === 0 && abandonedGoals.length === 0 ? (
+                      <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No goals yet. Tap "+" to create one!</Text>
+                    ) : (
                       <>
-                        <Text style={{ color: colors.text, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm }}>Active Goals</Text>
                         {activeGoals.map((goal) => (
                           <TouchableOpacity key={goal.id} onPress={() => openEditGoal(goal)} style={{ marginBottom: Spacing.md }}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
-                              <Text style={{ color: colors.text, fontWeight: '600' }}>{goal.title}</Text>
+                              <Text style={{ color: colors.text, fontWeight: '600', fontSize: FontSize.sm, flex: 1 }}>{goal.title}</Text>
                               <TouchableOpacity onPress={() => deleteGoal(goal.id)}>
                                 <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
                               </TouchableOpacity>
                             </View>
                             <ProgressBar progress={goal.progress / 100} color={colors.warning} />
-                            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>{goal.progress}% · Target: {formatDisplayDate(goal.targetDate)}</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
+                              {goal.progress}% · Target: {formatDisplayDate(goal.targetDate)}
+                            </Text>
                           </TouchableOpacity>
                         ))}
+                        {completedGoals.length > 0 && (
+                          <Text style={{ color: colors.success, fontWeight: '700', fontSize: FontSize.xs, marginTop: Spacing.sm }}>
+                            ✓ {completedGoals.length} completed
+                          </Text>
+                        )}
                       </>
                     )}
-
-                    {/* Completed Goals */}
-                    {completedGoals.length > 0 && (
-                      <>
-                        <Text style={{ color: colors.success, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm, marginTop: Spacing.md }}>✓ Completed ({completedGoals.length})</Text>
-                        {completedGoals.map((goal) => (
-                          <View key={goal.id} style={{ marginBottom: Spacing.sm }}>
-                            <Text style={{ color: colors.success, fontWeight: '600', textDecorationLine: 'line-through' }}>{goal.title}</Text>
-                          </View>
-                        ))}
-                      </>
-                    )}
-
-                    {/* Abandoned Goals */}
-                    {abandonedGoals.length > 0 && (
-                      <>
-                        <Text style={{ color: colors.textSecondary, fontWeight: '700', marginBottom: Spacing.sm, fontSize: FontSize.sm, marginTop: Spacing.md }}>Abandoned ({abandonedGoals.length})</Text>
-                        {abandonedGoals.map((goal) => (
-                          <View key={goal.id} style={{ marginBottom: Spacing.sm }}>
-                            <Text style={{ color: colors.textSecondary, fontWeight: '600', textDecorationLine: 'line-through' }}>{goal.title}</Text>
-                          </View>
-                        ))}
-                      </>
-                    )}
-                  </>
+                  </View>
                 )}
-              </>
-            )}
-          </Card>
-        </View>
+              </View>
 
-        {/* Why Journals */}
-        <View style={{ paddingHorizontal: contentPadding, paddingBottom: contentPadding }}>
-          <Card>
-            <TouchableOpacity onPress={() => setJournalExpanded(!journalExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: journalExpanded ? Spacing.md : 0 }}>
-              <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Why Journals</Text>
-              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({journalEntries.length})</Text>
-              <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                {journalExpanded ? '▲' : '▼'}
-              </Text>
-            </TouchableOpacity>
-            {journalExpanded && (
-              <>
-                {journalEntries.length === 0 ? (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No journal entries yet. Tap "Why?" after completing a habit.</Text>
-                ) : (
-                  <>
-                    {journalEntries.slice(0, 2).map(entry => (
-                      <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
-                        <View style={styles.journalEntryHeader}>
+              {/* Why Journals */}
+              {prefs.showJournals && (
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                  <TouchableOpacity
+                    onPress={() => setJournalExpanded(!journalExpanded)}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
+                  >
+                    <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
+                      Why Journals ({journalEntries.length})
+                    </Text>
+                    <Text style={{ color: colors.textSecondary }}>{journalExpanded ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {journalExpanded && (
+                    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
+                      {journalEntries.length === 0 ? (
+                        <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No entries yet. Tap "Why?" after completing a habit.</Text>
+                      ) : (
+                        journalEntries.slice(0, 3).map(entry => (
+                          <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
+                            <View style={styles.journalEntryHeader}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
+                                <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                                <TouchableOpacity onPress={() => openJournalEdit(entry)}>
+                                  <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
+                                  <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                            <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ━━ CALENDAR panel — side-by-side ━━ */}
+        {dashboardCategory === 'calendar' && (
+          <View style={{ flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
+
+            {/* Left pane: Calendar grid */}
+            <View style={{ width: 340, borderRightWidth: 1, borderRightColor: colors.border, padding: contentPadding }}>
+              {/* Month navigation */}
+              <View style={styles.calHeader}>
+                <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
+                  <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
+                </TouchableOpacity>
+                <Text style={[styles.calMonthLabel, { color: colors.text }]}>
+                  {MONTH_NAMES[calMonth]} {calYear}
+                </Text>
+                <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
+                  <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Day-of-week labels */}
+              <View style={styles.calDayLabels}>
+                {DAY_LABELS_SHORT.map((d, i) => (
+                  <Text key={i} style={[styles.calDayLabel, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{d}</Text>
+                ))}
+              </View>
+
+              {/* Day cells with heatmap */}
+              <View style={styles.calGrid}>
+                {Array.from({ length: firstDay }).map((_, i) => (
+                  <View key={`empty-${i}`} style={styles.calCell} />
+                ))}
+                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                  const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const isToday = dateStr === today;
+                  const hasEvent = eventDates.has(dateStr);
+                  const isSelected = (selectedDay ?? today) === dateStr;
+                  const completionLevel = getDailyCompletionLevel(dateStr, habits);
+                  let heatmapColor = colors.surface;
+                  if (completionLevel === 1) heatmapColor = '#66BB6A';
+                  if (completionLevel === 2) heatmapColor = colors.success;
+                  if (completionLevel === 3) heatmapColor = colors.accent;
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      onPress={() => setSelectedDay(isSelected && selectedDay !== null ? null : dateStr)}
+                      style={[
+                        styles.calCell,
+                        !isSelected && { backgroundColor: heatmapColor },
+                        isToday && !isSelected && { borderWidth: 2, borderColor: colors.accent },
+                        isSelected && { backgroundColor: colors.accent },
+                      ]}
+                    >
+                      <Text style={[styles.calDayNum, { color: isSelected ? '#FFFFFF' : completionLevel > 0 ? '#1A1A1A' : colors.text }]}>
+                        {day}
+                      </Text>
+                      {hasEvent && (
+                        <View style={[styles.eventDot, { backgroundColor: isSelected ? '#FFFFFF' : colors.accent }]} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Heatmap legend */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md }}>
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>Less</Text>
+                {([colors.surface, '#66BB6A', colors.success, colors.accent] as string[]).map((c, i) => (
+                  <View key={i} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: c, borderWidth: c === colors.surface ? 1 : 0, borderColor: colors.border }} />
+                ))}
+                <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>More</Text>
+              </View>
+            </View>
+
+            {/* Right pane: Selected day detail */}
+            <View style={{ flex: 1, overflow: 'hidden' }}>
+              {/* Day title bar */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: contentPadding, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface }}>
+                <View>
+                  <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+                    {formatDisplayDate(selectedDay ?? today)}
+                  </Text>
+                  {(selectedDay ?? today) === today && (
+                    <Text style={{ fontSize: FontSize.xs, color: colors.accent, fontWeight: '600', marginTop: 1 }}>Today</Text>
+                  )}
+                </View>
+                <Button title="+ Add Event" variant="ghost" size="small" onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }} />
+              </View>
+
+              {/* Events + habit completions for selected day */}
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: contentPadding, paddingBottom: Spacing.xl }}>
+                {/* Events */}
+                {(() => {
+                  const viewDay = selectedDay ?? today;
+                  const dayEvts = calendarEvents.filter(e => e.date === viewDay);
+                  return dayEvts.length === 0 ? (
+                    <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+                      <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>📭</Text>
+                      <Text style={{ fontSize: FontSize.md, fontWeight: '600', color: colors.text, marginBottom: Spacing.xs }}>No events scheduled</Text>
+                      <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary, textAlign: 'center' }}>
+                        Tap "+ Add Event" to add something to this day.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ marginBottom: Spacing.lg }}>
+                      <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: Spacing.sm }}>Events</Text>
+                      {dayEvts.map(evt => (
+                        <View key={evt.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                          <View style={{ width: 4, height: 44, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.md }} />
                           <View style={{ flex: 1 }}>
-                            <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
-                            <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+                            {evt.time && <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.accent, marginBottom: 2 }}>{evt.time}</Text>}
+                            <Text style={{ fontSize: FontSize.md, fontWeight: '600', color: colors.text }}>{evt.title}</Text>
                           </View>
-                          <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-                            <TouchableOpacity onPress={() => openJournalEdit(entry)}>
-                              <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
-                              <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
-                            </TouchableOpacity>
-                          </View>
+                          <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)} style={{ padding: Spacing.sm }}>
+                            <Text style={{ color: colors.danger, fontWeight: '700', fontSize: FontSize.md }}>✕</Text>
+                          </TouchableOpacity>
                         </View>
-                        <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
-                      </View>
-                    ))}
-                    {journalEntries.length > 2 && (
-                      <TouchableOpacity style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
-                        <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                          View All ({journalEntries.length})
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </Card>
+                      ))}
+                    </View>
+                  );
+                })()}
+
+                {/* Habit completions for that day */}
+                {(() => {
+                  const viewDay = selectedDay ?? today;
+                  const completedOnDay = habits.filter(h => h.completedDates.includes(viewDay));
+                  if (completedOnDay.length === 0) return null;
+                  return (
+                    <View>
+                      <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: Spacing.sm }}>Habits Completed</Text>
+                      {completedOnDay.map(h => (
+                        <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: h.type === 'good' ? colors.success : colors.danger }} />
+                          <Text style={{ fontSize: FontSize.sm, color: colors.text, flex: 1 }}>{h.name}</Text>
+                          <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{h.type === 'good' ? '✓ Done' : '✗ Avoided'}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
+              </ScrollView>
+            </View>
+
+          </View>
+        )}
+
         </View>
-      </ScrollView>
+      </View>
     </View>
   ) : (
     // ━━━━━━━━ MOBILE/TABLET: TAB-BASED LAYOUT ━━━━━━━━

@@ -9,9 +9,24 @@ import Card from '../../components/Card';
 import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
+import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
+
+type SettingsCategory = 'profile' | 'appearance' | 'boundaries' | 'reflection' | 'sync' | 'partner';
+
+const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }[] = [
+  { id: 'profile', label: 'Profile', icon: '👤' },
+  { id: 'appearance', label: 'Appearance', icon: '🎨' },
+  { id: 'boundaries', label: 'Boundaries', icon: '🛡️' },
+  { id: 'reflection', label: 'Reflection', icon: '📝' },
+  { id: 'sync', label: 'Cloud Sync', icon: '☁️' },
+  { id: 'partner', label: 'Partner', icon: '🤝' },
+];
 
 export default function SettingsScreen() {
   const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
+  const screenWidth = useScreenWidth();
+  const desktop = screenWidth > BREAKPOINTS.tablet;
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
 
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameInput, setUsernameInput] = useState(settings.username);
@@ -180,12 +195,12 @@ export default function SettingsScreen() {
     </TouchableOpacity>
   );
 
-  return (
-    <View style={s.container}>
-      <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 60 }}>
+  // ── Shared content blocks ──────────────────────────────────────────────────
 
-        {/* Profile */}
-        <Text style={s.sectionLabel}>PROFILE</Text>
+  const profileContent = (
+    <>
+      {/* Profile */}
+      <Text style={s.sectionLabel}>PROFILE</Text>
         <Card>
           <View style={[s.row, { marginBottom: Spacing.md }]}>
             {settings.profilePictureUrl || settings.profilePictureBase64 ? (
@@ -369,7 +384,11 @@ export default function SettingsScreen() {
             <SettingRow label="Location" value={settings.location || 'Not set'} onPress={() => setEditingLocation(true)} icon="location-outline" />
           </Card>
         )}
+    </>
+  );
 
+  const appearanceContent = (
+    <>
         {/* Theme */}
         <Text style={s.sectionLabel}>APPEARANCE</Text>
         <Card>
@@ -389,7 +408,11 @@ export default function SettingsScreen() {
             Easy on the eyes. Reduces blue light to protect your sleep.
           </Text>
         </Card>
+    </>
+  );
 
+  const boundariesContent = (
+    <>
         {/* Healthy Boundaries */}
         <Text style={s.sectionLabel}>HEALTHY BOUNDARIES</Text>
         <Card>
@@ -438,7 +461,11 @@ export default function SettingsScreen() {
             />
           )}
         </Card>
+    </>
+  );
 
+  const reflectionContent = (
+    <>
         {/* Reflection prompts */}
         <Text style={s.sectionLabel}>REFLECTION PROMPTS</Text>
         <Card>
@@ -465,7 +492,11 @@ export default function SettingsScreen() {
             Brief prompts asking what you did instead of a bad habit today.
           </Text>
         </Card>
+    </>
+  );
 
+  const syncContent = (
+    <>
         {/* Cloud Sync */}
         <Text style={s.sectionLabel}>CLOUD SYNC</Text>
         <Card>
@@ -517,7 +548,11 @@ export default function SettingsScreen() {
             </Text>
           )}
         </Card>
+    </>
+  );
 
+  const partnerContent = (
+    <>
         {/* Accountability Partner */}
         <Text style={s.sectionLabel}>ACCOUNTABILITY PARTNER</Text>
         <Card>
@@ -564,7 +599,89 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           )}
         </Card>
+    </>
+  );
 
+  // ── Desktop: 2-column layout ───────────────────────────────────────────────
+  if (desktop) {
+    const contentMap: Record<SettingsCategory, React.ReactElement> = {
+      profile: profileContent,
+      appearance: appearanceContent,
+      boundaries: boundariesContent,
+      reflection: reflectionContent,
+      sync: syncContent,
+      partner: partnerContent,
+    };
+
+    return (
+      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
+        {/* Sidebar */}
+        <View style={{ width: 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
+          {/* Sidebar header */}
+          <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.5 }}>Settings</Text>
+          </View>
+          {/* Profile mini card */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm }}>
+              <Text style={{ fontSize: FontSize.md, color: colors.accent, fontWeight: '700' }}>{settings.username.charAt(0).toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.text }} numberOfLines={1}>{settings.username}</Text>
+              <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>Lv {stats.level} · {stats.xp} XP</Text>
+            </View>
+          </View>
+          {/* Category nav */}
+          {SETTINGS_CATEGORIES.map(cat => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setActiveCategory(cat.id)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+                  paddingHorizontal: Spacing.md, paddingVertical: 12,
+                  backgroundColor: isActive ? colors.accentLight : 'transparent',
+                  borderRightWidth: isActive ? 3 : 0,
+                  borderRightColor: colors.accent,
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                <Text style={{ fontSize: FontSize.sm, fontWeight: isActive ? '700' : '500', color: isActive ? colors.accent : colors.textSecondary }}>
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Content panel */}
+        <View style={{ flex: 1, overflow: 'hidden' }}>
+          {/* Content panel header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
+            <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+              {SETTINGS_CATEGORIES.find(c => c.id === activeCategory)?.label}
+            </Text>
+          </View>
+          <ScrollView style={{ flex: 1, padding: Spacing.md }} contentContainerStyle={{ paddingBottom: 60 }}>
+            {contentMap[activeCategory]}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Mobile: single-column scrollable ──────────────────────────────────────
+  return (
+    <View style={s.container}>
+      <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 60 }}>
+        {profileContent}
+        {appearanceContent}
+        {boundariesContent}
+        {reflectionContent}
+        {syncContent}
+        {partnerContent}
       </ScrollView>
     </View>
   );

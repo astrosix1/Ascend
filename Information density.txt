@@ -1,0 +1,17 @@
+Information density
+
+Stats bar in Today panel — 3 compact pill cards at the top (Today %, Week %, Best Streak) so you have context without switching to Progress
+Habit grouping — Split habits into Morning / Afternoon / Evening collapsible sections, reducing scanning
+Bad vs good habit sections — "Build" and "Break" as two sub-headers in Today, already logically separate
+Reduce clicks
+4. Inline "Log why?" prompt — After checking off a habit, a tiny expandable text field appears right on the card instead of requiring a trip to Journals
+5. Quick-add at bottom of Today — A simple "+ type habit name…" text input at the bottom of the list, no modal needed for common habits
+6. Calendar event count in sidebar — Show "April 2026 · 3 events" in the subtitle so you know at a glance if there's something scheduled
+
+Navigation speed
+7. Keyboard shortcuts — 1 2 3 4 to jump between Today / Progress / Journals / Calendar panels instantly
+8. Incomplete habit badge — A number badge on the Today sidebar item (e.g. "3" in orange) showing remaining habits, visible from any panel
+
+Layout breathing room
+9. Progress panel compact stat cards — Replace the centered ring with a 2×2 grid of stat cards (Today %, Week %, Best Streak, Total XP) plus a smaller ring — higher information density
+10. Collapsible app sidebar — The "‹ Collapse" button already exists; wiring it to icon-only mode gives the content panel ~180px more horizontal space

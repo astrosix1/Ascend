@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Platform, useWindowDimensions,
 } from 'react-native';
 import { signIn, signUp } from '../../utils/supabase';
 import { useApp } from '../../contexts/AppContext';
-import { FontSize, Spacing, BorderRadius } from '../../utils/theme';
 
 interface Props {
   onAuthenticated: (userId: string, email: string) => void;
@@ -14,8 +13,18 @@ interface Props {
 
 type Mode = 'landing' | 'login' | 'signup';
 
+const FEATURES = [
+  { icon: '☁️', label: 'Sync across devices' },
+  { icon: '🛡️', label: 'Private & secure' },
+  { icon: '👥', label: 'Real community' },
+  { icon: '📱', label: 'Works offline' },
+];
+
 export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
   const { colors } = useApp();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   const [mode, setMode] = useState<Mode>('landing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,16 +43,7 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
       if (error) throw error;
       if (data.user) onAuthenticated(data.user.id, data.user.email || email);
     } catch (err: any) {
-      const errorMsg = err.message || '';
-      let userMessage = 'Login failed. Please try again.';
-
-      if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid') || errorMsg.includes('password')) {
-        userMessage = 'Invalid email or password. Please check and try again.';
-      } else if (errorMsg.includes('not confirmed') || errorMsg.includes('email') || errorMsg.includes('verify')) {
-        userMessage = 'Please verify your email before signing in. Check your inbox for a confirmation link.';
-      }
-
-      Alert.alert('Login failed', userMessage);
+      Alert.alert('Login failed', err.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,11 +67,9 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
       const { data, error } = await signUp(email.trim(), password);
       if (error) throw error;
       if (data.user) {
-        Alert.alert(
-          'Account created!',
-          'Check your email to confirm your account, then log in.',
-          [{ text: 'OK', onPress: () => setMode('login') }]
-        );
+        Alert.alert('Account created!', 'Check your email to confirm, then log in.', [
+          { text: 'OK', onPress: () => setMode('login') },
+        ]);
       }
     } catch (err: any) {
       Alert.alert('Sign up failed', err.message || 'Please try again.');
@@ -80,204 +78,348 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
     }
   };
 
-  const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    scroll: { flexGrow: 1, justifyContent: 'center', padding: Spacing.xl },
-    logo: {
-      alignItems: 'center', marginBottom: Spacing.xxl,
-    },
-    logoText: {
-      fontSize: 48, fontWeight: '800', color: colors.accent, letterSpacing: 4,
-    },
-    tagline: {
-      fontSize: FontSize.md, color: colors.textSecondary, marginTop: Spacing.xs, textAlign: 'center',
-    },
-    title: {
-      fontSize: FontSize.xxl, fontWeight: '800', color: colors.text, marginBottom: Spacing.sm,
-    },
-    subtitle: {
-      fontSize: FontSize.sm, color: colors.textSecondary, marginBottom: Spacing.xl, lineHeight: 20,
-    },
-    input: {
-      borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.sm,
-      padding: Spacing.md, color: colors.text, backgroundColor: colors.surface,
-      fontSize: FontSize.md, marginBottom: Spacing.sm,
-    },
-    inputRow: {
-      flexDirection: 'row', alignItems: 'center', borderWidth: 1,
-      borderColor: colors.border, borderRadius: BorderRadius.sm,
-      backgroundColor: colors.surface, marginBottom: Spacing.sm,
-    },
-    inputInRow: {
-      flex: 1, padding: Spacing.md, color: colors.text, fontSize: FontSize.md,
-    },
-    eyeBtn: { padding: Spacing.md },
-    primaryBtn: {
-      backgroundColor: colors.accent, borderRadius: BorderRadius.sm,
-      padding: Spacing.md, alignItems: 'center', marginTop: Spacing.sm,
-    },
-    primaryBtnText: { color: '#1A1A1A', fontWeight: '700', fontSize: FontSize.md },
-    secondaryBtn: {
-      borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.sm,
-      padding: Spacing.md, alignItems: 'center', marginTop: Spacing.sm,
-    },
-    secondaryBtnText: { color: colors.textSecondary, fontSize: FontSize.md },
-    linkBtn: { alignItems: 'center', marginTop: Spacing.lg },
-    linkText: { color: colors.accent, fontSize: FontSize.sm },
-    divider: {
-      flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.lg,
-    },
-    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-    dividerText: { color: colors.textSecondary, paddingHorizontal: Spacing.sm, fontSize: FontSize.sm },
-    featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.sm },
-    featureText: { color: colors.textSecondary, fontSize: FontSize.sm, flex: 1, lineHeight: 20 },
-    noKeyBanner: {
-      backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm,
-      padding: Spacing.sm, marginBottom: Spacing.md, borderWidth: 1, borderColor: colors.border,
-    },
-  });
+  // ── Left panel (brand) ──────────────────────────────────────────────────────
+  const LeftPanel = () => (
+    <View style={[styles.leftPanel, { backgroundColor: colors.accent }]}>
+      <View style={styles.leftContent}>
+        {/* Logo */}
+        <Text style={styles.brandLogo}>ASCEND</Text>
+        <Text style={styles.brandTagline}>Build better habits.{'\n'}Live more fully.</Text>
 
-  // Landing page
-  if (mode === 'landing') {
-    return (
-      <View style={s.container}>
-        <ScrollView contentContainerStyle={s.scroll}>
-          <View style={s.logo}>
-            <Text style={s.logoText}>ASCEND</Text>
-            <Text style={s.tagline}>Build better habits. Live more fully.</Text>
-          </View>
+        {/* Features */}
+        <View style={styles.featuresGrid}>
+          {FEATURES.map(({ icon, label }) => (
+            <View key={label} style={styles.featureChip}>
+              <Text style={styles.featureIcon}>{icon}</Text>
+              <Text style={styles.featureLabel}>{label}</Text>
+            </View>
+          ))}
+        </View>
 
-          <View style={{ marginBottom: Spacing.xl }}>
-            {[
-              ['☁️', 'Sync your habits across all your devices'],
-              ['🛡️', 'Your data stays private and secure'],
-              ['👥', 'Join a real community working toward the same goals'],
-              ['📱', 'Use offline — syncs when you reconnect'],
-            ].map(([icon, text]) => (
-              <View key={text} style={s.featureRow}>
-                <Text style={{ fontSize: 18, color: colors.accent }}>{icon}</Text>
-                <Text style={s.featureText}>{text}</Text>
-              </View>
-            ))}
-          </View>
+        {/* Bottom quote */}
+        <Text style={styles.brandQuote}>
+          "One small habit, done consistently, changes everything."
+        </Text>
+      </View>
+    </View>
+  );
 
-          <TouchableOpacity
-            style={s.primaryBtn}
-            onPress={() => setMode('signup')}
-          >
-            <Text style={s.primaryBtnText}>Create Account</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={s.secondaryBtn}
-            onPress={() => setMode('login')}
-          >
-            <Text style={s.secondaryBtnText}>Log In</Text>
-          </TouchableOpacity>
-
-          <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerText}>or</Text>
-            <View style={s.dividerLine} />
-          </View>
-
-          <TouchableOpacity style={s.secondaryBtn} onPress={onGuest}>
-            <Text style={s.secondaryBtnText}>Continue Without Account</Text>
-          </TouchableOpacity>
-
-          <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.lg, lineHeight: 18 }}>
-            Without an account, your data is stored locally on this device only.
+  // ── Landing form ────────────────────────────────────────────────────────────
+  const LandingForm = () => (
+    <View style={styles.formSection}>
+      {!isDesktop && (
+        <>
+          <Text style={[styles.mobileLogo, { color: colors.accent }]}>ASCEND</Text>
+          <Text style={[styles.mobileTagline, { color: colors.textSecondary }]}>
+            Build better habits. Live more fully.
           </Text>
-        </ScrollView>
+        </>
+      )}
+
+      <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
+      <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
+        Join thousands building better habits every day.
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
+        onPress={() => setMode('signup')}
+      >
+        <Text style={styles.primaryBtnText}>Create Free Account</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.secondaryBtn, { borderColor: colors.border }]}
+        onPress={() => setMode('login')}
+      >
+        <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
+      </TouchableOpacity>
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+      </View>
+
+      <TouchableOpacity onPress={onGuest} style={styles.ghostBtn}>
+        <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
+          Continue without account
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
+        No account? Data stays on this device only.
+      </Text>
+    </View>
+  );
+
+  // ── Auth form (login / signup) ──────────────────────────────────────────────
+  const AuthForm = () => (
+    <View style={styles.formSection}>
+      <TouchableOpacity
+        onPress={() => setMode('landing')}
+        style={styles.backBtn}
+      >
+        <Text style={[styles.backBtnText, { color: colors.accent }]}>← Back</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.formTitle, { color: colors.text }]}>
+        {mode === 'login' ? 'Welcome back' : 'Create account'}
+      </Text>
+      <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
+        {mode === 'login'
+          ? 'Sign in to sync your progress across devices.'
+          : 'Your data will be saved and synced everywhere.'}
+      </Text>
+
+      <TextInput
+        style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Email address"
+        placeholderTextColor={colors.textTertiary}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+      />
+
+      <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+        <TextInput
+          style={[styles.inputInRow, { color: colors.text }]}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          placeholderTextColor={colors.textTertiary}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
+          <Text style={{ color: colors.textTertiary, fontSize: 16 }}>
+            {showPassword ? '🙈' : '👁️'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {mode === 'signup' && (
+        <TextInput
+          style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm password"
+          placeholderTextColor={colors.textTertiary}
+          secureTextEntry={!showPassword}
+        />
+      )}
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, { backgroundColor: colors.accent, opacity: loading ? 0.7 : 1, marginTop: 8 }]}
+        onPress={mode === 'login' ? handleLogin : handleSignUp}
+        disabled={loading}
+      >
+        {loading
+          ? <ActivityIndicator color="#FFFFFF" />
+          : <Text style={styles.primaryBtnText}>{mode === 'login' ? 'Sign In' : 'Create Account'}</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.switchModeBtn}
+        onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}
+      >
+        <Text style={[styles.switchModeText, { color: colors.accent }]}>
+          {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+      </View>
+
+      <TouchableOpacity onPress={onGuest} style={styles.ghostBtn}>
+        <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
+          Continue without account
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ── Desktop layout (two columns, no scroll) ─────────────────────────────────
+  if (isDesktop) {
+    return (
+      <View style={[styles.desktopRoot, { backgroundColor: colors.background }]}>
+        <LeftPanel />
+        <View style={[styles.rightPanel, { backgroundColor: colors.background }]}>
+          {mode === 'landing' ? <LandingForm /> : <AuthForm />}
+        </View>
       </View>
     );
   }
 
-  // Login / Sign Up forms
+  // ── Mobile layout ───────────────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView
-      style={s.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity
-          onPress={() => setMode('landing')}
-          style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xl }}
-        >
-          <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-          <Text style={{ color: colors.accent, marginLeft: Spacing.xs, fontSize: FontSize.sm }}>Back</Text>
-        </TouchableOpacity>
-
-        <Text style={s.title}>{mode === 'login' ? 'Welcome back' : 'Create account'}</Text>
-        <Text style={s.subtitle}>
-          {mode === 'login'
-            ? 'Sign in to sync your progress across devices.'
-            : 'Your data will be saved to the cloud and available on any device.'}
-        </Text>
-
-        <TextInput
-          style={s.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Email address"
-          placeholderTextColor={colors.textSecondary}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-        />
-
-        <View style={s.inputRow}>
-          <TextInput
-            style={s.inputInRow}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor={colors.textSecondary}
-            secureTextEntry={!showPassword}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          />
-          <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-            <Text style={{ color: colors.textSecondary, fontSize: 18 }}>{showPassword ? '👁️' : '👁️'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {mode === 'signup' && (
-          <TextInput
-            style={s.input}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder="Confirm password"
-            placeholderTextColor={colors.textSecondary}
-            secureTextEntry={!showPassword}
-          />
-        )}
-
-        <TouchableOpacity
-          style={[s.primaryBtn, { opacity: loading ? 0.7 : 1 }]}
-          onPress={mode === 'login' ? handleLogin : handleSignUp}
-          disabled={loading}
-        >
-          {loading
-            ? <ActivityIndicator color="#1A1A1A" />
-            : <Text style={s.primaryBtnText}>{mode === 'login' ? 'Log In' : 'Create Account'}</Text>}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.linkBtn} onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}>
-          <Text style={s.linkText}>
-            {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={s.divider}>
-          <View style={s.dividerLine} />
-          <Text style={s.dividerText}>or</Text>
-          <View style={s.dividerLine} />
-        </View>
-
-        <TouchableOpacity style={s.secondaryBtn} onPress={onGuest}>
-          <Text style={s.secondaryBtnText}>Continue Without Account</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <View style={[styles.mobileRoot, { backgroundColor: colors.background }]}>
+      {mode === 'landing' ? <LandingForm /> : <AuthForm />}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // Desktop
+  desktopRoot: {
+    flex: 1,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  leftPanel: {
+    width: '42%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 48,
+  },
+  leftContent: {
+    maxWidth: 360,
+    width: '100%',
+  },
+  brandLogo: {
+    fontSize: 42,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 6,
+    marginBottom: 12,
+  },
+  brandTagline: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 30,
+    marginBottom: 40,
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 40,
+  },
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  featureIcon: { fontSize: 16 },
+  featureLabel: { fontSize: 13, color: '#FFFFFF', fontWeight: '500' },
+  brandQuote: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    fontStyle: 'italic',
+    lineHeight: 22,
+    borderLeftWidth: 3,
+    borderLeftColor: 'rgba(255,255,255,0.4)',
+    paddingLeft: 14,
+  },
+
+  rightPanel: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Mobile
+  mobileRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  mobileLogo: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 4,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  mobileTagline: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+
+  // Form section (shared)
+  formSection: {
+    width: '100%',
+    maxWidth: 380,
+    alignSelf: 'center',
+    paddingHorizontal: 4,
+  },
+  backBtn: { marginBottom: 24 },
+  backBtnText: { fontSize: 14, fontWeight: '500' },
+  formTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  formSubtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+
+  // Inputs
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  inputInRow: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15 },
+  eyeBtn: { paddingHorizontal: 14 },
+
+  // Buttons
+  primaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryBtnText: { fontWeight: '500', fontSize: 15 },
+  ghostBtn: { alignItems: 'center', paddingVertical: 10 },
+  ghostBtnText: { fontSize: 14 },
+  switchModeBtn: { alignItems: 'center', paddingVertical: 14 },
+  switchModeText: { fontSize: 14, fontWeight: '500' },
+
+  // Divider
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { paddingHorizontal: 12, fontSize: 13 },
+
+  disclaimer: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 },
+});

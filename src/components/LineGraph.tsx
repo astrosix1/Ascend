@@ -17,7 +17,7 @@ export default function LineGraph({ data, labels, height = 140, showDots = true,
 
   const padH = paddingHorizontal;
   const padV = 16;
-  const graphWidth = 600;
+  const graphWidth = 800;
   const graphHeight = height;
   const innerW = graphWidth - padH * 2;
   const innerH = graphHeight - padV * 2;

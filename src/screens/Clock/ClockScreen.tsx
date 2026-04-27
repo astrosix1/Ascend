@@ -476,15 +476,54 @@ export default function ClockScreen() {
         </View>
       </Modal>
 
-      {/* Desktop: 3-column layout */}
+      {/* Desktop: Sidebar + content panel */}
       {desktop && (
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
-          {/* Alarm Column */}
-          <ScrollView style={[s.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]} contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* Sidebar */}
+          <View style={{ width: 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
+            <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.5 }}>Clock</Text>
+            </View>
+            {([
+              { id: 'alarm' as ClockTab, label: 'Alarms', icon: '🔔', sub: alarms.length + ' alarm' + (alarms.length !== 1 ? 's' : '') },
+              { id: 'pomodoro' as ClockTab, label: 'Pomodoro', icon: '🍅', sub: settings.pomodoroStudyTime + 'm focus · ' + settings.pomodoroBreakTime + 'm break' },
+              { id: 'detox' as ClockTab, label: 'Phone Detox', icon: '📵', sub: 'Intentional breaks' },
+            ]).map(cat => {
+              const isActive = activeTab === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  onPress={() => setActiveTab(cat.id)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+                    paddingHorizontal: Spacing.md, paddingVertical: 12,
+                    backgroundColor: isActive ? colors.accentLight : 'transparent',
+                    borderRightWidth: isActive ? 3 : 0, borderRightColor: colors.accent,
+                  }}
+                >
+                  <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: FontSize.sm, fontWeight: isActive ? '700' : '500', color: isActive ? colors.accent : colors.text }}>{cat.label}</Text>
+                    <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{cat.sub}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-            {/* ── ALARM COLUMN ─────────────────────────────────────── */}
-            <>
-            <SectionHeader title="Alarms" subtitle="Wake up informed, not reactive" />
+          {/* Content panel */}
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
+              <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+                {activeTab === 'alarm' ? 'Alarms' : activeTab === 'pomodoro' ? 'Pomodoro' : 'Phone Detox'}
+              </Text>
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>
+                {activeTab === 'alarm' ? 'Wake up informed, not reactive' : activeTab === 'pomodoro' ? settings.pomodoroStudyTime + 'm focus · ' + settings.pomodoroBreakTime + 'm break' : 'Intentional disconnection'}
+              </Text>
+            </View>
+            <ScrollView style={{ flex: 1, padding: Spacing.md }} contentContainerStyle={{ paddingBottom: 40 }}>
+            {activeTab === 'alarm' && <>
             {alarms.map(alarm => (
               <Card key={alarm.id}>
                 <View style={s.alarmRow}>
@@ -645,17 +684,8 @@ export default function ClockScreen() {
                 style={{ marginTop: Spacing.sm }}
               />
             )}
-          </>
-          </ScrollView>
-
-          {/* Pomodoro Column */}
-          <ScrollView style={[s.scroll, { flex: 1, borderRightWidth: 1, borderRightColor: colors.border }]} contentContainerStyle={{ paddingBottom: 40 }}>
-            {/* ── POMODORO COLUMN ───────────────────────────────────── */}
-            <>
-            <SectionHeader
-              title="Pomodoro"
-              subtitle={`${settings.pomodoroStudyTime} min focus · ${settings.pomodoroBreakTime} min break`}
-            />
+          </>}
+            {activeTab === 'pomodoro' && <>
 
             {/* Inline Pomodoro Settings Card */}
             {showPomSettings && (
@@ -769,14 +799,8 @@ export default function ClockScreen() {
                 </View>
               ))
             )}
-          </>
-          </ScrollView>
-
-          {/* Detox Column */}
-          <ScrollView style={[s.scroll, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 40 }}>
-            {/* ── DETOX COLUMN ──────────────────────────────────────── */}
-            <>
-            <SectionHeader title="Phone Detox" subtitle="Intentional disconnection" />
+          </>}
+            {activeTab === 'detox' && <>
 
             <SectionHeader title="Set Duration" />
             <View style={s.durationRow}>
@@ -864,8 +888,9 @@ export default function ClockScreen() {
                 </View>
               ))
             )}
-          </>
-          </ScrollView>
+          </>}
+            </ScrollView>
+          </View>
         </View>
       )}
 

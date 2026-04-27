@@ -8,6 +8,7 @@ import Card from '../../components/Card';
 import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
+import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { learnHabits, habitCategories } from '../../data/learnHabits';
 import { Habit, LearnHabit, GoalEntry } from '../../utils/types';
 import { generateHabitsFromGoal, generateGoalsFromHabit } from '../../utils/claude-ai';
@@ -15,6 +16,8 @@ import { getData, setData, KEYS } from '../../utils/storage';
 
 export default function LearnScreen() {
   const { colors, addHabit, habits, addGoal } = useApp();
+  const screenWidth = useScreenWidth();
+  const desktop = screenWidth > BREAKPOINTS.tablet;
   // Discover tab state
   const [learnTab, setLearnTab] = useState<'discover' | 'generator'>('discover');
   const [search, setSearch] = useState('');
@@ -184,29 +187,9 @@ export default function LearnScreen() {
     </View>
   );
 
-  return (
-    <View style={s.container}>
-      {/* ── Tab Bar ── */}
-      <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        {([
-          { key: 'discover',  label: '🔍 Discover' },
-          { key: 'generator', label: 'Generator' },
-        ] as const).map(({ key, label }) => (
-          <TouchableOpacity
-            key={key}
-            onPress={() => setLearnTab(key)}
-            style={{ flex: 1, paddingVertical: Spacing.md, borderBottomWidth: learnTab === key ? 2 : 0, borderBottomColor: colors.accent }}
-          >
-            <Text style={{ textAlign: 'center', color: learnTab === key ? colors.accent : colors.textSecondary, fontWeight: learnTab === key ? '700' : '400', fontSize: FontSize.sm }}>
-              {label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* ── DISCOVER TAB ── */}
-      {learnTab === 'discover' && (
-      <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+  // Discover column content (shared between desktop and mobile)
+  const discoverColumn = (
+    <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
         <SectionHeader title="Discover" subtitle="Learn. Decide. Act." />
 
         {/* Search */}
@@ -329,11 +312,11 @@ export default function LearnScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-      )}
+  );
 
-      {/* ── AI GENERATOR TAB ── */}
-      {learnTab === 'generator' && (
-        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+  // Generator column content (shared)
+  const generatorColumn = (
+    <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
           <SectionHeader title="AI Generator" subtitle="Powered by Claude" />
 
           {/* Mode toggle */}
@@ -437,6 +420,82 @@ export default function LearnScreen() {
             </TouchableOpacity>
           )}
         </ScrollView>
+  );
+
+  return (
+    <View style={s.container}>
+      {/* ── Desktop: Sidebar + content panel ── */}
+      {desktop && (
+        <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
+          {/* Sidebar */}
+          <View style={{ width: 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
+            <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.5 }}>Discover</Text>
+            </View>
+            {([
+              { key: 'discover' as const, label: 'Habit Library', icon: '🔍', sub: 'Learn · Decide · Act' },
+              { key: 'generator' as const, label: 'AI Generator', icon: '✨', sub: 'Powered by Claude' },
+            ]).map(cat => {
+              const isActive = learnTab === cat.key;
+              return (
+                <TouchableOpacity
+                  key={cat.key}
+                  onPress={() => setLearnTab(cat.key)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+                    paddingHorizontal: Spacing.md, paddingVertical: 12,
+                    backgroundColor: isActive ? colors.accentLight : 'transparent',
+                    borderRightWidth: isActive ? 3 : 0, borderRightColor: colors.accent,
+                  }}
+                >
+                  <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: FontSize.sm, fontWeight: isActive ? '700' : '500', color: isActive ? colors.accent : colors.text }}>{cat.label}</Text>
+                    <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{cat.sub}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {/* Content panel */}
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
+              <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
+                {learnTab === 'discover' ? 'Habit Library' : 'AI Generator'}
+              </Text>
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>
+                {learnTab === 'discover' ? 'Learn · Decide · Act' : 'Powered by Claude'}
+              </Text>
+            </View>
+            {learnTab === 'discover' ? discoverColumn : generatorColumn}
+          </View>
+        </View>
+      )}
+
+      {/* ── Mobile: Tab-based layout ── */}
+      {!desktop && (
+        <>
+          {/* Tab Bar */}
+          <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            {([
+              { key: 'discover',  label: '🔍 Discover' },
+              { key: 'generator', label: '✨ Generator' },
+            ] as const).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => setLearnTab(key)}
+                style={{ flex: 1, paddingVertical: Spacing.md, borderBottomWidth: learnTab === key ? 2 : 0, borderBottomColor: colors.accent }}
+              >
+                <Text style={{ textAlign: 'center', color: learnTab === key ? colors.accent : colors.textSecondary, fontWeight: learnTab === key ? '700' : '400', fontSize: FontSize.sm }}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {learnTab === 'discover' && discoverColumn}
+          {learnTab === 'generator' && generatorColumn}
+        </>
       )}
 
       {/* ── HABIT DETAIL MODAL ───────────────────────────────── */}

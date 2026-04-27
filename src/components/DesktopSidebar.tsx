@@ -7,14 +7,15 @@ import { Spacing, FontSize, BorderRadius, FontWeight, LineHeight } from '../util
 interface NavigationItem {
   id: string;
   label: string;
+  icon: string;
 }
 
 const NAVIGATION_ITEMS: NavigationItem[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'clock', label: 'Clock' },
-  { id: 'discover', label: 'Discover' },
-  { id: 'community', label: 'Community' },
-  { id: 'settings', label: 'Settings' },
+  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+  { id: 'clock', label: 'Clock', icon: '⏰' },
+  { id: 'discover', label: 'Discover', icon: '🔍' },
+  { id: 'community', label: 'Community', icon: '👥' },
+  { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
 interface DesktopSidebarProps {
@@ -140,6 +141,7 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={`${item.label} navigation button`}
             >
+              <Text style={styles.navIcon}>{item.icon}</Text>
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
                 {item.label}
               </Text>

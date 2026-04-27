@@ -72,14 +72,14 @@ export default function Card({ children, style, interactive = false, onPress }: 
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    elevation: 1,
+    borderRadius: BorderRadius.lg,  // 16px for minimal design
+    padding: Spacing.lg,             // 24px padding (increased from md)
+    marginBottom: Spacing.md,        // 16px bottom margin
+    borderWidth: 0,                  // No border, rely on shadow
+    elevation: 1,                    // Android shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
+    shadowOpacity: 0.08,             // Subtle shadow
+    shadowRadius: 3,                 // Soft blur for minimal feel
   },
 });

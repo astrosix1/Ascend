@@ -28,17 +28,17 @@ export default function Button({ title, onPress, variant = 'primary', size = 'me
   };
 
   const bgColorsHover = {
-    primary: '#F59C12',
+    primary: colors.accentDark,  // Darker emerald on hover
     secondary: colors.border,
-    danger: '#D32F2F',
+    danger: colors.danger,       // Slightly darker red
     ghost: 'transparent',
   };
 
   const textColors = {
-    primary: '#1A1A1A',
-    secondary: colors.text,
-    danger: '#FFFFFF',
-    ghost: colors.accent,
+    primary: '#FFFFFF',        // White text on emerald background
+    secondary: colors.text,    // Dark/light text depending on theme
+    danger: '#FFFFFF',         // White text on red background
+    ghost: colors.accent,      // Emerald text for ghost buttons
   };
 
   const sizes = {
@@ -107,9 +107,10 @@ export default function Button({ title, onPress, variant = 'primary', size = 'me
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,  // 12px, more rounded for minimal design
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 44,                   // Touch-friendly minimum height
   },
   text: {
     fontWeight: FontWeight.semibold,

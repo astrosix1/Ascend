@@ -5,6 +5,28 @@ import { Spacing, FontSize, FontSizeDesktop, BorderRadius, FontWeight, LineHeigh
 import { useIsDesktop } from '../utils/responsive';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 
+// Helper functions for greeting and date formatting
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}
+
+function getToday(): string {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
+function formatDisplayDate(isoDate: string): string {
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const [year, month, day] = isoDate.split('-');
+  return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${parseInt(day, 10)}, ${year}`;
+}
+
 interface TopHeaderProps {
   onToggleTheme?: () => void;
 }
@@ -98,17 +120,14 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
   return (
     <>
       <View style={styles.container}>
-        {/* Left Section: User Info */}
+        {/* Left Section: Greeting & Date */}
         <View style={styles.leftSection}>
-          <View style={[styles.iconButton]}>
-            <Text style={{ fontSize: 32, color: colors.accent }}>👤</Text>
-          </View>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {currentUserEmail ? currentUserEmail.split('@')[0].split(/[._]/)[0] : 'Guest'}
+              Good {getGreeting()}, {settings.username || 'there'}
             </Text>
             <Text style={styles.userEmail}>
-              {currentUserEmail || 'Not signed in'}
+              {formatDisplayDate(getToday())}
             </Text>
           </View>
         </View>
