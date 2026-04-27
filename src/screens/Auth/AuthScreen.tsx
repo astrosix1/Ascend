@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform, useWindowDimensions,
@@ -20,7 +20,129 @@ const FEATURES = [
   { icon: '📱', label: 'Works offline' },
 ];
 
-export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
+// ── Separate component for auth form to prevent re-renders ──
+interface AuthFormProps {
+  mode: Mode;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  showPassword: boolean;
+  loading: boolean;
+  colors: any;
+  onEmailChange: (text: string) => void;
+  onPasswordChange: (text: string) => void;
+  onConfirmPasswordChange: (text: string) => void;
+  onShowPasswordToggle: () => void;
+  onLogin: () => void;
+  onSignUp: () => void;
+  onModeChange: (mode: Mode) => void;
+  onGuest: () => void;
+}
+
+function AuthFormComponent({
+  mode, email, password, confirmPassword, showPassword, loading, colors,
+  onEmailChange, onPasswordChange, onConfirmPasswordChange, onShowPasswordToggle,
+  onLogin, onSignUp, onModeChange, onGuest,
+}: AuthFormProps) {
+  return (
+    <View style={styles.formSection}>
+      <TouchableOpacity
+        onPress={() => onModeChange('landing')}
+        style={styles.backBtn}
+      >
+        <Text style={[styles.backBtnText, { color: colors.accent }]}>← Back</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.formTitle, { color: colors.text }]}>
+        {mode === 'login' ? 'Welcome back' : 'Create account'}
+      </Text>
+      <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
+        {mode === 'login'
+          ? 'Sign in to sync your progress across devices.'
+          : 'Your data will be saved and synced everywhere.'}
+      </Text>
+
+      <TextInput
+        style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+        value={email}
+        onChangeText={onEmailChange}
+        placeholder="Email address"
+        placeholderTextColor={colors.textTertiary}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        editable={!loading}
+        selectTextOnFocus={false}
+        spellCheck={false}
+      />
+
+      <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+        <TextInput
+          style={[styles.inputInRow, { color: colors.text }]}
+          value={password}
+          onChangeText={onPasswordChange}
+          placeholder="Password"
+          placeholderTextColor={colors.textTertiary}
+          secureTextEntry={!showPassword}
+          editable={!loading}
+          selectTextOnFocus={false}
+        />
+        <TouchableOpacity style={styles.eyeBtn} onPress={onShowPasswordToggle} disabled={loading}>
+          <Text style={{ color: colors.textTertiary, fontSize: 16 }}>
+            {showPassword ? '🙈' : '👁️'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {mode === 'signup' && (
+        <TextInput
+          style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+          value={confirmPassword}
+          onChangeText={onConfirmPasswordChange}
+          placeholder="Confirm password"
+          placeholderTextColor={colors.textTertiary}
+          secureTextEntry={!showPassword}
+          editable={!loading}
+          selectTextOnFocus={false}
+        />
+      )}
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, { backgroundColor: colors.accent, opacity: loading ? 0.7 : 1, marginTop: 8 }]}
+        onPress={mode === 'login' ? onLogin : onSignUp}
+        disabled={loading}
+      >
+        {loading
+          ? <ActivityIndicator color="#FFFFFF" />
+          : <Text style={styles.primaryBtnText}>{mode === 'login' ? 'Sign In' : 'Create Account'}</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.switchModeBtn}
+        onPress={() => onModeChange(mode === 'login' ? 'signup' : 'login')}
+        disabled={loading}
+      >
+        <Text style={[styles.switchModeText, { color: colors.accent }]}>
+          {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+      </View>
+
+      <TouchableOpacity onPress={onGuest} style={styles.ghostBtn} disabled={loading}>
+        <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
+          Continue without account
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Props) {
   const { colors } = useApp();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -32,7 +154,7 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!email.trim() || !password) {
       Alert.alert('Missing fields', 'Please enter your email and password.');
       return;
@@ -47,9 +169,9 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, onAuthenticated]);
 
-  const handleSignUp = async () => {
+  const handleSignUp = useCallback(async () => {
     if (!email.trim() || !password) {
       Alert.alert('Missing fields', 'Please fill in all fields.');
       return;
@@ -76,180 +198,95 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, confirmPassword]);
 
-  // ── Left panel (brand) ──────────────────────────────────────────────────────
-  const LeftPanel = () => (
-    <View style={[styles.leftPanel, { backgroundColor: colors.accent }]}>
-      <View style={styles.leftContent}>
-        {/* Logo */}
-        <Text style={styles.brandLogo}>ASCEND</Text>
-        <Text style={styles.brandTagline}>Build better habits.{'\n'}Live more fully.</Text>
+  const handleModeChange = useCallback((newMode: Mode) => {
+    setMode(newMode);
+  }, []);
 
-        {/* Features */}
-        <View style={styles.featuresGrid}>
-          {FEATURES.map(({ icon, label }) => (
-            <View key={label} style={styles.featureChip}>
-              <Text style={styles.featureIcon}>{icon}</Text>
-              <Text style={styles.featureLabel}>{label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Bottom quote */}
-        <Text style={styles.brandQuote}>
-          "One small habit, done consistently, changes everything."
-        </Text>
-      </View>
-    </View>
-  );
-
-  // ── Landing form ────────────────────────────────────────────────────────────
-  const LandingForm = () => (
-    <View style={styles.formSection}>
-      {!isDesktop && (
-        <>
-          <Text style={[styles.mobileLogo, { color: colors.accent }]}>ASCEND</Text>
-          <Text style={[styles.mobileTagline, { color: colors.textSecondary }]}>
-            Build better habits. Live more fully.
-          </Text>
-        </>
-      )}
-
-      <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
-      <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-        Join thousands building better habits every day.
-      </Text>
-
-      <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
-        onPress={() => setMode('signup')}
-      >
-        <Text style={styles.primaryBtnText}>Create Free Account</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.secondaryBtn, { borderColor: colors.border }]}
-        onPress={() => setMode('login')}
-      >
-        <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
-      </TouchableOpacity>
-
-      <View style={styles.dividerRow}>
-        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
-        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-      </View>
-
-      <TouchableOpacity onPress={onGuest} style={styles.ghostBtn}>
-        <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
-          Continue without account
-        </Text>
-      </TouchableOpacity>
-
-      <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
-        No account? Data stays on this device only.
-      </Text>
-    </View>
-  );
-
-  // ── Auth form (login / signup) ──────────────────────────────────────────────
-  const AuthForm = () => (
-    <View style={styles.formSection}>
-      <TouchableOpacity
-        onPress={() => setMode('landing')}
-        style={styles.backBtn}
-      >
-        <Text style={[styles.backBtnText, { color: colors.accent }]}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={[styles.formTitle, { color: colors.text }]}>
-        {mode === 'login' ? 'Welcome back' : 'Create account'}
-      </Text>
-      <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-        {mode === 'login'
-          ? 'Sign in to sync your progress across devices.'
-          : 'Your data will be saved and synced everywhere.'}
-      </Text>
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email address"
-        placeholderTextColor={colors.textTertiary}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-      />
-
-      <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-        <TextInput
-          style={[styles.inputInRow, { color: colors.text }]}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Password"
-          placeholderTextColor={colors.textTertiary}
-          secureTextEntry={!showPassword}
-        />
-        <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-          <Text style={{ color: colors.textTertiary, fontSize: 16 }}>
-            {showPassword ? '🙈' : '👁️'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {mode === 'signup' && (
-        <TextInput
-          style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          placeholder="Confirm password"
-          placeholderTextColor={colors.textTertiary}
-          secureTextEntry={!showPassword}
-        />
-      )}
-
-      <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: colors.accent, opacity: loading ? 0.7 : 1, marginTop: 8 }]}
-        onPress={mode === 'login' ? handleLogin : handleSignUp}
-        disabled={loading}
-      >
-        {loading
-          ? <ActivityIndicator color="#FFFFFF" />
-          : <Text style={styles.primaryBtnText}>{mode === 'login' ? 'Sign In' : 'Create Account'}</Text>}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.switchModeBtn}
-        onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}
-      >
-        <Text style={[styles.switchModeText, { color: colors.accent }]}>
-          {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.dividerRow}>
-        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
-        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-      </View>
-
-      <TouchableOpacity onPress={onGuest} style={styles.ghostBtn}>
-        <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
-          Continue without account
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const handleShowPasswordToggle = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
 
   // ── Desktop layout (two columns, no scroll) ─────────────────────────────────
   if (isDesktop) {
     return (
       <View style={[styles.desktopRoot, { backgroundColor: colors.background }]}>
-        <LeftPanel />
+        <View style={[styles.leftPanel, { backgroundColor: colors.accent }]}>
+          <View style={styles.leftContent}>
+            <Text style={styles.brandLogo}>ASCEND</Text>
+            <Text style={styles.brandTagline}>Build better habits.{'\n'}Live more fully.</Text>
+            <View style={styles.featuresGrid}>
+              {FEATURES.map(({ icon, label }) => (
+                <View key={label} style={styles.featureChip}>
+                  <Text style={styles.featureIcon}>{icon}</Text>
+                  <Text style={styles.featureLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.brandQuote}>
+              "One small habit, done consistently, changes everything."
+            </Text>
+          </View>
+        </View>
+
         <View style={[styles.rightPanel, { backgroundColor: colors.background }]}>
-          {mode === 'landing' ? <LandingForm /> : <AuthForm />}
+          {mode === 'landing' ? (
+            <View style={styles.formSection}>
+              <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
+              <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
+                Join thousands building better habits every day.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
+                onPress={() => setMode('signup')}
+              >
+                <Text style={styles.primaryBtnText}>Create Free Account</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { borderColor: colors.border }]}
+                onPress={() => setMode('login')}
+              >
+                <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
+              </TouchableOpacity>
+
+              <View style={styles.dividerRow}>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              </View>
+
+              <TouchableOpacity onPress={onGuestProp} style={styles.ghostBtn}>
+                <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
+                  Continue without account
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
+                No account? Data stays on this device only.
+              </Text>
+            </View>
+          ) : (
+            <AuthFormComponent
+              mode={mode}
+              email={email}
+              password={password}
+              confirmPassword={confirmPassword}
+              showPassword={showPassword}
+              loading={loading}
+              colors={colors}
+              onEmailChange={setEmail}
+              onPasswordChange={setPassword}
+              onConfirmPasswordChange={setConfirmPassword}
+              onShowPasswordToggle={handleShowPasswordToggle}
+              onLogin={handleLogin}
+              onSignUp={handleSignUp}
+              onModeChange={handleModeChange}
+              onGuest={onGuestProp}
+            />
+          )}
         </View>
       </View>
     );
@@ -258,7 +295,67 @@ export default function AuthScreen({ onAuthenticated, onGuest }: Props) {
   // ── Mobile layout ───────────────────────────────────────────────────────────
   return (
     <View style={[styles.mobileRoot, { backgroundColor: colors.background }]}>
-      {mode === 'landing' ? <LandingForm /> : <AuthForm />}
+      {mode === 'landing' ? (
+        <View style={styles.formSection}>
+          <Text style={[styles.mobileLogo, { color: colors.accent }]}>ASCEND</Text>
+          <Text style={[styles.mobileTagline, { color: colors.textSecondary }]}>
+            Build better habits. Live more fully.
+          </Text>
+
+          <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
+          <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
+            Join thousands building better habits every day.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
+            onPress={() => setMode('signup')}
+          >
+            <Text style={styles.primaryBtnText}>Create Free Account</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { borderColor: colors.border }]}
+            onPress={() => setMode('login')}
+          >
+            <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          <TouchableOpacity onPress={onGuestProp} style={styles.ghostBtn}>
+            <Text style={[styles.ghostBtnText, { color: colors.textSecondary }]}>
+              Continue without account
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
+            No account? Data stays on this device only.
+          </Text>
+        </View>
+      ) : (
+        <AuthFormComponent
+          mode={mode}
+          email={email}
+          password={password}
+          confirmPassword={confirmPassword}
+          showPassword={showPassword}
+          loading={loading}
+          colors={colors}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onConfirmPasswordChange={setConfirmPassword}
+          onShowPasswordToggle={handleShowPasswordToggle}
+          onLogin={handleLogin}
+          onSignUp={handleSignUp}
+          onModeChange={handleModeChange}
+          onGuest={onGuestProp}
+        />
+      )}
     </View>
   );
 }
