@@ -1306,10 +1306,10 @@ export default function DashboardScreen() {
         {dashboardCategory === 'journals' && (
           <View style={{ flex: 1 }}>
             <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
-              <View style={{ padding: contentPadding, gap: Spacing.sm }}>
+              <View style={{ padding: contentPadding }}>
 
               {/* Todo List Section */}
-              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md }}>
+              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.md }}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm, marginBottom: Spacing.md }}>📋 Quick Tasks</Text>
 
                 {/* Add todo input */}
