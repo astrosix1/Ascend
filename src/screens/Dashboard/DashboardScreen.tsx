@@ -381,6 +381,18 @@ export default function DashboardScreen() {
     addXP,
   } = useApp();
 
+  // Debug logging to identify undefined values
+  useEffect(() => {
+    console.log('[DashboardScreen] useApp() values:', {
+      todos: typeof todos,
+      addTodo: typeof addTodo,
+      toggleTodo: typeof toggleTodo,
+      deleteTodo: typeof deleteTodo,
+      colors: typeof colors,
+      habits: typeof habits,
+    });
+  }, [todos, addTodo, toggleTodo, deleteTodo]);
+
   const today = getToday();
   const now = new Date();
 
