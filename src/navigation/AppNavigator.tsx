@@ -41,6 +41,41 @@ function playBeepSequence() {
   } catch (_) {}
 }
 
+// ─── Manage browser tab title ──────────────────────────────────────────────────
+function useDocumentTitle() {
+  const { activeTimer, timerStartTime, timerDuration } = useApp();
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    // If no active timer, show default title
+    if (!activeTimer || !timerStartTime || typeof timerDuration !== 'number' || timerDuration <= 0) {
+      document.title = 'Ascend - Habit Tracker';
+      return;
+    }
+
+    // Update title with timer progress
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+      const remaining = Math.max(0, timerDuration - elapsed);
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+
+      // Ensure secs is a valid number before converting to string
+      const validSecs = typeof secs === 'number' && !isNaN(secs) ? secs : 0;
+      const timeStr = `${mins}:${validSecs.toString().padStart(2, '0')}`;
+
+      if (activeTimer === 'pomodoro') {
+        document.title = `Ascend - Pomodoro ${timeStr}`;
+      } else if (activeTimer === 'detox') {
+        document.title = `Ascend - Detox ${timeStr}`;
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeTimer, timerStartTime, timerDuration]);
+}
+
 // ─── Request browser notification permission on mount ────────────────────────
 function useNotificationPermission() {
   useEffect(() => {
@@ -141,7 +176,11 @@ function TimerNotificationOverlay() {
         <TouchableOpacity
           onPress={() => {
             setTimerNotification(null);
-            setActiveTimer('pomodoro', settings.pomodoroBreakTime * 60);
+            const isStudyComplete = timerNotification?.pomodoroSessionType === 'study';
+            const nextDuration = isStudyComplete
+              ? settings.pomodoroBreakTime * 60
+              : settings.pomodoroStudyTime * 60;
+            setActiveTimer('pomodoro', nextDuration);
           }}
           style={{
             marginTop: 8,
@@ -152,7 +191,9 @@ function TimerNotificationOverlay() {
             borderColor: colors.accent,
           }}
         >
-          <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Start Break</Text>
+          <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>
+            {timerNotification?.pomodoroSessionType === 'study' ? 'Start Break' : 'Start Study Timer'}
+          </Text>
         </TouchableOpacity>
       )}
     </Animated.View>
@@ -224,6 +265,7 @@ const screenMap: Record<string, React.ComponentType<any>> = {
 
 function MobileNavigator() {
   const { colors, theme } = useApp();
+  useDocumentTitle();
   useNotificationPermission();
 
   return (
@@ -259,7 +301,36 @@ function MobileNavigator() {
 function DesktopNavigator() {
   const { colors, toggleTheme, theme } = useApp();
   const [activeScreen, setActiveScreen] = useState('dashboard');
+  useDocumentTitle();
   useNotificationPermission();
+
+  // ── Global keyboard shortcuts: Cmd/Ctrl + 1-5 for screen navigation ──────────
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handleKey = (e: KeyboardEvent) => {
+      // Only handle Cmd/Ctrl key combinations
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+
+      const screenMap: Record<string, string> = {
+        '1': 'dashboard',
+        '2': 'clock',
+        '3': 'discover',
+        '4': 'community',
+        '5': 'settings',
+      };
+
+      if (e.key in screenMap) {
+        e.preventDefault();
+        setActiveScreen(screenMap[e.key]);
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
 
   const ScreenComponent = screenMap[activeScreen] || DashboardScreen;
 

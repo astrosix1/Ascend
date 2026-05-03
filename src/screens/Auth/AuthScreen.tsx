@@ -66,6 +66,11 @@ function AuthFormComponent({
         style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
         value={email}
         onChangeText={onEmailChange}
+        onKeyPress={(e: any) => {
+          if (e.nativeEvent?.key === 'Enter' && !loading) {
+            mode === 'login' ? onLogin() : onSignUp();
+          }
+        }}
         placeholder="Email address"
         placeholderTextColor={colors.textTertiary}
         keyboardType="email-address"
@@ -81,6 +86,11 @@ function AuthFormComponent({
           style={[styles.inputInRow, { color: colors.text }]}
           value={password}
           onChangeText={onPasswordChange}
+          onKeyPress={(e: any) => {
+            if (e.nativeEvent?.key === 'Enter' && !loading) {
+              mode === 'login' ? onLogin() : onSignUp();
+            }
+          }}
           placeholder="Password"
           placeholderTextColor={colors.textTertiary}
           secureTextEntry={!showPassword}
@@ -99,6 +109,11 @@ function AuthFormComponent({
           style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
           value={confirmPassword}
           onChangeText={onConfirmPasswordChange}
+          onKeyPress={(e: any) => {
+            if (e.nativeEvent?.key === 'Enter' && !loading) {
+              onSignUp();
+            }
+          }}
           placeholder="Confirm password"
           placeholderTextColor={colors.textTertiary}
           secureTextEntry={!showPassword}
