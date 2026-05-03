@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Colors, ThemeColors } from '../utils/theme';
 import { getData, setData, KEYS } from '../utils/storage';
-import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm } from '../utils/types';
+import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm, Todo } from '../utils/types';
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
@@ -55,6 +55,12 @@ interface AppState {
   addGoal: (goal: GoalEntry) => void;
   updateGoal: (goalId: string, updates: Partial<GoalEntry>) => void;
   deleteGoal: (goalId: string) => void;
+
+  // Todos
+  todos: Todo[];
+  addTodo: (todo: Todo) => void;
+  toggleTodo: (todoId: string) => void;
+  deleteTodo: (todoId: string) => void;
 
   // Detox
   detoxHistory: DetoxSession[];
@@ -141,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [relapseLog, setRelapseLog] = useState<RelapseEntry[]>([]);
   const [goals, setGoals] = useState<GoalEntry[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [detoxHistory, setDetoxHistory] = useState<DetoxSession[]>([]);
   const [forumFavorites, setForumFavorites] = useState<string[]>([]);
   const [reflectionResponses, setReflectionResponses] = useState<ReflectionResponse[]>([]);
@@ -178,7 +185,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeTimer, setActiveTimerState] = useState<'pomodoro' | 'detox' | null>(null);
   const [timerStartTime, setTimerStartTime] = useState<number | null>(null);
   const [timerDuration, setTimerDuration] = useState(0);
-  const [timerNotification, setTimerNotification] = useState<{ title: string; message: string; type?: 'pomodoro' | 'detox' } | null>(null);
+  const [pomodoroSessionType, setPomodoroSessionType] = useState<'study' | 'break' | null>(null);
+  const [timerNotification, setTimerNotification] = useState<{ title: string; message: string; type?: 'pomodoro' | 'detox'; pomodoroSessionType?: 'study' | 'break' } | null>(null);
 
   const colors = Colors[theme];
 
@@ -458,6 +466,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setGoals(prev => {
       const updated = prev.filter(g => g.id !== goalId);
       persist(KEYS.GOALS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const addTodo = useCallback((todo: Todo) => {
+    setTodos(prev => {
+      const updated = [todo, ...prev];
+      persist(KEYS.TODOS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const toggleTodo = useCallback((todoId: string) => {
+    setTodos(prev => {
+      const updated = prev.map(t => {
+        if (t.id !== todoId) return t;
+        const isCompleting = !t.completed;
+        if (isCompleting) {
+          // Award XP when completing a todo
+          setStats(s => ({
+            ...s,
+            xp: s.xp + t.xpReward,
+            level: Math.floor((s.xp + t.xpReward) / 100) + 1,
+          }));
+        }
+        return {
+          ...t,
+          completed: isCompleting,
+          completedAt: isCompleting ? new Date().toISOString() : undefined,
+        };
+      });
+      persist(KEYS.TODOS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  const deleteTodo = useCallback((todoId: string) => {
+    setTodos(prev => {
+      const updated = prev.filter(t => t.id !== todoId);
+      persist(KEYS.TODOS, updated);
       return updated;
     });
   }, [persist]);
@@ -848,7 +896,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveTimerState(type);
     setTimerDuration(duration);
     setTimerStartTime(startTime || (type ? Date.now() : null));
-  }, []);
+
+    // Determine pomodoro session type
+    if (type === 'pomodoro') {
+      const isStudy = duration === settings.pomodoroStudyTime * 60;
+      setPomodoroSessionType(isStudy ? 'study' : 'break');
+    } else {
+      setPomodoroSessionType(null);
+    }
+  }, [settings.pomodoroStudyTime, settings.pomodoroBreakTime]);
 
   // ─── Global timer completion watcher ────────────────────────────
   // Runs regardless of which screen is active, fires notification when done.
@@ -864,10 +920,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTimerStartTime(null);
 
         if (activeTimer === 'pomodoro') {
+          const isStudyComplete = pomodoroSessionType === 'study';
           setTimerNotification({
-            title: 'Focus session complete! 🎉',
-            message: 'Great work — time to take a real break.',
+            title: isStudyComplete ? 'Focus session complete! 🎉' : 'Break session complete! 🎉',
+            message: isStudyComplete ? 'Great work — time to take a real break.' : 'Ready to focus again?',
             type: 'pomodoro',
+            pomodoroSessionType,
           });
         } else if (activeTimer === 'detox') {
           setTimerNotification({
@@ -913,6 +971,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       updateGoal,
       deleteGoal,
+      todos,
+      addTodo,
+      toggleTodo,
+      deleteTodo,
       detoxHistory,
       addDetoxSession,
       activeTimer,

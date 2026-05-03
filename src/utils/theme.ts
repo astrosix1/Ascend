@@ -46,6 +46,7 @@ export const Spacing = {
 
 // Mobile-first font sizes (refined scale)
 export const FontSize = {
+  xs: 10,           // Extra small text, tiny labels
   caption: 11,      // Timestamps, hints
   label: 12,        // Button text, badges
   sm: 14,           // Secondary text, captions

@@ -13,6 +13,15 @@ export interface Habit {
   category?: string;
 }
 
+export interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt?: string;
+  xpReward: number;
+}
+
 export interface UserStats {
   xp: number;
   level: number;

@@ -345,7 +345,7 @@ export default function CommunityScreen() {
   const filteredPosts = posts.filter(p => {
     const matchSearch = !forumSearch ||
       p.title.toLowerCase().includes(forumSearch.toLowerCase()) ||
-      (p.tags || []).some(t => t.includes(forumSearch.toLowerCase()));
+      p.content.toLowerCase().includes(forumSearch.toLowerCase());
     const matchFav = !showFavoritesOnly || forumFavorites.includes(p.id);
     return matchSearch && matchFav;
   });
@@ -624,20 +624,11 @@ export default function CommunityScreen() {
               {selectedPost.title}
             </Text>
             <Text style={[s.postMeta, { marginBottom: Spacing.md }]}>
-              {new Date(selectedPost.created_at).toLocaleDateString()} · {selectedPost.category} · {selectedPost.user_id === currentUserId ? 'You' : 'Anonymous'}
+              {new Date(selectedPost.created_at).toLocaleDateString()} · {selectedPost.user_id === currentUserId ? 'You' : 'Anonymous'}
             </Text>
             <Text style={{ color: colors.text, fontSize: FontSize.md, lineHeight: 26, marginBottom: Spacing.lg }}>
               {selectedPost.content}
             </Text>
-            {selectedPost.tags?.length > 0 && (
-              <View style={[s.tagRow, { marginBottom: Spacing.lg }]}>
-                {selectedPost.tags.map((tag, i) => (
-                  <View key={i} style={s.tag}>
-                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>#{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
 
             <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md, marginBottom: Spacing.sm }}>
               Comments {commentsLoading ? '' : `(${postComments.length})`}
@@ -941,34 +932,215 @@ export default function CommunityScreen() {
         )}
 
         {!postsLoading && filteredPosts.map(post => (
-          <TouchableOpacity key={post.id} onPress={() => openPost(post)} activeOpacity={0.85}>
-            <Card style={{ marginBottom: Spacing.sm }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Text style={[s.postTitle, { color: colors.text, flex: 1, marginRight: Spacing.sm }]}>{post.title}</Text>
-                <TouchableOpacity
-                  onPress={() => toggleForumFavorite(post.id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={{ color: forumFavorites.includes(post.id) ? colors.accent : colors.textSecondary, fontSize: 16 }}>🔖</Text>
-                </TouchableOpacity>
+          <View key={post.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: Spacing.md, paddingHorizontal: Spacing.md }}>
+            {/* Author and metadata row */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm }}>Anonymous</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.caption, marginTop: 2 }}>
+                  {new Date(post.created_at).toLocaleDateString()}
+                </Text>
               </View>
-              <Text style={s.postMeta}>
-                {new Date(post.created_at).toLocaleDateString()} · {post.category}
-                {post.comment_count ? ` · ${post.comment_count} comment${post.comment_count !== 1 ? 's' : ''}` : ''}
+            </View>
+
+            {/* Post title */}
+            <TouchableOpacity onPress={() => openPost(post)} activeOpacity={0.75} style={{ marginBottom: Spacing.sm }}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md, marginBottom: Spacing.xs }}>
+                {post.title}
               </Text>
-              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.xs }} numberOfLines={2}>
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }} numberOfLines={2}>
                 {post.content}
               </Text>
-              {post.tags?.length > 0 && (
-                <View style={s.tagRow}>
-                  {post.tags.slice(0, 3).map((tag, i) => (
-                    <View key={i} style={s.tag}>
-                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>#{tag}</Text>
-                    </View>
-                  ))}
-                </View>
+            </TouchableOpacity>
+
+
+            {/* Action buttons */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.md }}>
+              <TouchableOpacity
+                onPress={() => openPost(post)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 44, justifyContent: 'center', flex: 1 }}
+              >
+                <Text style={{ color: colors.accent, fontSize: 14 }}>💬</Text>
+                <Text style={{ color: colors.accent, fontSize: FontSize.xs }}>
+                  {post.comment_count ? post.comment_count : 'Reply'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => toggleForumFavorite(post.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 44, justifyContent: 'center', flex: 1 }}
+              >
+                <Text style={{ color: forumFavorites.includes(post.id) ? colors.accent : colors.textSecondary, fontSize: 14 }}>
+                  {forumFavorites.includes(post.id) ? '🔖' : '📌'}
+                </Text>
+                <Text style={{ color: forumFavorites.includes(post.id) ? colors.accent : colors.textSecondary, fontSize: FontSize.xs }}>
+                  Save
+                </Text>
+              </TouchableOpacity>
+
+              {post.user_id === currentUserId && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Alert.alert('Delete Post', 'Are you sure? This cannot be undone.', [
+                      { text: 'Cancel' },
+                      { text: 'Delete', onPress: async () => { await deletePost(post.id); loadPosts(); }, style: 'destructive' },
+                    ]);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 44, justifyContent: 'center', flex: 1 }}
+                >
+                  <Text style={{ color: colors.danger, fontSize: 14 }}>🗑️</Text>
+                  <Text style={{ color: colors.danger, fontSize: FontSize.xs }}>Delete</Text>
+                </TouchableOpacity>
               )}
-            </Card>
+            </View>
+          </View>
+        ))}
+
+        {!postsLoading && filteredPosts.length === 0 && !postsError && (
+          <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 48 }}>💬</Text>
+            <Text style={{ color: colors.textSecondary, marginTop: Spacing.sm }}>
+              {showFavoritesOnly ? 'No saved posts yet.' : 'No posts yet. Be the first to share.'}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
+  // ─── FORUMS LIST ONLY (For side-by-side layout) ───────────────────────────────
+  const renderForumsListOnly = () => {
+    return (
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={postsRefreshing} onRefresh={() => { setPostsRefreshing(true); loadPosts(true); }} tintColor={colors.accent} />}
+      >
+        {/* 5-minute time limit warning */}
+        {forumTimeWarning && (
+          <View style={s.warningBanner}>
+            <Text style={{ color: colors.accent, fontSize: FontSize.sm, flex: 1, lineHeight: 20 }}>
+              5 minutes here. Consider reaching out to someone in person instead.
+            </Text>
+            <TouchableOpacity onPress={() => setForumTimeWarning(false)} style={{ marginLeft: Spacing.sm }}>
+              <Text style={{ color: colors.accent, fontWeight: '700' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Featured post */}
+        {featuredPost && !showFavoritesOnly && (
+          <>
+            <SectionHeader title="Question of the Day" />
+            <TouchableOpacity onPress={() => openPost(featuredPost)} activeOpacity={0.85}>
+              <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
+                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
+                  {featuredPost.content}
+                </Text>
+              </Card>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md }}>
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.lg }}>Forum</Text>
+        </View>
+
+        {/* Search + bookmark filter */}
+        <View style={{ flexDirection: 'row', gap: Spacing.sm, marginVertical: Spacing.sm, alignItems: 'center' }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.sm, backgroundColor: colors.surface, paddingHorizontal: Spacing.sm }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🔍</Text>
+            <TextInput
+              style={{ flex: 1, color: colors.text, padding: Spacing.xs, fontSize: FontSize.sm }}
+              value={forumSearch}
+              onChangeText={setForumSearch}
+              placeholder="Search posts..."
+              placeholderTextColor={colors.textSecondary}
+              accessibilityLabel="Search forum posts input"
+            />
+          </View>
+          <TouchableOpacity
+            onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            style={{
+              padding: Spacing.xs, borderRadius: BorderRadius.sm, borderWidth: 1,
+              borderColor: showFavoritesOnly ? colors.accent : colors.border,
+              backgroundColor: showFavoritesOnly ? colors.accentLight : 'transparent',
+            }}
+          >
+            <Text style={{ color: showFavoritesOnly ? colors.accent : colors.textSecondary, fontSize: 18 }}>🔖</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Category filters */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.md }}>
+          <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+            {FORUM_CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setForumCategory(cat)}
+                style={{
+                  paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+                  borderRadius: BorderRadius.full, borderWidth: 1,
+                  backgroundColor: forumCategory === cat ? colors.accentLight : 'transparent',
+                  borderColor: forumCategory === cat ? colors.accent : colors.border,
+                }}
+              >
+                <Text style={{ color: forumCategory === cat ? colors.accent : colors.textSecondary, fontSize: FontSize.xs }}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* No notifications note */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.md }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>🔇</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>
+            No notifications — check in intentionally, not reactively.
+          </Text>
+        </View>
+
+        <Button title="+ New Post" variant="secondary" onPress={() => setShowNewPost(true)} style={{ marginBottom: Spacing.md }} />
+
+        {postsLoading && <ActivityIndicator color={colors.accent} style={{ marginVertical: Spacing.lg }} />}
+
+        {postsError === 'fetch_failed' && (
+          <Card style={{ borderLeftWidth: 3, borderLeftColor: colors.danger }}>
+            <Text style={{ color: colors.danger, fontWeight: '600' }}>Could not load posts</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginTop: 4 }}>Pull to refresh.</Text>
+          </Card>
+        )}
+
+        {!postsLoading && filteredPosts.map(post => (
+          <TouchableOpacity key={post.id} onPress={() => setSelectedPost(post)} activeOpacity={0.85}>
+            <View style={{
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              paddingVertical: Spacing.md,
+              paddingHorizontal: Spacing.md,
+              backgroundColor: selectedPost?.id === post.id ? colors.accentLight : 'transparent'
+            }}>
+              {/* Author and metadata row */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm }}>Anonymous</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.caption, marginTop: 2 }}>
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Post title */}
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md, marginBottom: Spacing.xs }}>
+                {post.title}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }} numberOfLines={2}>
+                {post.content}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
 
@@ -981,6 +1153,218 @@ export default function CommunityScreen() {
           </View>
         )}
       </ScrollView>
+    );
+  };
+
+  // ─── FORUMS DETAIL ONLY (For side-by-side layout) ──────────────────────────────
+  const renderForumsDetailOnly = () => {
+    if (!selectedPost) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 64 }}>💬</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: FontSize.md, marginTop: Spacing.lg }}>
+            Select a post to view details
+          </Text>
+        </View>
+      );
+    }
+
+    // If editing the post
+    if (editingPostId === selectedPost.id) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+            backgroundColor: colors.surface,
+          }}>
+            <TouchableOpacity onPress={() => setEditingPostId(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+              <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>Edit Post</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 60 }}>
+            <TextInput
+              style={[s.input, { marginBottom: Spacing.sm }]}
+              value={editPostTitle}
+              onChangeText={setEditPostTitle}
+              placeholder="Title"
+              placeholderTextColor={colors.textSecondary}
+              accessibilityLabel="Edit post title input"
+            />
+            <TextInput
+              style={[s.input, { height: 140, textAlignVertical: 'top', marginBottom: Spacing.lg }]}
+              value={editPostContent}
+              onChangeText={setEditPostContent}
+              placeholder="Post content..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              accessibilityLabel="Edit post content textarea"
+            />
+            <Button title="Save Changes" onPress={handleEditPost} />
+          </ScrollView>
+        </View>
+      );
+    }
+
+    // Show post detail
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Post header */}
+        <View style={{
+          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+          backgroundColor: colors.surface,
+        }}>
+          <TouchableOpacity onPress={() => setSelectedPost(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+            <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Back</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+            <TouchableOpacity onPress={() => toggleForumFavorite(selectedPost.id)}>
+              <Text style={{ color: forumFavorites.includes(selectedPost.id) ? colors.accent : colors.textSecondary, fontSize: 18 }}>
+                {forumFavorites.includes(selectedPost.id) ? '🔖' : '📌'}
+              </Text>
+            </TouchableOpacity>
+            {selectedPost.user_id === currentUserId ? (
+              <>
+                <TouchableOpacity onPress={() => { setEditingPostId(selectedPost.id); setEditPostTitle(selectedPost.title); setEditPostContent(selectedPost.content); }}>
+                  <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeletePost()}>
+                  <Text style={{ color: colors.warning, fontSize: 18 }}>🗑️</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => Alert.alert('Report Post', 'Are you sure you want to report this post?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', 'Thank you — our team will review it.') },
+              ])}>
+                <Text style={{ color: colors.textSecondary, fontSize: 18 }}>🚩</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 120 }}>
+          <Text style={{ color: colors.text, fontSize: FontSize.xl, fontWeight: '800', marginBottom: Spacing.sm }}>
+            {selectedPost.title}
+          </Text>
+          <Text style={[s.postMeta, { marginBottom: Spacing.md }]}>
+            {new Date(selectedPost.created_at).toLocaleDateString()} · {selectedPost.user_id === currentUserId ? 'You' : 'Anonymous'}
+          </Text>
+          <Text style={{ color: colors.text, fontSize: FontSize.md, lineHeight: 26, marginBottom: Spacing.lg }}>
+            {selectedPost.content}
+          </Text>
+
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md, marginBottom: Spacing.sm }}>
+            Comments {commentsLoading ? '' : `(${postComments.length})`}
+          </Text>
+
+          {commentsLoading && <ActivityIndicator color={colors.accent} />}
+
+          {postComments.map(comment => (
+            <View key={comment.id}>
+              {editingCommentId === comment.id ? (
+                <View style={[s.commentCard, { backgroundColor: colors.accentLight, padding: Spacing.md }]}>
+                  <TextInput
+                    style={[s.input, { marginBottom: Spacing.sm, minHeight: 80, textAlignVertical: 'top' }]}
+                    value={editCommentContent}
+                    onChangeText={setEditCommentContent}
+                    placeholder="Edit comment..."
+                    placeholderTextColor={colors.textSecondary}
+                    multiline
+                    accessibilityLabel="Edit comment textarea"
+                  />
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                    <Button
+                      title="Cancel"
+                      variant="secondary"
+                      onPress={() => setEditingCommentId(null)}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      title="Save"
+                      onPress={() => handleEditComment(comment.id)}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={s.commentCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Text style={{ color: colors.text, fontSize: FontSize.sm, lineHeight: 20, flex: 1, marginRight: Spacing.sm }}>{comment.content}</Text>
+                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                      {comment.user_id === currentUserId ? (
+                        <>
+                          <TouchableOpacity onPress={() => { setEditingCommentId(comment.id); setEditCommentContent(comment.content); }}>
+                            <Text style={{ color: colors.accent, fontSize: 14 }}>✎</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
+                            <Text style={{ color: colors.warning, fontSize: 14 }}>🗑️</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity onPress={() => Alert.alert('Report Comment', 'Are you sure you want to report this comment?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', 'Thank you — our team will review it.') },
+                        ])}>
+                          <Text style={{ color: colors.textSecondary, fontSize: 14 }}>🚩</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 4 }}>
+                    {new Date(comment.created_at).toLocaleDateString()}
+                    {comment.is_helpful && (
+                      <Text style={{ color: colors.accent }}> · ★ Helpful</Text>
+                    )}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+
+          {postComments.length === 0 && !commentsLoading && (
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontStyle: 'italic' }}>
+              No comments yet. Be the first to respond.
+            </Text>
+          )}
+        </ScrollView>
+
+        {/* Comment input */}
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: Spacing.md, backgroundColor: colors.surface,
+          borderTopWidth: 1, borderTopColor: colors.border,
+          flexDirection: 'row', gap: Spacing.sm,
+        }}>
+          <TextInput
+            style={[s.input, { flex: 1 }]}
+            value={newComment}
+            onChangeText={setNewComment}
+            placeholder="Add a response..."
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            accessibilityLabel="Comment input textarea, describe your response to this post"
+          />
+          <TouchableOpacity
+            onPress={submitComment}
+            disabled={!newComment.trim() || commentPosting}
+            style={{
+              padding: Spacing.sm, backgroundColor: colors.accent,
+              borderRadius: BorderRadius.sm, justifyContent: 'center',
+              opacity: !newComment.trim() || commentPosting ? 0.5 : 1,
+            }}
+          >
+            {commentPosting
+              ? <ActivityIndicator size="small" color="#1A1A1A" />
+              : <Text style={{ color: '#1A1A1A', fontSize: 16 }}>➤</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   };
 
@@ -1156,13 +1540,13 @@ export default function CommunityScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
-                  {new Date(post.created_at).toLocaleDateString()} · {post.category}
+                  {new Date(post.created_at).toLocaleDateString()}
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                   {post.content}
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                  {post.comments_count || 0} responses
+                  {post.comment_count || 0} responses
                 </Text>
               </Card>
             </TouchableOpacity>
@@ -1394,13 +1778,13 @@ export default function CommunityScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
-                  {new Date(post.created_at).toLocaleDateString()} · {post.category}
+                  {new Date(post.created_at).toLocaleDateString()}
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                   {post.content}
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                  {post.comments_count || 0} responses
+                  {post.comment_count || 0} responses
                 </Text>
               </Card>
             </TouchableOpacity>
@@ -1531,7 +1915,21 @@ export default function CommunityScreen() {
         </View>
       )}
 
-      {activeTab === 'events' ? renderEvents() : renderForums()}
+      {/* Show posts list and detail side by side when post is selected on wider screens */}
+      {selectedPost && activeTab === 'forums' && screenWidth > BREAKPOINTS.tablet ? (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          {/* Posts list on the left */}
+          <View style={{ width: '40%', borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.background }}>
+            {renderForumsListOnly()}
+          </View>
+          {/* Post detail on the right */}
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            {renderForumsDetailOnly()}
+          </View>
+        </View>
+      ) : (
+        activeTab === 'events' ? renderEvents() : renderForums()
+      )}
     </View>
   );
 }

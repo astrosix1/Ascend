@@ -1334,7 +1334,7 @@ export default function DashboardScreen() {
                   />
                   <TouchableOpacity
                     onPress={() => {
-                      if (quickAddTodoText.trim()) {
+                      if (quickAddTodoText?.trim?.() && addTodo) {
                         const newTodo: Todo = {
                           id: Date.now().toString(),
                           title: quickAddTodoText.trim(),
@@ -1353,7 +1353,7 @@ export default function DashboardScreen() {
                 </View>
 
                 {/* Todo list */}
-                {todos.length === 0 ? (
+                {!todos || todos.length === 0 ? (
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>No tasks yet</Text>
                 ) : (
                   todos.map(todo => (
@@ -1370,7 +1370,7 @@ export default function DashboardScreen() {
                       }}
                     >
                       <TouchableOpacity
-                        onPress={() => toggleTodo(todo.id)}
+                        onPress={() => toggleTodo && toggleTodo(todo.id)}
                         style={{
                           width: 18,
                           height: 18,
@@ -1396,7 +1396,7 @@ export default function DashboardScreen() {
                         {todo.title}
                       </Text>
                       <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: FontSize.xs }}>+{todo.xpReward} XP</Text>
-                      <TouchableOpacity onPress={() => deleteTodo(todo.id)}>
+                      <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)}>
                         <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
                       </TouchableOpacity>
                     </View>

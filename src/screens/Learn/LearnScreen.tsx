@@ -121,10 +121,12 @@ export default function LearnScreen() {
 
   const handleAddHabit = (learnHabit: LearnHabit, microHabitName?: string) => {
     const name = microHabitName || learnHabit.name;
+    // Micro habits are always 'good' because they help reduce bad habits
+    const habitType = microHabitName ? 'good' : learnHabit.type;
     const habit: Habit = {
       id: Date.now().toString(),
       name,
-      type: learnHabit.type,
+      type: habitType,
       description: learnHabit.description,
       microHabit: microHabitName,
       trigger: learnHabit.triggers?.[0],
@@ -137,10 +139,12 @@ export default function LearnScreen() {
     };
     addHabit(habit);
     Alert.alert(
-      learnHabit.type === 'good' ? 'Habit Added!' : 'Tracking Added!',
-      learnHabit.type === 'good'
-        ? `"${name}" has been added to your good habits.`
-        : `"${name}" has been added to your habits to avoid.`
+      microHabitName ? 'Micro-habit Added!' : (learnHabit.type === 'good' ? 'Habit Added!' : 'Tracking Added!'),
+      microHabitName
+        ? `"${name}" has been added to your Build habits.`
+        : (learnHabit.type === 'good'
+          ? `"${name}" has been added to your good habits.`
+          : `"${name}" has been added to your habits to avoid.`)
     );
     setSelectedHabit(null);
     setAddMicroHabit(null);
