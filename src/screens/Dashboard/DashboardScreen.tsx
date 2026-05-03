@@ -10,6 +10,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
@@ -247,6 +248,63 @@ function buildYearlyData(habits: ReturnType<typeof useApp>['habits']): number[] 
   return months;
 }
 
+function buildCumulativeWeeklyData(habits: ReturnType<typeof useApp>['habits']): number[] {
+  const days: number[] = [];
+  let cumulativeTotal = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const good = habits.filter(h => h.type === 'good');
+    const completed = good.filter(h => h.completedDates.includes(dateStr)).length;
+    cumulativeTotal += completed;
+    days.push(cumulativeTotal);
+  }
+  return days;
+}
+
+function buildCumulativeMonthlyData(habits: ReturnType<typeof useApp>['habits']): number[] {
+  const weeks: number[] = [];
+  const now = new Date();
+  let cumulativeTotal = 0;
+  for (let w = 3; w >= 0; w--) {
+    let weekTotal = 0;
+    for (let d = 0; d < 7; d++) {
+      const date = new Date();
+      date.setDate(now.getDate() - w * 7 - d);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const good = habits.filter(h => h.type === 'good');
+      const completed = good.filter(h => h.completedDates.includes(dateStr)).length;
+      weekTotal += completed;
+    }
+    cumulativeTotal += weekTotal;
+    weeks.push(cumulativeTotal);
+  }
+  return weeks;
+}
+
+function buildCumulativeYearlyData(habits: ReturnType<typeof useApp>['habits']): number[] {
+  const months: number[] = [];
+  const now = new Date();
+  let cumulativeTotal = 0;
+  for (let m = 11; m >= 0; m--) {
+    const targetMonth = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const year = targetMonth.getFullYear();
+    const month = targetMonth.getMonth();
+    const daysInMonth = getDaysInMonth(year, month);
+    let monthTotal = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const good = habits.filter(h => h.type === 'good');
+      const completed = good.filter(h => h.completedDates.includes(dateStr)).length;
+      monthTotal += completed;
+    }
+    cumulativeTotal += monthTotal;
+    months.push(cumulativeTotal);
+  }
+  return months;
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 // Stat card
@@ -290,6 +348,7 @@ const statCardStyles = StyleSheet.create({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
+  const navigation = useNavigation<any>();
   const {
     colors,
     habits,
@@ -309,6 +368,10 @@ export default function DashboardScreen() {
     addGoal,
     updateGoal,
     deleteGoal,
+    todos,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
     toggleHabit: contextToggleHabit,
     addCalendarEvent,
     removeCalendarEvent,
@@ -433,16 +496,38 @@ export default function DashboardScreen() {
     resetBonusIfDateChanged();
   }, [today, habits]);
 
-  // ── Keyboard shortcuts: 1=Today 2=Progress 3=Journals 4=Calendar ──────────
+  // ── Keyboard shortcuts: 1=Today 2=Progress 3=Journals 4=Calendar; Arrow keys for mobile tab nav ──────────
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const handleKey = (e: KeyboardEvent) => {
       const active = document.activeElement;
       if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+
+      // Number shortcuts for desktop category navigation
       if (e.key === '1') setDashboardCategory('today');
       if (e.key === '2') setDashboardCategory('progress');
       if (e.key === '3') setDashboardCategory('journals');
       if (e.key === '4') { setDashboardCategory('calendar'); if (!selectedDay) setSelectedDay(today); }
+
+      // Arrow keys for mobile tab navigation (Left = previous, Right = next)
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setActiveTab(prev => {
+          if (prev === 'habits') return 'calendar';
+          if (prev === 'calendar') return 'journals';
+          if (prev === 'journals') return 'habits';
+          return 'habits';
+        });
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setActiveTab(prev => {
+          if (prev === 'habits') return 'journals';
+          if (prev === 'journals') return 'calendar';
+          if (prev === 'calendar') return 'habits';
+          return 'habits';
+        });
+      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -451,8 +536,12 @@ export default function DashboardScreen() {
   const weeklyData = useMemo(() => buildWeeklyData(habits), [habits]);
   const monthlyData = useMemo(() => buildMonthlyData(habits), [habits]);
   const yearlyData = useMemo(() => buildYearlyData(habits), [habits]);
+  const cumulativeWeeklyData = useMemo(() => buildCumulativeWeeklyData(habits), [habits]);
+  const cumulativeMonthlyData = useMemo(() => buildCumulativeMonthlyData(habits), [habits]);
+  const cumulativeYearlyData = useMemo(() => buildCumulativeYearlyData(habits), [habits]);
 
   const chartData = chartTab === 'Week' ? weeklyData : chartTab === 'Month' ? monthlyData : yearlyData;
+  const cumulativeChartData = chartTab === 'Week' ? cumulativeWeeklyData : chartTab === 'Month' ? cumulativeMonthlyData : cumulativeYearlyData;
   const chartLabels = useMemo(() => {
     if (chartTab === 'Week') {
       return Array.from({ length: 7 }, (_, i) => {
@@ -531,8 +620,6 @@ export default function DashboardScreen() {
 
   // ── Real World Wins state ──────────────────────────────────────────────────
   const [winsExpanded, setWinsExpanded] = useState(true);
-  const [quickAddText, setQuickAddText] = useState('');
-  const [quickAddType, setQuickAddType] = useState<'good' | 'bad'>('good');
   const [quickAddBuildText, setQuickAddBuildText] = useState('');
   const [quickAddBreakText, setQuickAddBreakText] = useState('');
   const [inlineJournalHabitId, setInlineJournalHabitId] = useState<string | null>(null);
@@ -734,6 +821,10 @@ export default function DashboardScreen() {
     return badHabits.filter(h => !h.completedDates.includes(today)).length;
   }, [badHabits, today]);
 
+  const completedBadHabitsCount = useMemo(() => {
+    return badHabits.filter(h => h.completedDates.includes(today)).length;
+  }, [badHabits, today]);
+
   const dailyQuote = getQuoteForDay(today);
 
   const weekStats = useMemo(() => calculateWeekStats(habits, today), [habits, today]);
@@ -807,6 +898,7 @@ export default function DashboardScreen() {
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   const [editHabitName, setEditHabitName] = useState('');
   const [editHabitType, setEditHabitType] = useState<'good' | 'bad'>('good');
+  const [editDateForHabit, setEditDateForHabit] = useState<string>(today);
   const [showAddForm, setShowAddForm] = useState(false);
 
   function handleAddHabit() {
@@ -826,10 +918,15 @@ export default function DashboardScreen() {
     setNewHabitDescription('');
   }
 
-  function handleQuickAdd() {
-    if (!quickAddText.trim()) return;
-    addHabit({ id: Date.now().toString(), name: quickAddText.trim(), type: quickAddType, streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() });
-    setQuickAddText('');
+  function toggleHabitForDate(habitId: string, date: string) {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+
+    const newCompletedDates = habit.completedDates.includes(date)
+      ? habit.completedDates.filter(d => d !== date)
+      : [...habit.completedDates, date];
+
+    updateHabit(habitId, { completedDates: newCompletedDates });
   }
 
   function handleInlineJournalSave() {
@@ -1071,13 +1168,13 @@ export default function DashboardScreen() {
                 placeholder='Quick-add a build habit…'
                 value={quickAddBuildText}
                 onChangeText={setQuickAddBuildText}
-                onSubmitEditing={() => { if (quickAddBuildText.trim()) { addHabit({ name: quickAddBuildText.trim(), type: 'good' }); setQuickAddBuildText(''); } }}
+                onSubmitEditing={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
                 style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="done"
               />
               {quickAddBuildText.trim().length > 0 && (
-                <TouchableOpacity onPress={() => { if (quickAddBuildText.trim()) { addHabit({ name: quickAddBuildText.trim(), type: 'good' }); setQuickAddBuildText(''); } }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
+                <TouchableOpacity onPress={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
                   <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
                 </TouchableOpacity>
               )}
@@ -1113,6 +1210,100 @@ export default function DashboardScreen() {
                 <TouchableOpacity onPress={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }} style={{ backgroundColor: colors.danger, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
                   <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
                 </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Todo List Section */}
+            <View style={{ paddingHorizontal: contentPadding, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <SectionHeader title="📋 Quick Tasks" />
+
+              {/* Add todo input */}
+              <View style={{ flexDirection: 'row', marginBottom: Spacing.md }}>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      flex: 1,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      backgroundColor: colors.surface,
+                      marginRight: Spacing.sm,
+                    },
+                  ]}
+                  placeholder="Add a quick task..."
+                  placeholderTextColor={colors.textTertiary}
+                  onChangeText={setQuickAddBuildText}
+                  value={quickAddBuildText}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    if (quickAddBuildText.trim()) {
+                      const newTodo: Todo = {
+                        id: Date.now().toString(),
+                        title: quickAddBuildText.trim(),
+                        completed: false,
+                        createdAt: new Date().toISOString(),
+                        xpReward: 1,
+                      };
+                      addTodo(newTodo);
+                      setQuickAddBuildText('');
+                    }
+                  }}
+                  style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Todo list */}
+              {todos.length === 0 ? (
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.md }}>No tasks yet</Text>
+              ) : (
+                todos.map(todo => (
+                  <View
+                    key={todo.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: Spacing.sm,
+                      paddingHorizontal: Spacing.sm,
+                      backgroundColor: todo.completed ? colors.success + '15' : colors.surface,
+                      borderRadius: BorderRadius.sm,
+                      marginBottom: Spacing.xs,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => toggleTodo(todo.id)}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        borderWidth: 1.5,
+                        borderColor: colors.accent,
+                        backgroundColor: todo.completed ? colors.accent : 'transparent',
+                        marginRight: Spacing.sm,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {todo.completed && <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                    </TouchableOpacity>
+                    <Text
+                      style={{
+                        flex: 1,
+                        color: todo.completed ? colors.textSecondary : colors.text,
+                        fontSize: FontSize.sm,
+                        textDecorationLine: todo.completed ? 'line-through' : 'none',
+                      }}
+                    >
+                      {todo.title}
+                    </Text>
+                    <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm }}>+{todo.xpReward} XP</Text>
+                    <TouchableOpacity onPress={() => deleteTodo(todo.id)}>
+                      <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
               )}
             </View>
 
@@ -1624,12 +1815,26 @@ export default function DashboardScreen() {
               </Card>
             )}
 
+            {/* ── Completed Bad Habits Summary ── */}
+            {prefs.showAvoidedBadHabits && completedBadHabitsCount > 0 && (
+              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.danger, borderWidth: 1.5, paddingVertical: Spacing.md }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.avoidedHabitsText, { color: colors.danger, fontSize: FontSize.md, fontWeight: '700' }]}>
+                    ⚠️ I did {completedBadHabitsCount} bad habit{completedBadHabitsCount !== 1 ? 's' : ''} today!
+                  </Text>
+                  <Text style={[styles.avoidedHabitsXp, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
+                    (tracked)
+                  </Text>
+                </View>
+              </Card>
+            )}
+
             {/* ── Avoided Bad Habits Summary ── */}
             {prefs.showAvoidedBadHabits && avoidedBadHabitsCount > 0 && (
               <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
                 <View style={{ alignItems: 'center' }}>
                   <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
-                    ✨ You avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
+                    💪 I avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
                   </Text>
                   <Text style={[styles.avoidedHabitsXp, { color: colors.accent, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
                     (+{avoidedBadHabitsCount} XP)
@@ -1732,8 +1937,15 @@ export default function DashboardScreen() {
                       key={habit.id}
                       style={[styles.habitRow, { borderBottomColor: colors.border }]}
                       onPress={() => {
-                        setSelectedHabitForHistory(habit.id);
-                        setShowHabitHistory(true);
+                        // Navigate to Clock screen for pomodoro/timer habits
+                        const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') ||
+                                             habit.name.toLowerCase().includes('timer');
+                        if (isTimerHabit) {
+                          navigation.navigate('Clock');
+                        } else {
+                          setSelectedHabitForHistory(habit.id);
+                          setShowHabitHistory(true);
+                        }
                       }}
                       activeOpacity={0.6}
                     >
@@ -1823,6 +2035,14 @@ export default function DashboardScreen() {
               </View>
             </Card>
 
+            {/* Cumulative Progress Chart */}
+            <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
+              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Cumulative habit completions</Text>
+              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
+                <LineGraph data={cumulativeChartData} labels={chartLabels} />
+              </View>
+            </Card>
+
             {/* Calendar */}
             <Card>
               <View style={styles.calHeader}>
@@ -1878,6 +2098,50 @@ export default function DashboardScreen() {
               {selectedDay && (
                 <View style={{ marginTop: Spacing.md }}>
                   <Text style={{ color: colors.accent, fontWeight: '700', marginBottom: Spacing.xs }}>{formatDisplayDate(selectedDay)}</Text>
+
+                  {/* Habits for selected day */}
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.xs }}>Habits</Text>
+                    {habits.length === 0 ? (
+                      <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet</Text>
+                    ) : (
+                      habits.map(habit => {
+                        const isCompleted = habit.completedDates.includes(selectedDay);
+                        const isGood = habit.type === 'good';
+                        const habitColor = isGood ? colors.success : colors.danger;
+                        return (
+                          <TouchableOpacity
+                            key={habit.id}
+                            onPress={() => handleToggleHabit(habit.id, selectedDay)}
+                            style={[
+                              styles.habitRow,
+                              {
+                                borderBottomColor: colors.border,
+                                backgroundColor: isCompleted ? habitColor + '20' : 'transparent',
+                              },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.checkbox,
+                                {
+                                  borderColor: habitColor,
+                                  backgroundColor: isCompleted ? habitColor : 'transparent',
+                                },
+                              ]}
+                            >
+                              {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
+                            </View>
+                            <View style={styles.habitInfo}>
+                              <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+
+                  {/* Events for selected day */}
                   {selectedDayEvents.length === 0 ? (
                     <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No events — tap "Add Event" to create one.</Text>
                   ) : (
@@ -2546,6 +2810,7 @@ export default function DashboardScreen() {
                             setEditingHabitId(habit.id);
                             setEditHabitName(habit.name);
                             setEditHabitType(habit.type);
+                            setEditDateForHabit(today);
                             setShowAddForm(false);
                           }}
                           style={styles.habitActionBtn}
@@ -2575,6 +2840,57 @@ export default function DashboardScreen() {
                         style={[styles.textInput, { color: colors.text, borderColor: colors.border, marginBottom: 0 }]}
                         autoFocus
                       />
+
+                      {/* Date picker for editing past habits */}
+                      <View style={{ marginTop: Spacing.sm, marginBottom: Spacing.sm, paddingVertical: Spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border }}>
+                        <Text style={[styles.inlineFormLabel, { color: colors.textSecondary, fontSize: 12, marginBottom: Spacing.xs }]}>
+                          Edit past habit (optional)
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface }}
+                            onPress={() => {
+                              const [y, m, d] = editDateForHabit.split('-');
+                              const currentDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+                              const oneMonthAgo = new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+                              const prevDate = oneMonthAgo.toISOString().split('T')[0];
+                              setEditDateForHabit(prevDate);
+                            }}
+                          >
+                            <Text style={{ color: colors.accent, fontWeight: '500', fontSize: 12 }}>← Previous</Text>
+                          </TouchableOpacity>
+                          <Text style={{ color: colors.text, fontWeight: '600', minWidth: 90, textAlign: 'center', fontSize: 13 }}>
+                            {editDateForHabit === today ? 'Today' : editDateForHabit}
+                          </Text>
+                          <TouchableOpacity
+                            style={{ flex: 1, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface }}
+                            onPress={() => {
+                              const [y, m, d] = editDateForHabit.split('-');
+                              const currentDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+                              const nextDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+                              const formattedDate = nextDate.toISOString().split('T')[0];
+                              if (formattedDate <= today) setEditDateForHabit(formattedDate);
+                            }}
+                          >
+                            <Text style={{ color: colors.accent, fontWeight: '500', fontSize: 12 }}>Next →</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity
+                          style={{
+                            marginTop: Spacing.sm,
+                            paddingVertical: Spacing.sm,
+                            paddingHorizontal: Spacing.sm,
+                            borderRadius: 6,
+                            backgroundColor: habit.completedDates.includes(editDateForHabit) ? colors.danger : colors.success,
+                          }}
+                          onPress={() => toggleHabitForDate(habit.id, editDateForHabit)}
+                        >
+                          <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '600', fontSize: 12 }}>
+                            {habit.completedDates.includes(editDateForHabit) ? '✓ Mark incomplete' : '○ Mark complete'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
                       <View style={styles.typePillRow}>
                         <TouchableOpacity
                           style={[styles.typePill, { borderColor: colors.success }, editHabitType === 'good' && { backgroundColor: colors.success }]}
