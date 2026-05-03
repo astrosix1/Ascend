@@ -1304,9 +1304,9 @@ export default function DashboardScreen() {
           </View>
         )}
         {dashboardCategory === 'journals' && (
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, overflow: 'hidden' }}>
             <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
-              <View style={{ padding: contentPadding }}>
+              <View style={{ padding: contentPadding, paddingBottom: Spacing.lg }}>
 
               {/* Todo List Section */}
               <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.md }}>
