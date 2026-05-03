@@ -622,6 +622,7 @@ export default function DashboardScreen() {
   const [winsExpanded, setWinsExpanded] = useState(true);
   const [quickAddBuildText, setQuickAddBuildText] = useState('');
   const [quickAddBreakText, setQuickAddBreakText] = useState('');
+  const [quickAddTodoText, setQuickAddTodoText] = useState('');
   const [inlineJournalHabitId, setInlineJournalHabitId] = useState<string | null>(null);
   const [inlineJournalText, setInlineJournalText] = useState('');
   const [showAddWin, setShowAddWin] = useState(false);
@@ -1328,21 +1329,21 @@ export default function DashboardScreen() {
                     ]}
                     placeholder="Add a quick task..."
                     placeholderTextColor={colors.textTertiary}
-                    onChangeText={setQuickAddBuildText}
-                    value={quickAddBuildText}
+                    onChangeText={setQuickAddTodoText}
+                    value={quickAddTodoText}
                   />
                   <TouchableOpacity
                     onPress={() => {
-                      if (quickAddBuildText.trim()) {
+                      if (quickAddTodoText.trim()) {
                         const newTodo: Todo = {
                           id: Date.now().toString(),
-                          title: quickAddBuildText.trim(),
+                          title: quickAddTodoText.trim(),
                           completed: false,
                           createdAt: new Date().toISOString(),
                           xpReward: 1,
                         };
                         addTodo(newTodo);
-                        setQuickAddBuildText('');
+                        setQuickAddTodoText('');
                       }
                     }}
                     style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, justifyContent: 'center' }}
