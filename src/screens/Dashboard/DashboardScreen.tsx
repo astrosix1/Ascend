@@ -1304,8 +1304,9 @@ export default function DashboardScreen() {
           </View>
         )}
         {dashboardCategory === 'journals' && (
-          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
-            <View style={{ padding: contentPadding, gap: Spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+              <View style={{ padding: contentPadding, gap: Spacing.sm }}>
 
               {/* Todo List Section */}
               <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md }}>
@@ -1585,8 +1586,9 @@ export default function DashboardScreen() {
                 </View>
               )}
 
-            </View>
-          </ScrollView>
+              </View>
+            </ScrollView>
+          </View>
         )}
 
         {/* ━━ CALENDAR panel — side-by-side ━━ */}
