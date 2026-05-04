@@ -22,6 +22,7 @@ interface AppState {
   // Stats
   stats: UserStats;
   addXP: (amount: number) => void;
+  resetProgress: () => void;
 
   // Settings
   settings: UserSettings;
@@ -272,20 +273,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [persist]);
 
+  // Calculate consecutive streak from completed dates (only counts consecutive days ending today)
+  const calculateConsecutiveStreak = (completedDates: string[], referenceDate: string = new Date().toISOString().split('T')[0]): number => {
+    if (completedDates.length === 0) return 0;
+
+    const sortedDates = [...completedDates].sort();
+    let streak = 0;
+    let currentDate = new Date(referenceDate);
+
+    // Work backwards from today to count consecutive days
+    while (true) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      if (sortedDates.includes(dateStr)) {
+        streak++;
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  };
+
   const toggleHabit = useCallback((habitId: string, date: string) => {
     setHabits(prev => {
       const updated = prev.map(h => {
         if (h.id !== habitId) return h;
         const isCompleted = h.completedDates.includes(date);
         let newDates: string[];
-        let newStreak = h.streak;
+        let newStreak = 0;
 
         if (isCompleted) {
+          // Uncompleting a habit - remove the date and recalculate streak from remaining dates
           newDates = h.completedDates.filter(d => d !== date);
-          newStreak = Math.max(0, h.streak - 1);
+          // Recalculate streak from remaining dates
+          const sortedRemaining = [...newDates].sort();
+          if (sortedRemaining.length > 0) {
+            // Streak ends at the last completed date, not today
+            const lastCompletedDate = sortedRemaining[sortedRemaining.length - 1];
+            newStreak = calculateConsecutiveStreak(newDates, lastCompletedDate);
+          } else {
+            newStreak = 0;
+          }
         } else {
+          // Completing a habit - add the date and check if it's consecutive
           newDates = [...h.completedDates, date];
-          newStreak = h.streak + 1;
+
+          // Check if today is consecutive to yesterday
+          const today = new Date(date);
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+          // If yesterday's completion exists, continue streak; otherwise reset to 1
+          if (h.completedDates.includes(yesterdayStr)) {
+            newStreak = h.streak + 1;
+          } else {
+            newStreak = 1; // Start or restart streak
+          }
         }
 
         return {
@@ -371,6 +416,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...prev,
         xp: prev.xp + amount,
         level: Math.floor((prev.xp + amount) / 100) + 1,
+      };
+      persist(KEYS.STATS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  // Reset all progress: streaks, XP, level, etc.
+  const resetProgress = useCallback(() => {
+    // Reset habits: clear all streaks and bestStreaks, clear completed dates
+    setHabits(prev => {
+      const updated = prev.map(h => ({
+        ...h,
+        streak: 0,
+        bestStreak: 0,
+        completedDates: [],
+      }));
+      persist(KEYS.HABITS, updated);
+      return updated;
+    });
+
+    // Reset stats: XP to 0, level to 1, currentStreak to 0
+    setStats(prev => {
+      const updated = {
+        ...prev,
+        xp: 0,
+        level: 1,
+        currentStreak: 0,
       };
       persist(KEYS.STATS, updated);
       return updated;
@@ -980,6 +1052,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateHabit,
       stats,
       addXP,
+      resetProgress,
       settings,
       updateSettings,
       pomodoroHistory,
