@@ -1797,7 +1797,7 @@ export default function DashboardScreen() {
       {/* Content */}
       <ScrollView
         style={[styles.scroll, { backgroundColor: colors.background }]}
-        contentContainerStyle={[styles.content, { padding: contentPadding, paddingBottom: Spacing.xxl }]}
+        contentContainerStyle={[styles.content, { paddingBottom: Spacing.xxl, paddingHorizontal: contentPadding }]}
         keyboardShouldPersistTaps="handled"
       >
         {/* ━━ HABITS TAB ━━ */}
@@ -1805,221 +1805,125 @@ export default function DashboardScreen() {
           <>
             {/* ── Daily Motivation Quote ── */}
             {prefs.showMotivationQuote && (
-              <Card style={{ marginTop: Spacing.md, marginBottom: Spacing.md, paddingVertical: Spacing.lg }}>
-                <Text style={[styles.dailyQuote, { color: colors.accent, fontSize: FontSize.md, fontStyle: 'italic', textAlign: 'center' }]}>
+              <View style={{ marginHorizontal: -contentPadding, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.accentLight }}>
+                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontStyle: 'italic', lineHeight: FontSize.sm * 1.5 }} numberOfLines={2}>
                   {dailyQuote}
                 </Text>
-              </Card>
+              </View>
             )}
 
             {/* ── Streak Highlight ── */}
             {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
-              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.accentLight, paddingVertical: Spacing.lg }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={[styles.streakHighlightText, { color: colors.text, fontSize: FontSize.xl, fontWeight: '700', marginBottom: Spacing.xs }]}>
-                    🔥 Your Best Streak
-                  </Text>
-                  <Text style={[styles.streakHighlightNumber, { color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }]}>
-                    {longestStreak} days
-                  </Text>
-                  <Text style={[styles.streakHighlightHabit, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.sm }]}>
-                    {habitWithLongestStreak.name}
-                  </Text>
-                </View>
-              </Card>
+              <View style={{ marginHorizontal: -contentPadding, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '700' }}>🔥 Best Streak: </Text>
+                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '800' }}>{longestStreak}d</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginLeft: Spacing.xs }}>{habitWithLongestStreak.name}</Text>
+              </View>
             )}
 
-            {/* Habits (combined Good + Bad) */}
-            <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
-              <View style={styles.habitChecklistHeader}>
-                <View style={styles.habitChecklistHeaderLeft}>
-                  <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Habits</Text>
-                </View>
-                <Button title="Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
+            {habits.length === 0 && (
+              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
+                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
+                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' }}>Tap "Add/Edit" to create your first habit.</Text>
+                <Button title="+ Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} style={{ marginTop: Spacing.md }} />
               </View>
-              <Card style={{ marginBottom: Spacing.md }}>
-                {habits.length === 0 && (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet. Tap "Add/Edit" to create one!</Text>
-                )}
-                {habits.map((habit, idx) => {
-                  const isCompleted = habit.completedDates.includes(today);
-                  const isGood = habit.type === 'good';
-                  const habitColor = isGood ? colors.success : colors.danger;
-                  const streakText = isGood
-                    ? `🔥 ${habit.streak} day streak`
-                    : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
+            )}
 
-                  return (
-                    <TouchableOpacity
-                      key={habit.id}
-                      style={[styles.habitRow, { borderBottomColor: colors.border }]}
-                      onPress={() => {
-                        const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') ||
-                                             habit.name.toLowerCase().includes('timer');
-                        if (isTimerHabit) {
-                          navigation.navigate('Clock');
-                        } else {
-                          setSelectedHabitForHistory(habit.id);
-                          setShowHabitHistory(true);
-                        }
-                      }}
-                      activeOpacity={0.6}
-                    >
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleToggleHabit(habit.id, today);
-                        }}
-                        style={[
-                          styles.checkbox,
-                          {
-                            borderColor: habitColor,
-                            backgroundColor: isCompleted ? habitColor : 'transparent',
-                          },
-                        ]}
-                      >
-                        {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
-                      </TouchableOpacity>
-                      <View style={styles.habitInfo}>
-                        <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                        <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                          {streakText}
-                        </Text>
-                      </View>
-                      {isCompleted && isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openJournalForm(habit.id, habit.name);
-                          }}
-                          style={[styles.whyBtn, { borderColor: colors.accent }]}
-                        >
-                          <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-                        </TouchableOpacity>
-                      )}
-                      {isCompleted && !isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openRelapseForm(habit.id, habit.name);
-                          }}
-                          style={[styles.relapseBtn, { borderColor: colors.danger }]}
-                        >
-                          <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-                        </TouchableOpacity>
-                      )}
-                      {!isCompleted && !isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openTemptationModal(habit.id, habit.name);
-                          }}
-                          style={[styles.temptedBtn, { borderColor: colors.warning }]}
-                        >
-                          <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
-                        </TouchableOpacity>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </Card>
+            {/* ── BUILD section ── */}
+            {goodHabits.length > 0 && (
+              <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
+                <View style={{ width: 3, height: 12, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.xs }} />
+                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Build</Text>
+                <Text style={{ fontSize: FontSize.xs, color: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent : colors.textSecondary, fontWeight: '600' }}>
+                  {completedGoodHabits.length}/{goodHabits.length} done
+                </Text>
+              </View>
+            )}
+            {goodHabits.map(renderHabitRow)}
+
+            {/* ── Quick-add build habit ── */}
+            <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+              <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 13 }}>✅</Text>
+              </View>
+              <TextInput
+                placeholder='Quick-add a build habit…'
+                value={quickAddBuildText}
+                onChangeText={setQuickAddBuildText}
+                onSubmitEditing={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
+                style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="done"
+              />
+              {quickAddBuildText.trim().length > 0 && (
+                <TouchableOpacity onPress={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            {/* ── Completed Bad Habits Summary ── */}
-            {prefs.showAvoidedBadHabits && completedBadHabitsCount > 0 && (
-              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.danger, borderWidth: 1.5, paddingVertical: Spacing.md }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={[styles.avoidedHabitsText, { color: colors.danger, fontSize: FontSize.md, fontWeight: '700' }]}>
-                    ⚠️ I did {completedBadHabitsCount} bad habit{completedBadHabitsCount !== 1 ? 's' : ''} today!
-                  </Text>
-                  <Text style={[styles.avoidedHabitsXp, { color: colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
-                    (tracked)
-                  </Text>
-                </View>
-              </Card>
+            {/* ── BREAK section ── */}
+            {badHabits.length > 0 && (
+              <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.md, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
+                <View style={{ width: 3, height: 12, backgroundColor: colors.danger, borderRadius: 2, marginRight: Spacing.xs }} />
+                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Break</Text>
+                <Text style={{ fontSize: FontSize.xs, color: colors.success, fontWeight: '600' }}>
+                  {badHabits.filter(h => !h.completedDates.includes(today)).length} avoided today
+                </Text>
+              </View>
             )}
+            {badHabits.map(renderHabitRow)}
 
-            {/* ── Avoided Bad Habits Summary ── */}
-            {prefs.showAvoidedBadHabits && avoidedBadHabitsCount > 0 && (
-              <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.success, borderWidth: 1.5, paddingVertical: Spacing.md }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={[styles.avoidedHabitsText, { color: colors.success, fontSize: FontSize.md, fontWeight: '700' }]}>
-                    💪 I avoided {avoidedBadHabitsCount} bad habit{avoidedBadHabitsCount !== 1 ? 's' : ''} today!
-                  </Text>
-                  <Text style={[styles.avoidedHabitsXp, { color: colors.accent, fontSize: FontSize.sm, marginTop: Spacing.xs }]}>
-                    (+{avoidedBadHabitsCount} XP)
-                  </Text>
-                </View>
-              </Card>
-            )}
+            {/* ── Quick-add break habit ── */}
+            <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+              <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#FFE8E8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 13 }}>🚫</Text>
+              </View>
+              <TextInput
+                placeholder='Quick-add a break habit…'
+                value={quickAddBreakText}
+                onChangeText={setQuickAddBreakText}
+                onSubmitEditing={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
+                style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="done"
+              />
+              {quickAddBreakText.trim().length > 0 && (
+                <TouchableOpacity onPress={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }} style={{ backgroundColor: colors.danger, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}>
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* ── Weekly/Monthly Summary ── */}
             {prefs.showSummary && (
-              <Card style={{ marginBottom: Spacing.md }}>
-                <View style={{ marginBottom: Spacing.md }}>
-                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
-                    <TouchableOpacity
-                      style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                      onPress={() => setSummaryMode('week')}
-                    >
-                      <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: colors.text, fontWeight: '700' }]}>
-                        This Week
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                      onPress={() => setSummaryMode('month')}
-                    >
-                      <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: colors.text, fontWeight: '700' }]}>
-                        This Month
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {summaryMode === 'week' ? (
-                    <View>
-                      <View style={{ marginBottom: Spacing.sm }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                          <Text style={{ color: colors.accent, fontWeight: '700' }}>{weekStats.completionRate}%</Text>
-                        </View>
-                        <ProgressBar progress={weekStats.completionRate / 100} color={colors.success} />
-                      </View>
-                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                        Good habits completed: {weekStats.completedCount}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                        Bad habits avoided: {weekStats.avoidedBadCount}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View>
-                      <View style={{ marginBottom: Spacing.sm }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
-                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                          <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
-                        </View>
-                        <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
-                      </View>
-                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
-                        Good habits completed: {monthStats.completedCount}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>
-                        Bad habits avoided: {monthStats.avoidedBadCount}
-                      </Text>
-                    </View>
-                  )}
+              <View style={{ marginHorizontal: -contentPadding, padding: contentPadding, borderTopWidth: habits.length > 0 ? 1 : 0, borderTopColor: colors.border }}>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+                  <TouchableOpacity
+                    style={[styles.summaryTab, summaryMode === 'week' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                    onPress={() => setSummaryMode('week')}
+                  >
+                    <Text style={[styles.summaryTabText, summaryMode === 'week' && { color: '#FFFFFF', fontWeight: '700' }]}>Week</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.summaryTab, summaryMode === 'month' && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                    onPress={() => setSummaryMode('month')}
+                  >
+                    <Text style={[styles.summaryTabText, summaryMode === 'month' && { color: '#FFFFFF', fontWeight: '700' }]}>Month</Text>
+                  </TouchableOpacity>
                 </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
+                  <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                    {(summaryMode === 'week' ? weekStats : monthStats).completionRate}%
+                  </Text>
+                </View>
+                <ProgressBar progress={(summaryMode === 'week' ? weekStats : monthStats).completionRate / 100} color={colors.success} />
                 {prefs.showAnalyticsButton && (
-                  <Button
-                    title="📊 View Full Analytics"
-                    variant="ghost"
-                    size="small"
-                    onPress={() => setShowAnalytics(true)}
-                    style={{ marginTop: Spacing.sm }}
-                  />
+                  <Button title="📊 Analytics" variant="ghost" size="small" onPress={() => setShowAnalytics(true)} style={{ marginTop: Spacing.md }} />
                 )}
-              </Card>
+              </View>
             )}
 
           </>
@@ -2029,7 +1933,7 @@ export default function DashboardScreen() {
         {currentTab === 'progress' && (
           <>
             {/* Compact stats grid */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {([
                 { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accent },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
@@ -2047,7 +1951,7 @@ export default function DashboardScreen() {
             </View>
 
             {/* Ring */}
-            <View style={{ alignItems: 'center', paddingVertical: Spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ marginHorizontal: -contentPadding, alignItems: 'center', paddingVertical: Spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
               {bonusEarnedToday && (
                 <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
