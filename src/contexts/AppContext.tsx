@@ -657,11 +657,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             await persist(KEYS.POMODORO_HISTORY, d);
           }
         }
+        if (remote.todos) {
+          const d = safeJsonParse(remote.todos, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} todos from cloud`);
+            setTodos(d);
+            await persist(KEYS.TODOS, d);
+          }
+        }
         console.log('[Sync] Cloud data loaded successfully');
       } else {
         console.log('[Sync] No remote data found, pushing local data to cloud');
         // No remote data yet — push local data to cloud
-        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections] =
+        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections, localTodos] =
           await Promise.all([
             getData<Habit[]>(KEYS.HABITS),
             getData<UserStats>(KEYS.STATS),
@@ -671,6 +679,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getData<JournalEntry[]>(KEYS.JOURNAL_ENTRIES),
             getData<RelapseEntry[]>(KEYS.RELAPSE_LOG),
             getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
+            getData<Todo[]>(KEYS.TODOS),
           ]);
 
         console.log('[Sync] Pushing initial data to cloud:', {
@@ -678,6 +687,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           stats: !!localStats,
           settings: !!localSettings,
           wins: localWins?.length || 0,
+          todos: localTodos?.length || 0,
         });
 
         await saveUserData(userId, {
@@ -689,6 +699,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           journal_entries: JSON.stringify(localJournal || []),
           relapse_log: JSON.stringify(localRelapse || []),
           reflection_responses: JSON.stringify(localReflections || []),
+          todos: JSON.stringify(localTodos || []),
         });
         console.log('[Sync] Initial data pushed to cloud');
       }
@@ -708,7 +719,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history'] as DataType[]);
+    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history', 'todos'] as DataType[]);
 
     try {
       setIsSyncing(true);
