@@ -424,7 +424,10 @@ export default function DashboardScreen() {
   };
 
   // ── Stats / Chart state ────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<DashboardTab>('habits');
+  // Unified tab state for mobile/desktop persistence
+  const [currentTab, setCurrentTab] = useState<'today' | 'progress' | 'journals' | 'calendar'>('today');
+  // Derived activeTab for display purposes (maps 'today' to 'habits' in UI)
+  const activeTab = currentTab === 'today' ? 'habits' : currentTab;
   const [chartTab, setChartTab] = useState<'Week' | 'Month' | 'Year'>('Week');
   const [bonusEarnedToday, setBonusEarnedToday] = useState(false);
   const [lastBonusDate, setLastBonusDate] = useState<string | null>(null);
@@ -437,8 +440,9 @@ export default function DashboardScreen() {
   const [selectedHabitForHistory, setSelectedHabitForHistory] = useState<string | null>(null);
   const [historyDateFilter, setHistoryDateFilter] = useState<'week' | 'month' | 'all'>('all');
 
-  // ── Dashboard category & sidebar state (must be before useEffect at line 432) ──
-  const [dashboardCategory, setDashboardCategory] = useState<'today' | 'progress' | 'journals' | 'calendar'>('today');
+  // ── Sidebar state ──
+  // dashboardCategory is now derived from currentTab
+  const dashboardCategory = currentTab;
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -504,30 +508,29 @@ export default function DashboardScreen() {
       if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
 
       // Number shortcuts for desktop category navigation
-      if (e.key === '1') setDashboardCategory('today');
-      if (e.key === '2') setDashboardCategory('progress');
-      if (e.key === '3') setDashboardCategory('journals');
-      if (e.key === '4') { setDashboardCategory('calendar'); if (!selectedDay) setSelectedDay(today); }
+      if (e.key === '1') setCurrentTab('today');
+      if (e.key === '2') setCurrentTab('progress');
+      if (e.key === '3') setCurrentTab('journals');
+      if (e.key === '4') { setCurrentTab('calendar'); if (!selectedDay) setSelectedDay(today); }
 
       // Arrow keys for mobile tab navigation (Left = previous, Right = next)
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        setActiveTab(prev => {
-          if (prev === 'habits') return 'progress';
+        setCurrentTab(prev => {
+          if (prev === 'today') return 'progress';
           if (prev === 'progress') return 'journals';
           if (prev === 'journals') return 'calendar';
-          if (prev === 'journals') return 'habits';
-          return 'habits';
+          return 'today';
         });
       }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        setActiveTab(prev => {
-          if (prev === 'habits') return 'calendar';
+        setCurrentTab(prev => {
+          if (prev === 'today') return 'calendar';
           if (prev === 'calendar') return 'journals';
           if (prev === 'journals') return 'progress';
-          if (prev === 'progress') return 'habits';
-          return 'habits';
+          if (prev === 'progress') return 'today';
+          return 'today';
         });
       }
     };
@@ -1070,7 +1073,7 @@ export default function DashboardScreen() {
             return (
               <TouchableOpacity
                 key={cat.id}
-                onPress={() => { setDashboardCategory(cat.id); if (cat.id === 'calendar' && !selectedDay) setSelectedDay(today); }}
+                onPress={() => { setCurrentTab(cat.id); if (cat.id === 'calendar' && !selectedDay) setSelectedDay(today); }}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
                   paddingHorizontal: sidebarCollapsed ? 0 : Spacing.md,
@@ -1766,7 +1769,7 @@ export default function DashboardScreen() {
         ] as const).map((tab) => (
           <TouchableOpacity
             key={tab.id}
-            onPress={() => setActiveTab(tab.id)}
+            onPress={() => setCurrentTab(tab.id === 'habits' ? 'today' : tab.id)}
             style={{
               flex: 1,
               paddingVertical: Spacing.md,
@@ -1798,14 +1801,8 @@ export default function DashboardScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* ━━ HABITS TAB ━━ */}
-        {activeTab === 'habits' && (
+        {currentTab === 'today' && (
           <>
-            <View style={styles.statRow}>
-              <StatCard label="XP" value={stats.xp} accent={colors.accent} />
-              <StatCard label="Level" value={stats.level} accent={colors.success} />
-              <StatCard label="Streak" value={`${stats.currentStreak}d`} accent={colors.warning} />
-            </View>
-
             {/* ── Daily Motivation Quote ── */}
             {prefs.showMotivationQuote && (
               <Card style={{ marginTop: Spacing.md, marginBottom: Spacing.md, paddingVertical: Spacing.lg }}>
@@ -2029,7 +2026,7 @@ export default function DashboardScreen() {
         )}
 
         {/* ━━ PROGRESS TAB (MOBILE) ━━ */}
-        {activeTab === 'progress' && (
+        {currentTab === 'progress' && (
           <>
             {/* Compact stats grid */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -2089,7 +2086,7 @@ export default function DashboardScreen() {
         )}
 
         {/* ━━ CALENDAR TAB ━━ */}
-        {activeTab === 'calendar' && (
+        {currentTab === 'calendar' && (
           <>
             {/* Graph */}
             <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
@@ -2243,7 +2240,7 @@ export default function DashboardScreen() {
         )}
 
         {/* ━━ JOURNALS TAB ━━ */}
-        {activeTab === 'journals' && (
+        {currentTab === 'journals' && (
           <>
             {/* ── Quick Tasks (Todo) ── */}
             <Card style={{ marginBottom: Spacing.md }}>
