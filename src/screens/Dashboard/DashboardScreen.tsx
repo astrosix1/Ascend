@@ -18,7 +18,7 @@ import SectionHeader from '../../components/SectionHeader';
 import ProgressBar from '../../components/ProgressBar';
 import LineGraph from '../../components/LineGraph';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
-import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry } from '../../utils/types';
+import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, Todo } from '../../utils/types';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
@@ -2185,6 +2185,57 @@ export default function DashboardScreen() {
         {/* ━━ JOURNALS TAB ━━ */}
         {activeTab === 'journals' && (
           <>
+            {/* ── Quick Tasks (Todo) ── */}
+            <Card style={{ marginBottom: Spacing.md }}>
+              <Text style={[styles.subsectionLabel, { color: colors.text, marginBottom: Spacing.md }]}>📋 Quick Tasks</Text>
+              <View style={{ flexDirection: 'row', marginBottom: Spacing.md }}>
+                <TextInput
+                  style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.background, marginRight: Spacing.sm, fontSize: FontSize.sm }]}
+                  placeholder="Add a quick task..."
+                  placeholderTextColor={colors.textTertiary}
+                  onChangeText={setQuickAddTodoText}
+                  value={quickAddTodoText}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    if (quickAddTodoText?.trim?.() && addTodo) {
+                      const newTodo: Todo = {
+                        id: Date.now().toString(),
+                        title: quickAddTodoText.trim(),
+                        completed: false,
+                        createdAt: new Date().toISOString(),
+                        xpReward: 1,
+                      };
+                      addTodo(newTodo);
+                      setQuickAddTodoText('');
+                    }
+                  }}
+                  style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>+</Text>
+                </TouchableOpacity>
+              </View>
+              {!todos || todos.length === 0 ? (
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>No tasks yet</Text>
+              ) : (
+                todos.map(todo => (
+                  <View key={todo.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs, backgroundColor: todo.completed ? colors.success + '15' : 'transparent', borderRadius: BorderRadius.sm, marginBottom: Spacing.xs }}>
+                    <TouchableOpacity
+                      onPress={() => toggleTodo && toggleTodo(todo.id)}
+                      style={{ width: 18, height: 18, borderRadius: 3, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: todo.completed ? colors.accent : 'transparent', marginRight: Spacing.sm, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      {todo.completed && <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>✓</Text>}
+                    </TouchableOpacity>
+                    <Text style={{ flex: 1, color: todo.completed ? colors.textSecondary : colors.text, fontSize: FontSize.sm, textDecorationLine: todo.completed ? 'line-through' : 'none' }}>{todo.title}</Text>
+                    <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: FontSize.xs }}>+{todo.xpReward} XP</Text>
+                    <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)}>
+                      <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </Card>
+
             <Card style={{ marginBottom: Spacing.md }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: winsExpanded ? Spacing.md : 0 }}>
                 <TouchableOpacity onPress={() => setWinsExpanded(!winsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
