@@ -248,6 +248,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  // Reset progress on first app load (after fix)
+  useEffect(() => {
+    if (isLoading) return; // Wait for initial load
+
+    // Clear all progress: streaks, XP, completed dates
+    setHabits(prev => {
+      const updated = prev.map(h => ({
+        ...h,
+        streak: 0,
+        bestStreak: 0,
+        completedDates: [],
+      }));
+      persist(KEYS.HABITS, updated);
+      return updated;
+    });
+
+    setStats(prev => {
+      const updated = {
+        ...prev,
+        xp: 0,
+        level: 1,
+        currentStreak: 0,
+      };
+      persist(KEYS.STATS, updated);
+      return updated;
+    });
+  }, [isLoading, persist]); // Run once when loading completes
+
   // Persist helpers
   const persist = useCallback(async <T,>(key: string, value: T) => {
     await setData(key, value);
@@ -325,11 +353,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           yesterday.setDate(yesterday.getDate() - 1);
           const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-          // If yesterday's completion exists, continue streak; otherwise reset to 1
+          // If yesterday's completion exists, continue streak; otherwise reset to 0
           if (h.completedDates.includes(yesterdayStr)) {
             newStreak = h.streak + 1;
           } else {
-            newStreak = 1; // Start or restart streak
+            newStreak = 0; // Streak broken - reset to 0, will be 1 on next completion
           }
         }
 
@@ -418,6 +446,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         level: Math.floor((prev.xp + amount) / 100) + 1,
       };
       persist(KEYS.STATS, updated);
+      return updated;
+    });
+  }, [persist]);
+
+  // Check and reset streaks if a day was missed (for daily habits)
+  const resetBrokenStreaks = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    setHabits(prev => {
+      const updated = prev.map(h => {
+        // If habit wasn't completed today AND wasn't completed yesterday, streak is broken
+        if (!h.completedDates.includes(today) && !h.completedDates.includes(yesterdayStr) && h.streak > 0) {
+          return { ...h, streak: 0 };
+        }
+        return h;
+      });
+
+      // Only persist if changes were made
+      if (updated.some((h, i) => h.streak !== prev[i].streak)) {
+        persist(KEYS.HABITS, updated);
+      }
       return updated;
     });
   }, [persist]);

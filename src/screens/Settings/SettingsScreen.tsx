@@ -23,7 +23,7 @@ const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }
 ];
 
 export default function SettingsScreen() {
-  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth, manualSync, isSyncing, lastSyncTime, syncError, resetProgress } = useApp();
+  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
@@ -272,28 +272,6 @@ export default function SettingsScreen() {
                   onPress={() => {
                     signOutUser().catch(err => console.error('Sign out error:', err));
                   }}
-                />
-                <Button
-                  title="🔄 Reset Progress"
-                  variant="ghost"
-                  onPress={() => {
-                    Alert.alert(
-                      'Reset Progress?',
-                      'This will clear all streaks, XP, level, and completed dates. This cannot be undone.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Reset',
-                          style: 'destructive',
-                          onPress: () => {
-                            resetProgress();
-                            Alert.alert('Success', 'All progress has been reset.');
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                  style={{ marginTop: Spacing.sm }}
                 />
               </>
             ) : (
