@@ -248,34 +248,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // Reset progress on first app load (after fix)
-  useEffect(() => {
-    if (isLoading) return; // Wait for initial load
-
-    // Clear all progress: streaks, XP, completed dates
-    setHabits(prev => {
-      const updated = prev.map(h => ({
-        ...h,
-        streak: 0,
-        bestStreak: 0,
-        completedDates: [],
-      }));
-      persist(KEYS.HABITS, updated);
-      return updated;
-    });
-
-    setStats(prev => {
-      const updated = {
-        ...prev,
-        xp: 0,
-        level: 1,
-        currentStreak: 0,
-      };
-      persist(KEYS.STATS, updated);
-      return updated;
-    });
-  }, [isLoading, persist]); // Run once when loading completes
-
   // Persist helpers
   const persist = useCallback(async <T,>(key: string, value: T) => {
     await setData(key, value);
