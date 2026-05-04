@@ -24,7 +24,7 @@ import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 import DailyProgressRing from '../../components/DailyProgressRing';
 
-type DashboardTab = 'habits' | 'calendar' | 'journals';
+type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS_SHORT = ['S', 'M', 'T', 'W', 'Th', 'F', 'Sa'];
@@ -513,7 +513,8 @@ export default function DashboardScreen() {
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         setActiveTab(prev => {
-          if (prev === 'habits') return 'calendar';
+          if (prev === 'habits') return 'progress';
+          if (prev === 'progress') return 'calendar';
           if (prev === 'calendar') return 'journals';
           if (prev === 'journals') return 'habits';
           return 'habits';
@@ -524,7 +525,8 @@ export default function DashboardScreen() {
         setActiveTab(prev => {
           if (prev === 'habits') return 'journals';
           if (prev === 'journals') return 'calendar';
-          if (prev === 'calendar') return 'habits';
+          if (prev === 'calendar') return 'progress';
+          if (prev === 'progress') return 'habits';
           return 'habits';
         });
       }
@@ -1756,25 +1758,31 @@ export default function DashboardScreen() {
           borderBottomColor: colors.border,
         }}
       >
-        {(['habits', 'calendar', 'journals'] as const).map((tab) => (
+        {([
+          { id: 'habits', label: 'Today' },
+          { id: 'progress', label: 'Progress' },
+          { id: 'calendar', label: 'Calendar' },
+          { id: 'journals', label: 'Journals' },
+        ] as const).map((tab) => (
           <TouchableOpacity
-            key={tab}
-            onPress={() => setActiveTab(tab)}
+            key={tab.id}
+            onPress={() => setActiveTab(tab.id)}
             style={{
               flex: 1,
               paddingVertical: Spacing.md,
-              borderBottomWidth: activeTab === tab ? 2 : 0,
+              borderBottomWidth: activeTab === tab.id ? 2 : 0,
               borderBottomColor: colors.accent,
             }}
           >
             <Text
               style={{
                 textAlign: 'center',
-                color: activeTab === tab ? colors.accent : colors.textSecondary,
-                fontWeight: activeTab === tab ? '700' : '400',
+                fontSize: FontSize.xs,
+                color: activeTab === tab.id ? colors.accent : colors.textSecondary,
+                fontWeight: activeTab === tab.id ? '700' : '400',
               }}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -2042,6 +2050,66 @@ export default function DashboardScreen() {
                 })}
               </Card>
             </View>
+          </>
+        )}
+
+        {/* ━━ PROGRESS TAB (MOBILE) ━━ */}
+        {activeTab === 'progress' && (
+          <>
+            {/* Compact stats grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              {([
+                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accent },
+                { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
+                { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
+                { label: 'Level', value: `${stats.level}`, sub: `${stats.xp} XP`, color: colors.accent },
+                { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
+                { label: 'Best', value: `${longestStreak}d`, sub: 'longest', color: colors.warning },
+              ] as const).map((s, i) => (
+                <View key={i} style={{ width: '33.33%', alignItems: 'center', paddingVertical: Spacing.sm, borderRightWidth: i % 3 !== 2 ? 1 : 0, borderBottomWidth: i < 3 ? 1 : 0, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 2 }}>{s.label}</Text>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: s.color }}>{s.value}</Text>
+                  <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }} numberOfLines={1}>{s.sub}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Ring */}
+            <View style={{ alignItems: 'center', paddingVertical: Spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
+              {bonusEarnedToday && (
+                <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
+                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Charts */}
+            <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
+              <View style={styles.tabRow}>
+                {(['Week', 'Month', 'Year'] as const).map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setChartTab(tab)}
+                    style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
+                  >
+                    <Text style={[styles.tabText, { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary }]}>
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs, paddingHorizontal: Spacing.sm }}>Good-habit completion %</Text>
+              <View style={{ height: 130, marginBottom: Spacing.md }}>
+                <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={contentPadding} />
+              </View>
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
+                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs, paddingHorizontal: Spacing.sm }}>📈 Cumulative habit completions</Text>
+                <View style={{ height: 130 }}>
+                  <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
+                </View>
+              </View>
+            </Card>
           </>
         )}
 
