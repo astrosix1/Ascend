@@ -1292,7 +1292,8 @@ export default function DashboardScreen() {
               </View>
 
               {/* Chart pane */}
-              <View style={{ flex: 1, overflow: 'hidden', padding: contentPadding }}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: contentPadding }}>
+                {/* Period tabs */}
                 <View style={styles.tabRow}>
                   {(['Week', 'Month', 'Year'] as const).map(tab => (
                     <TouchableOpacity
@@ -1304,11 +1305,21 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {/* Completion % chart */}
                 <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>Good-habit completion %</Text>
-                <View style={{ marginHorizontal: -contentPadding, flex: 1, height: 140 }}>
+                <View style={{ marginHorizontal: -contentPadding, height: 130, marginBottom: Spacing.md }}>
                   <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                 </View>
-              </View>
+
+                {/* Cumulative chart */}
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
+                  <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>📈 Cumulative habit completions</Text>
+                  <View style={{ marginHorizontal: -contentPadding, height: 130 }}>
+                    <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
+                  </View>
+                </View>
+              </ScrollView>
 
             </View>
           </View>
@@ -1909,6 +1920,31 @@ export default function DashboardScreen() {
                 )}
               </Card>
             )}
+
+            {/* ── Cumulative Progress Chart (mobile) ── */}
+            <Card style={[styles.chartCard, { marginBottom: Spacing.md }]}>
+              <View style={styles.tabRow}>
+                {(['Week', 'Month', 'Year'] as const).map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setChartTab(tab)}
+                    style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
+                  >
+                    <Text style={[styles.tabText, { color: chartTab === tab ? '#FFFFFF' : colors.textSecondary }]}>{tab}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Good-habit completion %</Text>
+              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: Spacing.sm, marginTop: -3, height: 110 }]}>
+                <LineGraph data={chartData} labels={chartLabels} />
+              </View>
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
+                <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>📈 Cumulative completions</Text>
+                <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 110 }]}>
+                  <LineGraph data={cumulativeChartData} labels={chartLabels} />
+                </View>
+              </View>
+            </Card>
 
             {/* Habits (combined Good + Bad) */}
             <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
