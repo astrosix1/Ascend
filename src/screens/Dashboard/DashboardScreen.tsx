@@ -1992,35 +1992,6 @@ export default function DashboardScreen() {
         {/* ━━ CALENDAR TAB ━━ */}
         {currentTab === 'calendar' && (
           <>
-            {/* Graph */}
-            <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
-              <View style={styles.tabRow}>
-                {(['Week', 'Month', 'Year'] as const).map(tab => (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setChartTab(tab)}
-                    style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
-                  >
-                    <Text style={[styles.tabText, { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary }]}>
-                      {tab}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Good-habit completion %</Text>
-              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
-                <LineGraph data={chartData} labels={chartLabels} />
-              </View>
-            </Card>
-
-            {/* Cumulative Progress Chart */}
-            <Card style={[styles.chartCard, { marginBottom: Spacing.md, paddingBottom: Spacing.sm }]}>
-              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Cumulative habit completions</Text>
-              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 120 }]}>
-                <LineGraph data={cumulativeChartData} labels={chartLabels} />
-              </View>
-            </Card>
-
             {/* Calendar */}
             <Card>
               <View style={styles.calHeader}>
