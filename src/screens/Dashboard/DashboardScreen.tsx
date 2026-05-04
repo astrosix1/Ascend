@@ -514,8 +514,8 @@ export default function DashboardScreen() {
         e.preventDefault();
         setActiveTab(prev => {
           if (prev === 'habits') return 'progress';
-          if (prev === 'progress') return 'calendar';
-          if (prev === 'calendar') return 'journals';
+          if (prev === 'progress') return 'journals';
+          if (prev === 'journals') return 'calendar';
           if (prev === 'journals') return 'habits';
           return 'habits';
         });
@@ -523,9 +523,9 @@ export default function DashboardScreen() {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         setActiveTab(prev => {
-          if (prev === 'habits') return 'journals';
-          if (prev === 'journals') return 'calendar';
-          if (prev === 'calendar') return 'progress';
+          if (prev === 'habits') return 'calendar';
+          if (prev === 'calendar') return 'journals';
+          if (prev === 'journals') return 'progress';
           if (prev === 'progress') return 'habits';
           return 'habits';
         });
@@ -1759,10 +1759,10 @@ export default function DashboardScreen() {
         }}
       >
         {([
-          { id: 'habits', label: 'Today' },
+          { id: 'habits', label: 'Habits' },
           { id: 'progress', label: 'Progress' },
-          { id: 'calendar', label: 'Calendar' },
           { id: 'journals', label: 'Journals' },
+          { id: 'calendar', label: 'Calendar' },
         ] as const).map((tab) => (
           <TouchableOpacity
             key={tab.id}
