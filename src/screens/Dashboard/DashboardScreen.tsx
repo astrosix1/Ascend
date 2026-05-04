@@ -381,18 +381,6 @@ export default function DashboardScreen() {
     addXP,
   } = useApp();
 
-  // Debug logging to identify undefined values
-  useEffect(() => {
-    console.log('[DashboardScreen] useApp() values:', {
-      todos: typeof todos,
-      addTodo: typeof addTodo,
-      toggleTodo: typeof toggleTodo,
-      deleteTodo: typeof deleteTodo,
-      colors: typeof colors,
-      habits: typeof habits,
-    });
-  }, [todos, addTodo, toggleTodo, deleteTodo]);
-
   const today = getToday();
   const now = new Date();
 
@@ -977,6 +965,7 @@ export default function DashboardScreen() {
       ? `🔥 ${habit.streak} day streak`
       : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
     const streakColor = isGood && habit.streak > 0 ? colors.warning : colors.textSecondary;
+    const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') || habit.name.toLowerCase().includes('timer');
     return (
       <View
         key={habit.id}
@@ -1036,6 +1025,14 @@ export default function DashboardScreen() {
         {!isCompleted && !isGood && (
           <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
             <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
+          </TouchableOpacity>
+        )}
+        {isTimerHabit && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Clock')}
+            style={{ marginLeft: Spacing.xs, backgroundColor: colors.accentLight, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent }}
+          >
+            <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>🍅 Timer</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1415,22 +1412,6 @@ export default function DashboardScreen() {
                   ))
                 )}
               </View>
-
-              {/* Best streak highlight */}
-              {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
-                <View style={{
-                  backgroundColor: colors.accentLight,
-                  borderRadius: BorderRadius.lg,
-                  padding: Spacing.md,
-                  alignItems: 'center',
-                  borderLeftWidth: 4,
-                  borderLeftColor: colors.accent,
-                }}>
-                  <Text style={{ color: colors.text, fontSize: FontSize.sm, fontWeight: '700', marginBottom: Spacing.xs }}>🔥 Best Streak</Text>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xxl, fontWeight: '800' }}>{longestStreak}d</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.xs }}>{habitWithLongestStreak.name}</Text>
-                </View>
-              )}
 
               {/* Real World Wins */}
               {prefs.showWins && (
