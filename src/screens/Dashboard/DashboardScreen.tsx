@@ -1832,6 +1832,102 @@ export default function DashboardScreen() {
               </Card>
             )}
 
+            {/* Habits (combined Good + Bad) */}
+            <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
+              <View style={styles.habitChecklistHeader}>
+                <View style={styles.habitChecklistHeaderLeft}>
+                  <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Habits</Text>
+                </View>
+                <Button title="Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
+              </View>
+              <Card style={{ marginBottom: Spacing.md }}>
+                {habits.length === 0 && (
+                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet. Tap "Add/Edit" to create one!</Text>
+                )}
+                {habits.map((habit, idx) => {
+                  const isCompleted = habit.completedDates.includes(today);
+                  const isGood = habit.type === 'good';
+                  const habitColor = isGood ? colors.success : colors.danger;
+                  const streakText = isGood
+                    ? `🔥 ${habit.streak} day streak`
+                    : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
+
+                  return (
+                    <TouchableOpacity
+                      key={habit.id}
+                      style={[styles.habitRow, { borderBottomColor: colors.border }]}
+                      onPress={() => {
+                        const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') ||
+                                             habit.name.toLowerCase().includes('timer');
+                        if (isTimerHabit) {
+                          navigation.navigate('Clock');
+                        } else {
+                          setSelectedHabitForHistory(habit.id);
+                          setShowHabitHistory(true);
+                        }
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleToggleHabit(habit.id, today);
+                        }}
+                        style={[
+                          styles.checkbox,
+                          {
+                            borderColor: habitColor,
+                            backgroundColor: isCompleted ? habitColor : 'transparent',
+                          },
+                        ]}
+                      >
+                        {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
+                      </TouchableOpacity>
+                      <View style={styles.habitInfo}>
+                        <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+                        <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
+                          {streakText}
+                        </Text>
+                      </View>
+                      {isCompleted && isGood && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openJournalForm(habit.id, habit.name);
+                          }}
+                          style={[styles.whyBtn, { borderColor: colors.accent }]}
+                        >
+                          <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+                        </TouchableOpacity>
+                      )}
+                      {isCompleted && !isGood && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openRelapseForm(habit.id, habit.name);
+                          }}
+                          style={[styles.relapseBtn, { borderColor: colors.danger }]}
+                        >
+                          <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+                        </TouchableOpacity>
+                      )}
+                      {!isCompleted && !isGood && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openTemptationModal(habit.id, habit.name);
+                          }}
+                          style={[styles.temptedBtn, { borderColor: colors.warning }]}
+                        >
+                          <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </Card>
+            </View>
+
             {/* ── Completed Bad Habits Summary ── */}
             {prefs.showAvoidedBadHabits && completedBadHabitsCount > 0 && (
               <Card style={{ marginBottom: Spacing.md, backgroundColor: colors.surfaceLight, borderColor: colors.danger, borderWidth: 1.5, paddingVertical: Spacing.md }}>
@@ -1929,127 +2025,6 @@ export default function DashboardScreen() {
               </Card>
             )}
 
-            {/* ── Cumulative Progress Chart (mobile) ── */}
-            <Card style={[styles.chartCard, { marginBottom: Spacing.md }]}>
-              <View style={styles.tabRow}>
-                {(['Week', 'Month', 'Year'] as const).map(tab => (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setChartTab(tab)}
-                    style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
-                  >
-                    <Text style={[styles.tabText, { color: chartTab === tab ? '#FFFFFF' : colors.textSecondary }]}>{tab}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>Good-habit completion %</Text>
-              <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: Spacing.sm, marginTop: -3, height: 110 }]}>
-                <LineGraph data={chartData} labels={chartLabels} />
-              </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
-                <Text style={[styles.chartTitle, { color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 2 }]}>📈 Cumulative completions</Text>
-                <View style={[styles.graphContainer, { marginHorizontal: -Spacing.md, marginBottom: -Spacing.md, marginTop: -3, height: 110 }]}>
-                  <LineGraph data={cumulativeChartData} labels={chartLabels} />
-                </View>
-              </View>
-            </Card>
-
-            {/* Habits (combined Good + Bad) */}
-            <View style={{ marginTop: Spacing.md, marginBottom: Spacing.md }}>
-              <View style={styles.habitChecklistHeader}>
-                <View style={styles.habitChecklistHeaderLeft}>
-                  <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Habits</Text>
-                </View>
-                <Button title="Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
-              </View>
-              <Card style={{ marginBottom: Spacing.md }}>
-                {habits.length === 0 && (
-                  <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No habits yet. Tap "Add/Edit" to create one!</Text>
-                )}
-                {habits.map((habit, idx) => {
-                  const isCompleted = habit.completedDates.includes(today);
-                  const isGood = habit.type === 'good';
-                  const habitColor = isGood ? colors.success : colors.danger;
-                  const streakText = isGood
-                    ? `🔥 ${habit.streak} day streak`
-                    : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
-
-                  return (
-                    <TouchableOpacity
-                      key={habit.id}
-                      style={[styles.habitRow, { borderBottomColor: colors.border }]}
-                      onPress={() => {
-                        // Navigate to Clock screen for pomodoro/timer habits
-                        const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') ||
-                                             habit.name.toLowerCase().includes('timer');
-                        if (isTimerHabit) {
-                          navigation.navigate('Clock');
-                        } else {
-                          setSelectedHabitForHistory(habit.id);
-                          setShowHabitHistory(true);
-                        }
-                      }}
-                      activeOpacity={0.6}
-                    >
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleToggleHabit(habit.id, today);
-                        }}
-                        style={[
-                          styles.checkbox,
-                          {
-                            borderColor: habitColor,
-                            backgroundColor: isCompleted ? habitColor : 'transparent',
-                          },
-                        ]}
-                      >
-                        {isCompleted && <Text style={styles.checkmark}>{isGood ? '✓' : '✗'}</Text>}
-                      </TouchableOpacity>
-                      <View style={styles.habitInfo}>
-                        <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-                        <Text style={[styles.habitStreak, { color: colors.textSecondary }]}>
-                          {streakText}
-                        </Text>
-                      </View>
-                      {isCompleted && isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openJournalForm(habit.id, habit.name);
-                          }}
-                          style={[styles.whyBtn, { borderColor: colors.accent }]}
-                        >
-                          <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-                        </TouchableOpacity>
-                      )}
-                      {isCompleted && !isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openRelapseForm(habit.id, habit.name);
-                          }}
-                          style={[styles.relapseBtn, { borderColor: colors.danger }]}
-                        >
-                          <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-                        </TouchableOpacity>
-                      )}
-                      {!isCompleted && !isGood && (
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openTemptationModal(habit.id, habit.name);
-                          }}
-                          style={[styles.temptedBtn, { borderColor: colors.warning }]}
-                        >
-                          <Text style={[styles.temptedBtnText, { color: colors.warning }]}>I feel tempted!</Text>
-                        </TouchableOpacity>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </Card>
-            </View>
           </>
         )}
 
