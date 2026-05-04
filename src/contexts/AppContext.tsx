@@ -353,11 +353,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           yesterday.setDate(yesterday.getDate() - 1);
           const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-          // If yesterday's completion exists, continue streak; otherwise reset to 0
+          // If yesterday's completion exists, continue streak; otherwise start fresh at 1
           if (h.completedDates.includes(yesterdayStr)) {
             newStreak = h.streak + 1;
           } else {
-            newStreak = 0; // Streak broken - reset to 0, will be 1 on next completion
+            newStreak = 1; // Fresh start after gap
           }
         }
 
