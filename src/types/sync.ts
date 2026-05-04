@@ -19,7 +19,9 @@ export type DataType =
   | 'reflection_responses'
   | 'forum_favorites'
   | 'pomodoro_history'
-  | 'detox_history';
+  | 'detox_history'
+  | 'todos'
+  | 'goals';
 
 /**
  * Categorization of data types by sync behavior

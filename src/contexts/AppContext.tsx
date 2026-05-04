@@ -206,6 +206,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         savedFavorites,
         savedReflections,
         savedAlarms,
+        savedGoals,
+        savedTodos,
       ] = await Promise.all([
         getData<Habit[]>(KEYS.HABITS),
         getData<UserStats>(KEYS.STATS),
@@ -219,6 +221,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getData<string[]>(KEYS.FORUM_FAVORITES),
         getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
         getData<Alarm[]>(KEYS.ALARMS),
+        getData<GoalEntry[]>(KEYS.GOALS),
+        getData<Todo[]>(KEYS.TODOS),
       ]);
 
       if (savedHabits) setHabits(savedHabits);
@@ -236,6 +240,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (savedFavorites) setForumFavorites(savedFavorites);
       if (savedReflections) setReflectionResponses(savedReflections);
       if (savedAlarms) setAlarmsState(savedAlarms);
+      if (savedGoals) setGoals(savedGoals);
+      if (savedTodos) setTodos(savedTodos);
 
       setIsLoading(false);
     })();
@@ -665,11 +671,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             await persist(KEYS.TODOS, d);
           }
         }
+        if (remote.goals) {
+          const d = safeJsonParse(remote.goals, []);
+          if (d && Array.isArray(d)) {
+            console.log(`[Sync] Loaded ${d.length} goals from cloud`);
+            setGoals(d);
+            await persist(KEYS.GOALS, d);
+          }
+        }
         console.log('[Sync] Cloud data loaded successfully');
       } else {
         console.log('[Sync] No remote data found, pushing local data to cloud');
         // No remote data yet — push local data to cloud
-        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections, localTodos] =
+        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections, localTodos, localGoals] =
           await Promise.all([
             getData<Habit[]>(KEYS.HABITS),
             getData<UserStats>(KEYS.STATS),
@@ -680,6 +694,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getData<RelapseEntry[]>(KEYS.RELAPSE_LOG),
             getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
             getData<Todo[]>(KEYS.TODOS),
+            getData<GoalEntry[]>(KEYS.GOALS),
           ]);
 
         console.log('[Sync] Pushing initial data to cloud:', {
@@ -688,6 +703,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           settings: !!localSettings,
           wins: localWins?.length || 0,
           todos: localTodos?.length || 0,
+          goals: localGoals?.length || 0,
         });
 
         await saveUserData(userId, {
@@ -700,6 +716,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           relapse_log: JSON.stringify(localRelapse || []),
           reflection_responses: JSON.stringify(localReflections || []),
           todos: JSON.stringify(localTodos || []),
+          goals: JSON.stringify(localGoals || []),
         });
         console.log('[Sync] Initial data pushed to cloud');
       }
@@ -719,7 +736,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history', 'todos'] as DataType[]);
+    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history', 'todos', 'goals'] as DataType[]);
 
     try {
       setIsSyncing(true);
