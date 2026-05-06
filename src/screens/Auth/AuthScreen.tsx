@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform, useWindowDimensions,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { signIn, signUp } from '../../utils/supabase';
 import { useApp } from '../../contexts/AppContext';
 
@@ -223,6 +224,18 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
     setShowPassword(prev => !prev);
   }, []);
 
+  const handleRedirectToAsixLogin = useCallback(async () => {
+    try {
+      // Redirect to asix.live login page
+      // The redirect_uri will bring them back to Ascend after login
+      const redirectUri = 'https://ascend.asix.live';
+      const loginUrl = `https://asix.live/login?redirect=${encodeURIComponent(redirectUri)}`;
+      await Linking.openURL(loginUrl);
+    } catch (err) {
+      Alert.alert('Error', 'Could not open login page. Please try again.');
+    }
+  }, []);
+
   // ── Desktop layout (two columns, no scroll) ─────────────────────────────────
   if (isDesktop) {
     return (
@@ -248,23 +261,16 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
         <View style={[styles.rightPanel, { backgroundColor: colors.background }]}>
           {mode === 'landing' ? (
             <View style={styles.formSection}>
-              <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
+              <Text style={[styles.formTitle, { color: colors.text }]}>Welcome to Ascend</Text>
               <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-                Join thousands building better habits every day.
+                Sign in with your asix.live account to sync your habits and unlock premium features.
               </Text>
 
               <TouchableOpacity
                 style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
-                onPress={() => setMode('signup')}
+                onPress={handleRedirectToAsixLogin}
               >
-                <Text style={styles.primaryBtnText}>Create Free Account</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.secondaryBtn, { borderColor: colors.border }]}
-                onPress={() => setMode('login')}
-              >
-                <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
+                <Text style={styles.primaryBtnText}>Sign In with asix.live</Text>
               </TouchableOpacity>
 
               <View style={styles.dividerRow}>
@@ -280,7 +286,7 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
               </TouchableOpacity>
 
               <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
-                No account? Data stays on this device only.
+                Don't have an account? Create one on asix.live first.
               </Text>
             </View>
           ) : (
@@ -317,23 +323,16 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
             Build better habits. Live more fully.
           </Text>
 
-          <Text style={[styles.formTitle, { color: colors.text }]}>Get started</Text>
+          <Text style={[styles.formTitle, { color: colors.text }]}>Welcome to Ascend</Text>
           <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-            Join thousands building better habits every day.
+            Sign in with your asix.live account to sync your habits and unlock premium features.
           </Text>
 
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: colors.accent }]}
-            onPress={() => setMode('signup')}
+            onPress={handleRedirectToAsixLogin}
           >
-            <Text style={styles.primaryBtnText}>Create Free Account</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.border }]}
-            onPress={() => setMode('login')}
-          >
-            <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Sign In</Text>
+            <Text style={styles.primaryBtnText}>Sign In with asix.live</Text>
           </TouchableOpacity>
 
           <View style={styles.dividerRow}>

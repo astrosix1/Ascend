@@ -6,16 +6,37 @@ import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/Auth/AuthScreen';
+import { Paywall } from './src/components/Paywall';
 import { loadRuntimeConfig, isSupabaseReady } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
+import { useSubscription } from './src/hooks/useSubscription';
 
 interface AuthState {
   checked: boolean;
   userId: string | null;
   email: string | null;
   isGuest: boolean;
+}
+
+// Component that handles subscription check for logged-in users
+function LoggedInApp({ userId }: { userId: string }) {
+  const { subscription, loading, hasAccess } = useSubscription(userId);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+      </View>
+    );
+  }
+
+  if (!hasAccess) {
+    return <Paywall />;
+  }
+
+  return <AppNavigator />;
 }
 
 function Root() {
@@ -223,7 +244,7 @@ function Root() {
   return (
     <>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      <AppNavigator />
+      <LoggedInApp userId={auth.userId} />
     </>
   );
 }
