@@ -107,6 +107,30 @@ function Root() {
         await loadRuntimeConfig();
 
         if (isSupabaseReady()) {
+          const sb = getSupabaseClient();
+
+          // Check if tokens were passed in the URL hash (from "Launch Ascend App" button on asix.live)
+          // e.g. ascend.asix.live#access_token=...&refresh_token=...
+          if (isWeb && sb && window.location.hash) {
+            try {
+              const hash = window.location.hash.substring(1);
+              const params = new URLSearchParams(hash);
+              const access_token = params.get('access_token');
+              const refresh_token = params.get('refresh_token');
+              if (access_token && refresh_token) {
+                console.log('[Auth] Found tokens in URL hash, setting session...');
+                await sb.auth.setSession({
+                  access_token: decodeURIComponent(access_token),
+                  refresh_token: decodeURIComponent(refresh_token),
+                });
+                window.history.replaceState(null, '', window.location.pathname);
+                console.log('[Auth] Session set from URL hash');
+              }
+            } catch (hashErr) {
+              console.warn('[Auth] Failed to parse hash tokens:', hashErr);
+            }
+          }
+
           const session = await getSession();
 
           // No session on web → redirect to login (which sends user to projects/ascend after login)
