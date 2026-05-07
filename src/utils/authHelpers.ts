@@ -103,6 +103,20 @@ export function performRedirect(url: string): void {
     return;
   }
 
+  console.log('[Redirect] Navigating to:', url);
   setRedirecting(true);
-  window.location.href = url;
+
+  try {
+    // Use window.location.replace() instead of href for more reliable navigation
+    window.location.replace(url);
+  } catch (error) {
+    console.error('[Redirect] Navigation failed:', error);
+    // Fallback: try href assignment
+    try {
+      window.location.href = url;
+    } catch (fallbackError) {
+      console.error('[Redirect] All navigation attempts failed:', fallbackError);
+      setRedirecting(false); // Clear flag on failure
+    }
+  }
 }
