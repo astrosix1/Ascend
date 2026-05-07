@@ -59,16 +59,53 @@ export function isMeetupReady(): boolean {
   return Boolean(_config.meetupKey);
 }
 
+/**
+ * Cookie-based storage adapter for web.
+ * Mirrors asix.live's CrossDomainCookieStorage so Ascend can read the same
+ * session cookies that asix.live wrote with Domain=.asix.live.
+ */
+const WebCookieStorage = {
+  getItem(key: string): string | null {
+    if (typeof document === 'undefined') return null;
+    const name = key + '=';
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+      c = c.trim();
+      if (c.startsWith(name)) return decodeURIComponent(c.substring(name.length));
+    }
+    return null;
+  },
+  setItem(key: string, value: string): void {
+    if (typeof document === 'undefined') return;
+    const maxAge = 60 * 60 * 24 * 365;
+    const domain = window.location.hostname.includes('localhost') ? '' : '.asix.live';
+    const domainAttr = domain ? `; domain=${domain}` : '';
+    document.cookie = `${key}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/${domainAttr}; samesite=Lax`;
+  },
+  removeItem(key: string): void {
+    if (typeof document === 'undefined') return;
+    const domain = window.location.hostname.includes('localhost') ? '' : '.asix.live';
+    const domainAttr = domain ? `; domain=${domain}` : '';
+    document.cookie = `${key}=; max-age=0; path=/${domainAttr}`;
+  },
+};
+
 /** Returns (or lazily creates) the Supabase client. Returns null if not configured. */
 export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseReady()) return null;
   if (!_supabaseClient) {
-    // Check if running in a web browser environment (react-native-web on web)
     const isWeb = typeof window !== 'undefined' && typeof document !== 'undefined';
 
-    // Use the same client for all environments
-    // The Supabase client handles auth correctly in both native and web contexts
-    _supabaseClient = createClient(_config.supabaseUrl, _config.supabaseAnonKey);
+    _supabaseClient = createClient(_config.supabaseUrl, _config.supabaseAnonKey, {
+      auth: {
+        // On web: use cookie storage so we can read the session asix.live wrote.
+        // On native: fall back to default AsyncStorage-based storage.
+        storage: isWeb ? WebCookieStorage : undefined,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    });
   }
   return _supabaseClient;
 }
