@@ -29,8 +29,11 @@ export function useSubscription(userId: string | null | undefined) {
 
         const supabase = getSupabaseClient();
         if (!supabase) {
+          console.warn('[Subscription] Supabase not configured');
           throw new Error('Supabase not configured');
         }
+
+        console.log('[Subscription] Fetching ascend project...');
 
         // First, get the ascend project ID
         const { data: ascendProject, error: projectError } = await supabase
@@ -40,8 +43,11 @@ export function useSubscription(userId: string | null | undefined) {
           .single();
 
         if (projectError) {
+          console.error('[Subscription] Failed to find ascend project:', projectError);
           throw new Error('Failed to find ascend project');
         }
+
+        console.log('[Subscription] Found ascend project, checking user subscription...');
 
         // Check for "ascend" app subscription
         const { data: ascendSub, error: subscriptionError } = await supabase
@@ -52,19 +58,23 @@ export function useSubscription(userId: string | null | undefined) {
           .maybeSingle();
 
         if (subscriptionError && subscriptionError.code !== 'PGRST116') {
+          console.error('[Subscription] Error fetching subscription:', subscriptionError);
           throw subscriptionError;
         }
 
+        console.log('[Subscription] Subscription check complete:', ascendSub ? 'Found' : 'Not found');
         setSubscription(ascendSub);
       } catch (err) {
-        console.error('Error fetching subscription:', err);
+        console.error('[Subscription] Error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setSubscription(null);
       } finally {
+        console.log('[Subscription] Loading complete');
         setLoading(false);
       }
     };
 
+    console.log('[Subscription] Starting subscription check for user:', userId);
     fetchSubscription();
   }, [userId]);
 
