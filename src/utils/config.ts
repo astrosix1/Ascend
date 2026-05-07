@@ -18,8 +18,8 @@
 
 export const CONFIG = {
   supabase: {
-    url: 'https://yhrsalezyzymkayinipu.supabase.co',
-    anonKey: 'sb_publishable_Pmurq_TTfrr-gTO8rInHqA_68GTnruN',
+    url: 'https://kmjpucafsjxottrparyg.supabase.co',
+    anonKey: 'sb_publishable_GImhVRL2C1xn3EQqejFyBA_K1TOkBTx',
   },
   meetup: {
     apiKey: 'G3QEFVIHIG4CPUK7G7JC',
