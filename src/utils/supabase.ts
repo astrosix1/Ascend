@@ -648,7 +648,27 @@ export async function signUp(email: string, password: string) {
 export async function signIn(email: string, password: string) {
   const sb = getSupabaseClient();
   if (!sb) throw new Error('Supabase not configured');
-  return sb.auth.signInWithPassword({ email, password });
+
+  const result = await sb.auth.signInWithPassword({ email, password });
+
+  // If signin was successful, relay the tokens to asix.live to set shared domain cookies
+  if (result.data?.session && typeof window !== 'undefined') {
+    try {
+      const { access_token, refresh_token } = result.data.session;
+      await fetch('https://asix.live/api/auth/set-session', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token, refresh_token }),
+      });
+      console.log('[Auth] Successfully set shared domain session on asix.live');
+    } catch (err) {
+      // Log but don't fail signin if token relay fails
+      console.warn('[Auth] Failed to set shared domain session:', err);
+    }
+  }
+
+  return result;
 }
 
 export async function signOut() {

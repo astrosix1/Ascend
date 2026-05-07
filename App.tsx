@@ -5,13 +5,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import AuthScreen from './src/screens/Auth/AuthScreen';
-import { Paywall } from './src/components/Paywall';
 import { loadRuntimeConfig, isSupabaseReady } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
 import { useSubscription } from './src/hooks/useSubscription';
+import {
+  performRedirect,
+  buildLoginRedirectUrl,
+  buildCheckoutRedirectUrl
+} from './src/utils/authHelpers';
 
 interface AuthState {
   checked: boolean;
@@ -23,6 +26,14 @@ interface AuthState {
 // Component that handles subscription check for logged-in users
 function LoggedInApp({ userId }: { userId: string }) {
   const { subscription, loading, hasAccess } = useSubscription(userId);
+  const isWeb = typeof window !== 'undefined';
+
+  useEffect(() => {
+    // If no subscription and on web, redirect to checkout
+    if (!loading && !hasAccess && isWeb) {
+      performRedirect(buildCheckoutRedirectUrl('https://ascend.asix.live'));
+    }
+  }, [loading, hasAccess, isWeb]);
 
   if (loading) {
     return (
@@ -32,8 +43,31 @@ function LoggedInApp({ userId }: { userId: string }) {
     );
   }
 
+  // If no access and on web, we're redirecting (show loading)
+  if (!hasAccess && isWeb) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting to checkout...</Text>
+      </View>
+    );
+  }
+
+  // For native apps, show a fallback (could be Paywall in future)
   if (!hasAccess) {
-    return <Paywall />;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <Text style={{ color: '#fff', fontSize: 18, marginBottom: 16, textAlign: 'center' }}>
+          Subscribe to Ascend
+        </Text>
+        <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+          You need an Ascend subscription to continue
+        </Text>
+        <Text style={{ color: '#F5A623', fontSize: 12, textAlign: 'center' }}>
+          Please subscribe on asix.live to get started
+        </Text>
+      </View>
+    );
   }
 
   return <AppNavigator />;
@@ -106,6 +140,7 @@ function Root() {
 
   useEffect(() => {
     let subscription: any = null;
+    const isWeb = typeof window !== 'undefined';
 
     (async () => {
       try {
@@ -115,6 +150,14 @@ function Root() {
         // Check for existing Supabase session
         if (isSupabaseReady()) {
           const session = await getSession();
+
+          // If no session and on web, redirect to asix.live login
+          if (!session?.user && isWeb) {
+            console.log('[Auth] No session found, redirecting to login');
+            performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
+            return;
+          }
+
           if (session?.user) {
             console.log('[Auth] Found existing session for:', session.user.email);
             setAuth({ checked: true, userId: session.user.id, email: session.user.email || null, isGuest: false });
@@ -144,6 +187,11 @@ function Root() {
               console.log('[Auth] Sign out event');
               setAuth({ checked: true, userId: null, email: null, isGuest: false });
               setCurrentUser(null, '');
+
+              // If signed out on web, redirect to login
+              if (isWeb) {
+                performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
+              }
             }
           });
           subscription = result?.data?.subscription;
@@ -211,33 +259,14 @@ function Root() {
     );
   }
 
-  const isLoggedIn = Boolean(auth.userId) || auth.isGuest;
-
-  if (!isLoggedIn) {
+  // If no userId, user should have been redirected to asix.live/login
+  // This is a fallback loading state during redirect
+  if (!auth.userId) {
     return (
-      <>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-        <AuthScreen
-          onAuthenticated={(userId, email) => {
-            console.log('[Auth] Authenticated user:', email);
-            setAuth({ checked: true, userId, email, isGuest: false });
-            // Set current user with timeout to prevent hanging
-            // Sync happens in background but don't block login
-            setCurrentUser(userId, email);
-            // Sync in background (fire and forget)
-            syncUserData(userId).then(() => {
-              console.log('[Auth] Cloud data synced after authentication');
-            }).catch(err => {
-              console.error('[Auth] Sync failed after authentication:', err);
-            });
-          }}
-          onGuest={async () => {
-            // Clear all user data when entering guest mode
-            await clearAllData();
-            setAuth(prev => ({ ...prev, isGuest: true }));
-          }}
-        />
-      </>
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting to login...</Text>
+      </View>
     );
   }
 

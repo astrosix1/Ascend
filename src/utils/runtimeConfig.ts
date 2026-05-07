@@ -5,7 +5,6 @@
 import { getData, setData, KEYS } from './storage';
 import { CONFIG } from './config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
 export interface RuntimeConfig {
   supabaseUrl: string;
@@ -67,17 +66,9 @@ export function getSupabaseClient(): SupabaseClient | null {
     // Check if running in a web browser environment (react-native-web on web)
     const isWeb = typeof window !== 'undefined' && typeof document !== 'undefined';
 
-    if (isWeb) {
-      // Use browser client for web environment
-      // This enables httpOnly cookie support for cross-subdomain auth sharing
-      _supabaseClient = createBrowserClient(
-        _config.supabaseUrl,
-        _config.supabaseAnonKey
-      );
-    } else {
-      // Use plain client for native/React Native environments
-      _supabaseClient = createClient(_config.supabaseUrl, _config.supabaseAnonKey);
-    }
+    // Use the same client for all environments
+    // The Supabase client handles auth correctly in both native and web contexts
+    _supabaseClient = createClient(_config.supabaseUrl, _config.supabaseAnonKey);
   }
   return _supabaseClient;
 }
