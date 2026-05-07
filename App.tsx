@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { loadRuntimeConfig, isSupabaseReady } from './src/utils/runtimeConfig';
+import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
@@ -149,11 +149,26 @@ function Root() {
 
         // Check for existing Supabase session
         if (isSupabaseReady()) {
-          const session = await getSession();
+          const sb = getSupabaseClient();
+          let session = await getSession();
 
-          // If no session and on web, redirect to asix.live login
+          // If no session found, try refreshing in case cookies just arrived from redirect
+          if (!session?.user && sb) {
+            console.log('[Auth] No session found, attempting to refresh from cookies...');
+            try {
+              const { data } = await sb.auth.refreshSession();
+              session = data.session;
+              if (session?.user) {
+                console.log('[Auth] Session refreshed from cookies for:', session.user.email);
+              }
+            } catch (refreshErr) {
+              console.log('[Auth] No cookies to refresh from:', refreshErr instanceof Error ? refreshErr.message : refreshErr);
+            }
+          }
+
+          // If still no session and on web, redirect to asix.live login
           if (!session?.user && isWeb) {
-            console.log('[Auth] No session found, redirecting to login');
+            console.log('[Auth] No session after refresh, redirecting to login');
             performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
             return;
           }
