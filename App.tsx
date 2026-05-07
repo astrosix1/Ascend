@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { loadRuntimeConfig, isSupabaseReady } from './src/utils/runtimeConfig';
+import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
@@ -118,9 +118,32 @@ function Root() {
         await loadRuntimeConfig();
 
         // Check for existing Supabase session
-        // getSession() reads from CrossDomainCookieStorage which has the readable
-        // cookie written by asix.live's setSession() call after signin
         if (isSupabaseReady()) {
+          const sb = getSupabaseClient();
+
+          // Check if tokens were passed in the URL hash (from asix.live login redirect)
+          // e.g. ascend.asix.live#access_token=...&refresh_token=...
+          if (isWeb && sb && window.location.hash) {
+            try {
+              const hash = window.location.hash.substring(1);
+              const params = new URLSearchParams(hash);
+              const access_token = params.get('access_token');
+              const refresh_token = params.get('refresh_token');
+              if (access_token && refresh_token) {
+                console.log('[Auth] Found tokens in URL hash, setting session...');
+                await sb.auth.setSession({
+                  access_token: decodeURIComponent(access_token),
+                  refresh_token: decodeURIComponent(refresh_token),
+                });
+                // Clean the hash from the URL so tokens aren't visible
+                window.history.replaceState(null, '', window.location.pathname);
+                console.log('[Auth] Session set from URL hash');
+              }
+            } catch (hashErr) {
+              console.warn('[Auth] Failed to parse hash tokens:', hashErr);
+            }
+          }
+
           const session = await getSession();
 
           // If no session and on web, redirect to asix.live login
