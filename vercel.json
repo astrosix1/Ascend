@@ -1,4 +1,5 @@
 {
+  "buildCommand": "echo 'Serving pre-built files'",
   "outputDirectory": "web-build",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
