@@ -87,8 +87,8 @@ export function setRedirecting(value: boolean): void {
 }
 
 /**
- * Perform redirect with safety checks
- * Only redirects if on web platform and not already redirecting
+ * Perform redirect to the given URL.
+ * Clears any stuck redirect flags before navigating.
  */
 export function performRedirect(url: string): void {
   const isWeb = typeof window !== 'undefined';
@@ -98,25 +98,15 @@ export function performRedirect(url: string): void {
     return;
   }
 
-  if (isRedirecting()) {
-    console.warn('Already redirecting, skipping redirect to:', url);
-    return;
-  }
+  // Always clear the flag so it never gets stuck
+  localStorage.removeItem(REDIRECT_FLAG);
 
   console.log('[Redirect] Navigating to:', url);
-  setRedirecting(true);
 
   try {
-    // Use window.location.replace() instead of href for more reliable navigation
     window.location.replace(url);
   } catch (error) {
     console.error('[Redirect] Navigation failed:', error);
-    // Fallback: try href assignment
-    try {
-      window.location.href = url;
-    } catch (fallbackError) {
-      console.error('[Redirect] All navigation attempts failed:', fallbackError);
-      setRedirecting(false); // Clear flag on failure
-    }
+    window.location.href = url;
   }
 }
