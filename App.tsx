@@ -7,10 +7,8 @@ import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
-import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
 import { useSubscription } from './src/hooks/useSubscription';
-import { Paywall } from './src/components/Paywall';
 import {
   performRedirect,
   buildLoginRedirectUrl,
@@ -20,12 +18,12 @@ interface AuthState {
   checked: boolean;
   userId: string | null;
   email: string | null;
-  isGuest: boolean;
 }
 
-// Component that handles subscription check for logged-in users
+// Checks subscription for logged-in users.
+// Redirects to projects/ascend page if no active subscription.
 function LoggedInApp({ userId }: { userId: string }) {
-  const { subscription, loading, hasAccess } = useSubscription(userId);
+  const { loading, hasAccess } = useSubscription(userId);
 
   if (loading) {
     return (
@@ -35,55 +33,49 @@ function LoggedInApp({ userId }: { userId: string }) {
     );
   }
 
-  // No active subscription — show paywall (both web and native)
   if (!hasAccess) {
-    return <Paywall />;
+    // No active subscription — redirect to projects page where they can subscribe
+    performRedirect('https://asix.live/projects/ascend');
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting...</Text>
+      </View>
+    );
   }
 
   return <AppNavigator />;
 }
 
 function Root() {
-  const { isLoading, theme, syncUserData, setCurrentUser, currentUserId, currentUserEmail, resetAuth, resetSignal, ...appContext } = useApp();
+  const { isLoading, theme, syncUserData, setCurrentUser, currentUserId, ...appContext } = useApp();
   const [auth, setAuth] = useState<AuthState>({
     checked: false,
     userId: null,
     email: null,
-    isGuest: false,
   });
   const [migrationState, setMigrationState] = useState<MigrationState>({
     status: 'idle',
     progress: 0,
   });
-  const prevEmailRef = useRef<string>('');
   const prevUserIdRef = useRef<string | null>(null);
 
-  // Watch for logout/reset - whenever currentUserId becomes null from a logged-in state
+  // Watch for logout — whenever currentUserId becomes null from a logged-in state
   useEffect(() => {
     if (!auth.checked) return;
-
-    // Only reset if we were logged in AND currentUserId just became null
-    // This prevents reset loops during initial load
     if (currentUserId === null && auth.userId !== null) {
-      setAuth({ checked: true, userId: null, email: null, isGuest: false });
+      setAuth({ checked: true, userId: null, email: null });
     }
   }, [currentUserId, auth.checked, auth.userId]);
 
   // Trigger guest data migration when user signs in (runs once per user, ever)
   useEffect(() => {
-    if (!currentUserId || prevUserIdRef.current === currentUserId) {
-      return; // User not logged in or already processed this session
-    }
-
+    if (!currentUserId || prevUserIdRef.current === currentUserId) return;
     prevUserIdRef.current = currentUserId;
 
-    // Only migrate once per user — flag persists across page loads
     const migrationKey = `ascend_migrated_${currentUserId}`;
-    if (localStorage.getItem(migrationKey)) {
-      return; // Already migrated, skip
-    }
+    if (localStorage.getItem(migrationKey)) return;
 
-    // Check if there's guest data to migrate
     if (hasGuestDataToMigrate(appContext as any)) {
       console.log('[Migration] Guest data detected, starting migration...');
       setMigrationState({ status: 'in_progress', progress: 0 });
@@ -92,9 +84,8 @@ function Root() {
         setMigrationState(state);
       }).then((result) => {
         if (result.success) {
-          localStorage.setItem(migrationKey, 'true'); // Mark migration as done
+          localStorage.setItem(migrationKey, 'true');
           console.log('[Migration] Migration completed successfully');
-          // Trigger full sync after migration to ensure all data is fresh
           syncUserData(currentUserId).catch((err) => {
             console.error('[Migration] Sync after migration failed:', err);
           });
@@ -103,7 +94,6 @@ function Root() {
         }
       });
     } else {
-      // No guest data — mark as done so we never run the check again
       localStorage.setItem(migrationKey, 'true');
     }
   }, [currentUserId]);
@@ -114,78 +104,43 @@ function Root() {
 
     (async () => {
       try {
-        // Load API keys from storage first
         await loadRuntimeConfig();
 
-        // Check for existing Supabase session
         if (isSupabaseReady()) {
-          const sb = getSupabaseClient();
-
-          // Check if tokens were passed in the URL hash (from asix.live login redirect)
-          // e.g. ascend.asix.live#access_token=...&refresh_token=...
-          if (isWeb && sb && window.location.hash) {
-            try {
-              const hash = window.location.hash.substring(1);
-              const params = new URLSearchParams(hash);
-              const access_token = params.get('access_token');
-              const refresh_token = params.get('refresh_token');
-              if (access_token && refresh_token) {
-                console.log('[Auth] Found tokens in URL hash, setting session...');
-                await sb.auth.setSession({
-                  access_token: decodeURIComponent(access_token),
-                  refresh_token: decodeURIComponent(refresh_token),
-                });
-                // Clean the hash from the URL so tokens aren't visible
-                window.history.replaceState(null, '', window.location.pathname);
-                console.log('[Auth] Session set from URL hash');
-              }
-            } catch (hashErr) {
-              console.warn('[Auth] Failed to parse hash tokens:', hashErr);
-            }
-          }
-
           const session = await getSession();
 
-          // If no session and on web, redirect to asix.live login
+          // No session on web → redirect to login (which sends user to projects/ascend after login)
           if (!session?.user && isWeb) {
             console.log('[Auth] No session found, redirecting to login');
-            performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
+            performRedirect(buildLoginRedirectUrl());
             return;
           }
 
           if (session?.user) {
             console.log('[Auth] Found existing session for:', session.user.email);
-            setAuth({ checked: true, userId: session.user.id, email: session.user.email || null, isGuest: false });
+            setAuth({ checked: true, userId: session.user.id, email: session.user.email || null });
             setCurrentUser(session.user.id, session.user.email || '');
-            // Sync in background (fire and forget)
-            syncUserData(session.user.id).then(() => {
-              console.log('[Auth] Cloud data synced');
-            }).catch(err => {
+            syncUserData(session.user.id).catch(err => {
               console.error('[Auth] Sync failed for existing session:', err);
             });
             return;
           }
 
-          // Subscribe to future auth changes
+          // Subscribe to future auth changes (e.g. token auto-refresh)
           const result = onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session?.user) {
               console.log('[Auth] Sign in event:', session.user.email);
-              setAuth({ checked: true, userId: session.user.id, email: session.user.email || null, isGuest: false });
+              setAuth({ checked: true, userId: session.user.id, email: session.user.email || null });
               setCurrentUser(session.user.id, session.user.email || '');
-              // Sync in background (fire and forget)
-              syncUserData(session.user.id).then(() => {
-                console.log('[Auth] Cloud data synced after sign in');
-              }).catch(err => {
+              syncUserData(session.user.id).catch(err => {
                 console.error('[Auth] Sync failed after sign in:', err);
               });
             } else if (event === 'SIGNED_OUT') {
               console.log('[Auth] Sign out event');
-              setAuth({ checked: true, userId: null, email: null, isGuest: false });
+              setAuth({ checked: true, userId: null, email: null });
               setCurrentUser(null, '');
-
-              // If signed out on web, redirect to login
               if (isWeb) {
-                performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
+                performRedirect(buildLoginRedirectUrl());
               }
             }
           });
@@ -194,18 +149,16 @@ function Root() {
       } catch (error) {
         console.error('Auth setup error:', error);
       } finally {
-        // Always mark as checked
         setAuth(prev => ({ ...prev, checked: true }));
       }
     })();
 
-    // Cleanup subscription on unmount
     return () => {
       subscription?.unsubscribe();
     };
   }, []);
 
-  // Show migration UI while migrating guest data
+  // Show migration UI
   if (migrationState.status === 'in_progress') {
     return (
       <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
@@ -220,7 +173,6 @@ function Root() {
     );
   }
 
-  // Show error if migration failed
   if (migrationState.status === 'failed') {
     return (
       <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -234,7 +186,6 @@ function Root() {
           style={{ color: '#F5A623', fontSize: 12, textAlign: 'center' }}
           onPress={() => {
             setMigrationState({ status: 'idle', progress: 0 });
-            // Trigger retry
             if (currentUserId && hasGuestDataToMigrate(appContext as any)) {
               migrateGuestDataToCloud(currentUserId, appContext as any, setMigrationState);
             }
@@ -254,8 +205,7 @@ function Root() {
     );
   }
 
-  // If no userId, user should have been redirected to asix.live/login
-  // This is a fallback loading state during redirect
+  // No userId → redirect is in flight
   if (!auth.userId) {
     return (
       <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>

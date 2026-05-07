@@ -46,7 +46,7 @@ export async function getUserSession() {
  */
 export function buildLoginRedirectUrl(returnTo?: string): string {
   const params = new URLSearchParams();
-  params.set('redirect', returnTo || 'https://ascend.asix.live');
+  params.set('redirect', returnTo || 'https://asix.live/projects/ascend');
   return `https://asix.live/login?${params.toString()}`;
 }
 
