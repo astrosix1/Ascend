@@ -5,15 +5,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
+import { loadRuntimeConfig, isSupabaseReady } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { clearAllData } from './src/utils/storage';
 import { migrateGuestDataToCloud, hasGuestDataToMigrate, MigrationState } from './src/utils/migration';
 import { useSubscription } from './src/hooks/useSubscription';
+import { Paywall } from './src/components/Paywall';
 import {
   performRedirect,
   buildLoginRedirectUrl,
-  buildCheckoutRedirectUrl
 } from './src/utils/authHelpers';
 
 interface AuthState {
@@ -26,14 +26,6 @@ interface AuthState {
 // Component that handles subscription check for logged-in users
 function LoggedInApp({ userId }: { userId: string }) {
   const { subscription, loading, hasAccess } = useSubscription(userId);
-  const isWeb = typeof window !== 'undefined';
-
-  useEffect(() => {
-    // If no subscription and on web, redirect to checkout
-    if (!loading && !hasAccess && isWeb) {
-      performRedirect(buildCheckoutRedirectUrl('https://ascend.asix.live'));
-    }
-  }, [loading, hasAccess, isWeb]);
 
   if (loading) {
     return (
@@ -43,31 +35,9 @@ function LoggedInApp({ userId }: { userId: string }) {
     );
   }
 
-  // If no access and on web, we're redirecting (show loading)
-  if (!hasAccess && isWeb) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#F5A623" />
-        <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting to checkout...</Text>
-      </View>
-    );
-  }
-
-  // For native apps, show a fallback (could be Paywall in future)
+  // No active subscription — show paywall (both web and native)
   if (!hasAccess) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <Text style={{ color: '#fff', fontSize: 18, marginBottom: 16, textAlign: 'center' }}>
-          Subscribe to Ascend
-        </Text>
-        <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
-          You need an Ascend subscription to continue
-        </Text>
-        <Text style={{ color: '#F5A623', fontSize: 12, textAlign: 'center' }}>
-          Please subscribe on asix.live to get started
-        </Text>
-      </View>
-    );
+    return <Paywall />;
   }
 
   return <AppNavigator />;
@@ -148,27 +118,14 @@ function Root() {
         await loadRuntimeConfig();
 
         // Check for existing Supabase session
+        // getSession() reads from CrossDomainCookieStorage which has the readable
+        // cookie written by asix.live's setSession() call after signin
         if (isSupabaseReady()) {
-          const sb = getSupabaseClient();
-          let session = await getSession();
+          const session = await getSession();
 
-          // If no session found, try refreshing in case cookies just arrived from redirect
-          if (!session?.user && sb) {
-            console.log('[Auth] No session found, attempting to refresh from cookies...');
-            try {
-              const { data } = await sb.auth.refreshSession();
-              session = data.session;
-              if (session?.user) {
-                console.log('[Auth] Session refreshed from cookies for:', session.user.email);
-              }
-            } catch (refreshErr) {
-              console.log('[Auth] No cookies to refresh from:', refreshErr instanceof Error ? refreshErr.message : refreshErr);
-            }
-          }
-
-          // If still no session and on web, redirect to asix.live login
+          // If no session and on web, redirect to asix.live login
           if (!session?.user && isWeb) {
-            console.log('[Auth] No session after refresh, redirecting to login');
+            console.log('[Auth] No session found, redirecting to login');
             performRedirect(buildLoginRedirectUrl('https://ascend.asix.live'));
             return;
           }
