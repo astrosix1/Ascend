@@ -6,7 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
-web-build/
+# web-build/ is committed so Vercel can serve it without a build step
 expo-env.d.ts
 
 # Native

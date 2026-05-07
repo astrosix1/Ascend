@@ -1,0 +1,4 @@
+﻿/* Hide all icons */
+.ionicon {
+  display: none !important;
+}
