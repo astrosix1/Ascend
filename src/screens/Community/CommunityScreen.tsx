@@ -46,6 +46,7 @@ export default function CommunityScreen() {
   const loadEvents = useCallback(async () => {
     if (!settings.location) {
       setEventsError('no_location');
+      setEvents([]);
       return;
     }
     setEventsLoading(true);
@@ -53,17 +54,24 @@ export default function CommunityScreen() {
     try {
       const results = await fetchLocalEvents(settings.location);
       setEvents(results);
-      if (results.length === 0) setEventsError('no_results');
-    } catch {
+      if (results.length === 0) {
+        setEventsError('no_results');
+      }
+    } catch (err) {
+      console.error('Events fetch error:', err);
       setEventsError('fetch_failed');
+      setEvents([]);
     } finally {
       setEventsLoading(false);
     }
   }, [settings.location]);
 
+  // Load events when tab changes OR when location changes
   useEffect(() => {
-    if (activeTab === 'events') loadEvents();
-  }, [activeTab, loadEvents]);
+    if (activeTab === 'events') {
+      loadEvents();
+    }
+  }, [activeTab, loadEvents, settings.location]);
 
   const markGoing = (event: CommunityEvent) => {
     const isNowGoing = !eventsGoing[event.id];
