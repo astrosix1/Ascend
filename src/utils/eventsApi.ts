@@ -51,35 +51,44 @@ export async function fetchLocalEvents(
     const cityName = city ? city.split(',')[0].trim() : '';
 
     if (!cityName) {
-      console.log('No city set for events search');
+      console.warn('[Events API] No city set for events search');
       return [];
     }
 
-    console.log('Fetching events from SearchApi.io for:', cityName);
+    console.log('[Events API] Starting fetch for city:', cityName);
 
     // Build the search query
     const searchQuery = `events in ${cityName}`;
+    const apiUrl = `https://www.searchapi.io/api/v1/search?api_key=${SEARCHAPI_KEY}&engine=google_events&q=${encodeURIComponent(searchQuery)}`;
+
+    console.log('[Events API] API URL:', apiUrl);
 
     // Call SearchApi.io
-    const response = await fetch(
-      `https://www.searchapi.io/api/v1/search?api_key=${SEARCHAPI_KEY}&engine=google_events&q=${encodeURIComponent(searchQuery)}`
-    );
+    const response = await fetch(apiUrl);
+
+    console.log('[Events API] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
-      console.error('SearchApi.io error:', response.status);
+      console.error('[Events API] HTTP error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('[Events API] Error body:', errorText);
       return [];
     }
 
     const data = await response.json();
+    console.log('[Events API] Response data:', data);
+
     const events = data.events || [];
 
-    console.log(`Fetched ${events.length} events for ${cityName}`);
+    console.log(`[Events API] Fetched ${events.length} raw events for ${cityName}`);
 
     if (events.length === 0) {
+      console.warn('[Events API] No events returned from API');
       return [];
     }
 
     // Transform SearchApi.io response to CommunityEvent format
+    console.log('[Events API] Transforming events to CommunityEvent format...');
     const communityEvents = await Promise.all(
       events.slice(0, 20).map(async (event: any): Promise<CommunityEvent> => {
         // Parse date and time (use local timezone)
@@ -171,9 +180,10 @@ export async function fetchLocalEvents(
       })
     );
 
+    console.log('[Events API] Successfully transformed', communityEvents.length, 'events');
     return communityEvents;
   } catch (err) {
-    console.error('Event fetch error:', err);
+    console.error('[Events API] Fatal error:', err);
     return [];
   }
 }
