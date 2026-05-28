@@ -379,6 +379,9 @@ export default function DashboardScreen() {
     addHabit,
     updateHabit,
     addXP,
+    milestoneTrigger,
+    totalHabitsCompleted,
+    milestonesCrossed,
   } = useApp();
 
   const today = getToday();
@@ -1271,7 +1274,7 @@ export default function DashboardScreen() {
                 { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}% done`, color: colors.accent },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Lvl', value: `${stats.level}`, sub: `${stats.xp} XP`, color: colors.accent },
+                { label: 'Lvl', value: `${stats.level}`, sub: `${stats.xp % 100}/100 XP`, color: colors.accent },
                 { label: 'Current Streak', value: `${stats.currentStreak}d`, sub: '100% days', color: colors.warning },
                 { label: 'Longest Streak', value: `${longestStreak}d`, sub: 'best run', color: colors.warning },
               ] as const).map((s, i) => (
@@ -1323,6 +1326,67 @@ export default function DashboardScreen() {
                   <View style={{ marginHorizontal: -contentPadding, height: 130 }}>
                     <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                   </View>
+                </View>
+
+                {/* ── Weekly Insights ── */}
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md, marginTop: Spacing.sm }}>
+                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm, marginBottom: Spacing.sm }}>📊 Weekly Insights</Text>
+
+                  {/* Habit performance breakdown */}
+                  {goodHabits.map(h => {
+                    const last7 = Array.from({ length: 7 }, (_, i) => {
+                      const d = new Date(); d.setDate(d.getDate() - i);
+                      return d.toISOString().split('T')[0];
+                    });
+                    const doneCount = last7.filter(d => h.completedDates.includes(d)).length;
+                    const pct = Math.round((doneCount / 7) * 100);
+                    return (
+                      <View key={h.id} style={{ marginBottom: Spacing.sm }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ color: colors.text, fontSize: FontSize.xs }} numberOfLines={1}>{h.name}</Text>
+                          <Text style={{ color: pct >= 80 ? colors.success : pct >= 50 ? colors.warning : colors.danger, fontSize: FontSize.xs, fontWeight: '700' }}>{doneCount}/7 days</Text>
+                        </View>
+                        <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+                          <View style={{ height: 4, width: `${pct}%` as any, backgroundColor: pct >= 80 ? colors.success : pct >= 50 ? colors.warning : colors.danger, borderRadius: 2 }} />
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  {/* XP to next level */}
+                  <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Level {stats.level} → {stats.level + 1}</Text>
+                      <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
+                    </View>
+                    <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+                      <View style={{ height: 6, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 3 }} />
+                    </View>
+                  </View>
+
+                  {/* Milestone progress */}
+                  {(() => {
+                    const milestones = [7, 30, 50, 100, 365];
+                    const nextMilestone = milestones.find(m => totalHabitsCompleted < m);
+                    if (!nextMilestone) return (
+                      <View style={{ marginTop: Spacing.sm, alignItems: 'center' }}>
+                        <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
+                      </View>
+                    );
+                    const prevMilestone = milestones[milestones.indexOf(nextMilestone) - 1] || 0;
+                    const pct = Math.round(((totalHabitsCompleted - prevMilestone) / (nextMilestone - prevMilestone)) * 100);
+                    return (
+                      <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>🎯 Next milestone: {nextMilestone} habits</Text>
+                          <Text style={{ color: colors.text, fontSize: FontSize.xs, fontWeight: '700' }}>{totalHabitsCompleted}/{nextMilestone}</Text>
+                        </View>
+                        <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+                          <View style={{ height: 6, width: `${pct}%` as any, backgroundColor: colors.warning, borderRadius: 3 }} />
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </View>
               </ScrollView>
 
@@ -1938,7 +2002,7 @@ export default function DashboardScreen() {
                 { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accent },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Level', value: `${stats.level}`, sub: `${stats.xp} XP`, color: colors.accent },
+                { label: 'Level', value: `${stats.level}`, sub: `${stats.xp % 100}/100 XP`, color: colors.accent },
                 { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
                 { label: 'Best', value: `${longestStreak}d`, sub: 'longest', color: colors.warning },
               ] as const).map((s, i) => (
@@ -1985,6 +2049,66 @@ export default function DashboardScreen() {
                   <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                 </View>
               </View>
+            </Card>
+
+            {/* ── Weekly Insights Card ── */}
+            <Card style={{ marginBottom: Spacing.md }}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm, marginBottom: Spacing.md }}>📊 Weekly Insights</Text>
+
+              {goodHabits.map(h => {
+                const last7 = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(); d.setDate(d.getDate() - i);
+                  return d.toISOString().split('T')[0];
+                });
+                const doneCount = last7.filter(d => h.completedDates.includes(d)).length;
+                const pct = Math.round((doneCount / 7) * 100);
+                return (
+                  <View key={h.id} style={{ marginBottom: Spacing.sm }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ color: colors.text, fontSize: FontSize.xs }} numberOfLines={1}>{h.name}</Text>
+                      <Text style={{ color: pct >= 80 ? colors.success : pct >= 50 ? colors.warning : colors.danger, fontSize: FontSize.xs, fontWeight: '700' }}>{doneCount}/7 days</Text>
+                    </View>
+                    <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+                      <View style={{ height: 4, width: `${pct}%` as any, backgroundColor: pct >= 80 ? colors.success : pct >= 50 ? colors.warning : colors.danger, borderRadius: 2 }} />
+                    </View>
+                  </View>
+                );
+              })}
+
+              {/* XP to next level */}
+              <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Level {stats.level} → {stats.level + 1}</Text>
+                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
+                </View>
+                <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+                  <View style={{ height: 6, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 3 }} />
+                </View>
+              </View>
+
+              {/* Milestone progress */}
+              {(() => {
+                const milestones = [7, 30, 50, 100, 365];
+                const nextMilestone = milestones.find(m => totalHabitsCompleted < m);
+                if (!nextMilestone) return (
+                  <View style={{ marginTop: Spacing.sm, alignItems: 'center' }}>
+                    <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
+                  </View>
+                );
+                const prevMilestone = milestones[milestones.indexOf(nextMilestone) - 1] || 0;
+                const pct = Math.round(((totalHabitsCompleted - prevMilestone) / (nextMilestone - prevMilestone)) * 100);
+                return (
+                  <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>🎯 Next milestone: {nextMilestone} habits</Text>
+                      <Text style={{ color: colors.text, fontSize: FontSize.xs, fontWeight: '700' }}>{totalHabitsCompleted}/{nextMilestone}</Text>
+                    </View>
+                    <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+                      <View style={{ height: 6, width: `${pct}%` as any, backgroundColor: colors.warning, borderRadius: 3 }} />
+                    </View>
+                  </View>
+                );
+              })()}
             </Card>
           </>
         )}
@@ -2299,9 +2423,62 @@ export default function DashboardScreen() {
   // RETURN (Render with modals)
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Milestone label helpers ───────────────────────────────────────────────
+  const getMilestoneEmoji = (m: number) => {
+    if (m >= 365) return '🏆';
+    if (m >= 100) return '💎';
+    if (m >= 50) return '🔥';
+    if (m >= 30) return '⚡';
+    return '🌟';
+  };
+  const getMilestoneMessage = (m: number) => {
+    if (m >= 365) return "A full year of habit completions!";
+    if (m >= 100) return "Triple digits — you're unstoppable!";
+    if (m >= 50) return "Halfway to 100. Keep going!";
+    if (m >= 30) return "One month's worth of wins!";
+    return "Your first week of progress!";
+  };
+
   return (
     <>
       {mainContent}
+
+      {/* ── MILESTONE CELEBRATION OVERLAY ──────────────────────────────────── */}
+      {milestoneTrigger !== null && (
+        <Modal visible transparent animationType="fade">
+          <View style={{
+            flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <View style={{
+              backgroundColor: colors.surface, borderRadius: 24,
+              padding: 36, alignItems: 'center', marginHorizontal: 32,
+              borderWidth: 2, borderColor: colors.accent,
+              shadowColor: colors.accent, shadowOpacity: 0.4,
+              shadowRadius: 20, elevation: 20,
+            }}>
+              <Text style={{ fontSize: 72, marginBottom: 12 }}>{getMilestoneEmoji(milestoneTrigger)}</Text>
+              <Text style={{ fontSize: 28, fontWeight: '900', color: colors.accent, marginBottom: 6, textAlign: 'center' }}>
+                {milestoneTrigger} Habits!
+              </Text>
+              <Text style={{ fontSize: 16, color: colors.text, fontWeight: '700', marginBottom: 8, textAlign: 'center' }}>
+                Milestone Unlocked
+              </Text>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+                {getMilestoneMessage(milestoneTrigger)}
+              </Text>
+              <View style={{
+                backgroundColor: colors.accentLight, borderRadius: 12,
+                paddingHorizontal: 20, paddingVertical: 8,
+              }}>
+                <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 13 }}>
+                  🎯 Total completed: {totalHabitsCompleted} habits
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* ── ADD EVENT MODAL ────────────────────────────────────────────────── */}
       <Modal
