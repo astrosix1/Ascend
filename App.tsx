@@ -34,14 +34,21 @@ function LoggedInApp({ userId }: { userId: string }) {
   }
 
   if (!hasAccess) {
-    // No active subscription — redirect to projects page where they can subscribe
-    performRedirect('https://asix.live/projects/ascend');
-    return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#F5A623" />
-        <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting...</Text>
-      </View>
+    // On localhost skip subscription check so devs can test freely
+    const isLocalhost = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
     );
+    if (!isLocalhost) {
+      // No active subscription — redirect to projects page where they can subscribe
+      performRedirect('https://asix.live/projects/ascend');
+      return (
+        <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#F5A623" />
+          <Text style={{ color: '#fff', marginTop: 16 }}>Redirecting...</Text>
+        </View>
+      );
+    }
   }
 
   return <AppNavigator />;
@@ -133,8 +140,14 @@ function Root() {
 
           const session = await getSession();
 
+          // On localhost: skip auth redirect so developers can test without logging in
+          const isLocalhost = isWeb && (
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1'
+          );
+
           // No session on web → redirect to login (which sends user to projects/ascend after login)
-          if (!session?.user && isWeb) {
+          if (!session?.user && isWeb && !isLocalhost) {
             console.log('[Auth] No session found, redirecting to login');
             performRedirect(buildLoginRedirectUrl());
             return;
@@ -163,7 +176,11 @@ function Root() {
               console.log('[Auth] Sign out event');
               setAuth({ checked: true, userId: null, email: null });
               setCurrentUser(null, '');
-              if (isWeb) {
+              const isLocalhost = isWeb && (
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1'
+              );
+              if (isWeb && !isLocalhost) {
                 performRedirect(buildLoginRedirectUrl());
               }
             }
@@ -229,8 +246,12 @@ function Root() {
     );
   }
 
-  // No userId → redirect is in flight
-  if (!auth.userId) {
+  // No userId → redirect is in flight (unless on localhost, where we allow guest mode)
+  const isLocalhostEnv = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  );
+  if (!auth.userId && !isLocalhostEnv) {
     return (
       <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#F5A623" />
