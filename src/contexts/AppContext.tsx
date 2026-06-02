@@ -24,6 +24,11 @@ interface AppState {
   addXP: (amount: number) => void;
   resetProgress: () => void;
 
+  // Milestones
+  totalHabitsCompleted: number;
+  milestonesCrossed: number[];
+  milestoneTrigger: number | null;
+
   // Settings
   settings: UserSettings;
   updateSettings: (updates: Partial<UserSettings>) => void;
@@ -161,6 +166,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [resetSignal, setResetSignal] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
+  // Milestone tracking
+  const [milestonesCrossed, setMilestonesCrossed] = useState<number[]>([]);
+  const [milestoneTrigger, setMilestoneTrigger] = useState<number | null>(null);
+
   // Per-datatype sync status tracking
   const initializeSyncStatuses = (): Record<DataType, SyncStatus> => ({
     habits: { dataType: 'habits', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
@@ -191,28 +200,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const colors = Colors[theme];
 
-  // Load all data on mount
+  // Load all data on mount — split into critical (blocks render) and deferred (background)
   useEffect(() => {
     (async () => {
-      const [
-        savedHabits,
-        savedStats,
-        savedSettings,
-        savedPomodoro,
-        savedCalendar,
-        savedWins,
-        savedJournal,
-        savedRelapse,
-        savedDetox,
-        savedFavorites,
-        savedReflections,
-        savedAlarms,
-        savedGoals,
-        savedTodos,
-      ] = await Promise.all([
-        getData<Habit[]>(KEYS.HABITS),
-        getData<UserStats>(KEYS.STATS),
-        getData<UserSettings>(KEYS.SETTINGS),
+      try {
+        // ── Phase 1: Critical data — unblocks first render as fast as possible ──
+        const [
+          savedHabits,
+          savedStats,
+          savedSettings,
+          savedGoals,
+          savedTodos,
+          savedMilestones,
+        ] = await Promise.all([
+          getData<Habit[]>(KEYS.HABITS),
+          getData<UserStats>(KEYS.STATS),
+          getData<UserSettings>(KEYS.SETTINGS),
+          getData<GoalEntry[]>(KEYS.GOALS),
+          getData<Todo[]>(KEYS.TODOS),
+          getData<number[]>(KEYS.MILESTONES_CROSSED),
+        ]);
+
+        if (savedHabits) {
+          // Sanitize legacy habits that may be missing required fields
+          const sanitized = savedHabits.map(h => ({
+            ...h,
+            completedDates: h.completedDates ?? [],
+            streak: h.streak ?? 0,
+            bestStreak: h.bestStreak ?? 0,
+            createdAt: h.createdAt || new Date().toISOString(),
+          }));
+          setHabits(sanitized);
+        }
+        if (savedStats) setStats(savedStats);
+        if (savedSettings) {
+          setSettings(savedSettings);
+          setTheme(savedSettings.theme);
+        }
+        if (savedGoals) setGoals(savedGoals);
+        if (savedTodos) setTodos(savedTodos);
+        if (savedMilestones) setMilestonesCrossed(savedMilestones);
+      } catch (err) {
+        console.error('[AppContext] Critical data load error:', err);
+      } finally {
+        // Always unblock render — even if critical load partially fails
+        setIsLoading(false);
+      }
+
+      // ── Phase 2: Deferred data — loads in background after first render ──
+      Promise.all([
         getData<PomodoroSession[]>(KEYS.POMODORO_HISTORY),
         getData<CalendarEvent[]>(KEYS.CALENDAR_EVENTS),
         getData<RealWorldWin[]>(KEYS.REAL_WORLD_WINS),
@@ -222,29 +258,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getData<string[]>(KEYS.FORUM_FAVORITES),
         getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
         getData<Alarm[]>(KEYS.ALARMS),
-        getData<GoalEntry[]>(KEYS.GOALS),
-        getData<Todo[]>(KEYS.TODOS),
-      ]);
-
-      if (savedHabits) setHabits(savedHabits);
-      if (savedStats) setStats(savedStats);
-      if (savedSettings) {
-        setSettings(savedSettings);
-        setTheme(savedSettings.theme);
-      }
-      if (savedPomodoro) setPomodoroHistory(savedPomodoro);
-      if (savedCalendar) setCalendarEvents(savedCalendar);
-      if (savedWins) setRealWorldWins(savedWins);
-      if (savedJournal) setJournalEntries(savedJournal);
-      if (savedRelapse) setRelapseLog(savedRelapse);
-      if (savedDetox) setDetoxHistory(savedDetox);
-      if (savedFavorites) setForumFavorites(savedFavorites);
-      if (savedReflections) setReflectionResponses(savedReflections);
-      if (savedAlarms) setAlarmsState(savedAlarms);
-      if (savedGoals) setGoals(savedGoals);
-      if (savedTodos) setTodos(savedTodos);
-
-      setIsLoading(false);
+      ]).then(([
+        savedPomodoro,
+        savedCalendar,
+        savedWins,
+        savedJournal,
+        savedRelapse,
+        savedDetox,
+        savedFavorites,
+        savedReflections,
+        savedAlarms,
+      ]) => {
+        if (savedPomodoro) setPomodoroHistory(savedPomodoro);
+        if (savedCalendar) setCalendarEvents(savedCalendar);
+        if (savedWins) setRealWorldWins(savedWins);
+        if (savedJournal) setJournalEntries(savedJournal);
+        if (savedRelapse) setRelapseLog(savedRelapse);
+        if (savedDetox) setDetoxHistory(savedDetox);
+        if (savedFavorites) setForumFavorites(savedFavorites);
+        if (savedReflections) setReflectionResponses(savedReflections);
+        if (savedAlarms) setAlarmsState(savedAlarms);
+      }).catch(err => {
+        console.warn('[AppContext] Deferred data load error:', err);
+      });
     })();
   }, []);
 
@@ -266,9 +302,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   const addHabit = useCallback((habit: Habit) => {
+    // Sanitize: ensure required fields are always present
+    const safe: Habit = {
+      id: habit.id || Date.now().toString(),
+      name: habit.name,
+      type: habit.type,
+      description: habit.description,
+      streak: habit.streak ?? 0,
+      bestStreak: habit.bestStreak ?? 0,
+      completedDates: habit.completedDates ?? [],
+      createdAt: habit.createdAt || new Date().toISOString(),
+      category: habit.category,
+      microHabit: habit.microHabit,
+      trigger: habit.trigger,
+      replacement: habit.replacement,
+    };
     setHabits(prev => {
-      const updated = [...prev, habit];
+      const updated = [...prev, safe];
       persist(KEYS.HABITS, updated);
+      dirtyStateRef.current.add('habits');
       return updated;
     });
   }, [persist]);
@@ -293,6 +345,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     return streak;
+  };
+
+  // Calculate total habits completed across all habits
+  // Uses optional chaining to handle legacy habits that may lack completedDates
+  const calculateTotalHabitsCompleted = (habitsList: Habit[]): number => {
+    return habitsList.reduce((total, habit) => total + (habit.completedDates?.length || 0), 0);
+  };
+
+  // Check if milestone reached and return the new milestone, or null if none
+  const checkMilestoneReached = (newTotal: number, previousTotal: number, crossedAlready: number[]): number | null => {
+    const milestones = [7, 30, 50, 100, 365];
+    for (const milestone of milestones) {
+      if (previousTotal < milestone && newTotal >= milestone && !crossedAlready.includes(milestone)) {
+        return milestone;
+      }
+    }
+    return null;
   };
 
   const toggleHabit = useCallback((habitId: string, date: string) => {
@@ -342,6 +411,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       persist(KEYS.HABITS, updated);
 
+      // Check for milestone completion
+      const previousTotal = calculateTotalHabitsCompleted(prev);
+      const newTotal = calculateTotalHabitsCompleted(updated);
+      const newMilestone = checkMilestoneReached(newTotal, previousTotal, milestonesCrossed);
+
+      if (newMilestone) {
+        setMilestonesCrossed(prev => [...prev, newMilestone]);
+        setMilestoneTrigger(newMilestone);
+        // Auto-clear milestone trigger after 5 seconds
+        setTimeout(() => setMilestoneTrigger(null), 5000);
+      }
+
       // Update stats: 1 XP per habit toggled, +2 bonus if ALL good habits done for the day
       const habit = prev.find(h => h.id === habitId);
       if (habit) {
@@ -386,13 +467,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             level: Math.floor(newXp / 100) + 1,
           };
           persist(KEYS.STATS, updatedStats);
+          dirtyStateRef.current.add('stats');
           return updatedStats;
         });
       }
 
+      dirtyStateRef.current.add('habits');
       return updated;
     });
-  }, [persist]);
+  }, [persist, milestonesCrossed]);
 
   const removeHabit = useCallback((habitId: string) => {
     setHabits(prev => {
@@ -586,12 +669,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (t.id !== todoId) return t;
         const isCompleting = !t.completed;
         if (isCompleting) {
-          // Award XP when completing a todo
-          setStats(s => ({
-            ...s,
-            xp: s.xp + t.xpReward,
-            level: Math.floor((s.xp + t.xpReward) / 100) + 1,
-          }));
+          // Award XP when completing a todo — persist stats immediately so
+          // XP isn't lost if the app restarts before the auto-save fires.
+          setStats(s => {
+            const newStats = {
+              ...s,
+              xp: s.xp + t.xpReward,
+              level: Math.floor((s.xp + t.xpReward) / 100) + 1,
+            };
+            persist(KEYS.STATS, newStats);
+            return newStats;
+          });
         }
         return {
           ...t,
@@ -845,13 +933,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Merge each datatype with conflict resolution
         console.log('[Sync] Merging remote data with local state');
 
-        // For each datatype, perform merge and update state
-        // This is a simplified merge - in production, would handle each type specifically
+        // Build update payload from current in-memory state.
+        // Never save empty strings — that would silently wipe cloud data.
+        const stateByDataType: Partial<Record<DataType, string>> = {
+          habits: JSON.stringify(habits),
+          stats: JSON.stringify(stats),
+          settings: JSON.stringify(settings),
+          calendar_events: JSON.stringify(calendarEvents),
+          real_world_wins: JSON.stringify(realWorldWins),
+          journal_entries: JSON.stringify(journalEntries),
+          relapse_log: JSON.stringify(relapseLog),
+          reflection_responses: JSON.stringify(reflectionResponses),
+          forum_favorites: JSON.stringify(forumFavorites),
+          detox_history: JSON.stringify(detoxHistory),
+          alarms: JSON.stringify(alarms),
+          pomodoro_history: JSON.stringify(pomodoroHistory),
+        };
         const updates: Partial<Record<DataType, string>> = {};
         const metadata: Record<DataType, SyncMetadata> = {};
 
         toSync.forEach(dataType => {
-          updates[dataType] = '';
+          const value = stateByDataType[dataType];
+          if (value !== undefined) updates[dataType] = value;
           metadata[dataType] = {
             dataType,
             lastSyncTime: new Date().toISOString(),
@@ -921,11 +1024,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pomodoroHistory,
   ]);
 
-  // Push to cloud whenever key data changes (debounce via useEffect)
+  // Push to cloud whenever key data changes (debounced 2s).
+  // Only uploads types flagged in dirtyStateRef to avoid full-blob uploads on
+  // every keystroke. Falls back to full save if dirtyStateRef is empty (e.g.
+  // first run or after a full sync that cleared it).
   useEffect(() => {
-    if (!currentUserId || isSyncing || isLoading) return; // Skip auto-save while syncing or loading initial data
+    if (!currentUserId || isSyncing || isLoading) return;
     const timer = setTimeout(() => {
-      console.log('[Sync] Auto-saving data to cloud for user:', currentUserId);
+      const dirty = dirtyStateRef.current;
+      const allTypes: DataType[] = ['habits','stats','settings','calendar_events','real_world_wins','journal_entries','relapse_log','reflection_responses','forum_favorites','detox_history','alarms','pomodoro_history'];
+      const typesToSave = dirty.size > 0 ? allTypes.filter(t => dirty.has(t)) : allTypes;
+
+      const stateMap: Partial<Record<DataType, string>> = {
+        habits: JSON.stringify(habits),
+        stats: JSON.stringify(stats),
+        settings: JSON.stringify(settings),
+        calendar_events: JSON.stringify(calendarEvents),
+        real_world_wins: JSON.stringify(realWorldWins),
+        journal_entries: JSON.stringify(journalEntries),
+        relapse_log: JSON.stringify(relapseLog),
+        reflection_responses: JSON.stringify(reflectionResponses),
+        forum_favorites: JSON.stringify(forumFavorites),
+        detox_history: JSON.stringify(detoxHistory),
+        alarms: JSON.stringify(alarms),
+        pomodoro_history: JSON.stringify(pomodoroHistory),
+      };
+
+      const payload: Partial<Record<DataType, string>> = {};
+      typesToSave.forEach(t => { if (stateMap[t] !== undefined) payload[t] = stateMap[t]!; });
+
+      console.log('[Sync] Auto-saving', typesToSave.length, 'type(s) to cloud');
       saveUserData(currentUserId, {
         habits: JSON.stringify(habits),
         stats: JSON.stringify(stats),
@@ -941,13 +1069,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         pomodoro_history: JSON.stringify(pomodoroHistory),
       }).then(() => {
         console.log('[Sync] Auto-save completed');
-        setSyncError(null); // Clear any previous errors
+        dirtyStateRef.current.clear();
+        setSyncError(null);
         setLastSyncTime(new Date().toISOString());
       }).catch((err) => {
         console.error('[Sync] Auto-save failed:', err);
         setSyncError('Could not sync to cloud. Check your connection.');
       });
-    }, 2000); // 2s debounce
+    }, 2000);
     return () => clearTimeout(timer);
   }, [currentUserId, isSyncing, isLoading, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory]);
 
@@ -1128,6 +1257,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lastSyncTime,
       syncStatuses,
       isLoading,
+      totalHabitsCompleted: calculateTotalHabitsCompleted(habits),
+      milestonesCrossed,
+      milestoneTrigger,
     }}>
       {children}
     </AppContext.Provider>
