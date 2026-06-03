@@ -20,6 +20,7 @@ const KEYS = {
   WEEKLY_COMPLETION: 'ascend_weekly_completion',
   USERNAME_LAST_CHANGED: 'ascend_username_last_changed',
   ACCOUNTABILITY_PARTNER: 'ascend_accountability_partner',
+  MILESTONES_CROSSED: 'ascend_milestones_crossed',
   // Runtime API config (stored so users set once, not per build)
   SUPABASE_URL: 'ascend_supabase_url',
   SUPABASE_ANON_KEY: 'ascend_supabase_anon_key',

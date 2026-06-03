@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   StyleSheet,
   Alert,
   Switch,
+  Animated,
 } from 'react-native';
+import Toast, { ToastMessage } from '../../components/Toast';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
@@ -419,11 +421,24 @@ export default function DashboardScreen() {
       if (allCompletedAfter && !allCompletedBefore && !bonusEarnedToday) {
         // Just completed all habits for the first time today
         setBonusEarnedToday(true);
+        // Toast: bonus XP earned
+        setTimeout(() => showToast('⚡ +2 XP Bonus — all habits done!', 'success', 4000), 400);
       } else if (!allCompletedAfter && allCompletedBefore && bonusEarnedToday) {
         // Breaking the all-complete state
         setBonusEarnedToday(false);
       }
+
+      // Toast: streak milestone hit (check BEFORE toggle since context updates async)
+      if (!wasCompleted) {
+        const potentialStreak = habit.streak + 1;
+        if ([7, 14, 30, 50, 100].includes(potentialStreak)) {
+          setTimeout(() => showToast(`🔥 ${potentialStreak}-Day Streak!`, 'warning', 4500), 700);
+        }
+      }
     }
+
+    // Animate the checkbox
+    animateCheckbox(habitId);
   };
 
   // ── Stats / Chart state ────────────────────────────────────────────────────
@@ -448,6 +463,42 @@ export default function DashboardScreen() {
   const dashboardCategory = currentTab;
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // ── Session tracking (for "Done for Today" card) ────────────────────────────
+  const sessionStartRef = useRef(Date.now());
+  const [sessionTick, setSessionTick] = useState(0); // forces re-render every minute
+
+  // ── Level-up overlay ─────────────────────────────────────────────────────────
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const prevLevelRef = useRef(stats.level);
+
+  // ── Toast notifications ──────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const showToast = (message: string, type: ToastMessage['type'] = 'success', duration = 3500) => {
+    const id = Date.now().toString() + Math.random();
+    setToasts(prev => [...prev, { id, message, type, duration }]);
+  };
+  const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  // ── Checkbox press animations ────────────────────────────────────────────────
+  const checkboxAnimRefs = useRef<Map<string, Animated.Value>>(new Map());
+  const getCheckboxScale = (habitId: string): Animated.Value => {
+    if (!checkboxAnimRefs.current.has(habitId)) {
+      checkboxAnimRefs.current.set(habitId, new Animated.Value(1));
+    }
+    return checkboxAnimRefs.current.get(habitId)!;
+  };
+  const animateCheckbox = (habitId: string) => {
+    const scale = getCheckboxScale(habitId);
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.80, duration: 80, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 280, friction: 9 }),
+    ]).start();
+  };
+
+  // ── Progress ring pulse ──────────────────────────────────────────────────────
+  const ringScaleAnim = useRef(new Animated.Value(1)).current;
+  const ringPulsedRef = useRef(false);
 
   // Reset bonus state when day changes (fixed to handle edge cases at midnight)
   // Uses persistent timestamp instead of just date string to handle app restarts
@@ -547,6 +598,53 @@ export default function DashboardScreen() {
   const cumulativeWeeklyData = useMemo(() => buildCumulativeWeeklyData(habits), [habits]);
   const cumulativeMonthlyData = useMemo(() => buildCumulativeMonthlyData(habits), [habits]);
   const cumulativeYearlyData = useMemo(() => buildCumulativeYearlyData(habits), [habits]);
+
+  // ── Week-over-week comparison ───────────────────────────────────────────────
+  const prevWeekAvg = useMemo(() => {
+    const data = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - 7 - (6 - i));
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const good = habits.filter(h => h.type === 'good');
+      if (!good.length) return 0;
+      return Math.round((good.filter(h => h.completedDates.includes(ds)).length / good.length) * 100);
+    });
+    return Math.round(data.reduce((a, b) => a + b, 0) / 7);
+  }, [habits]);
+  const thisWeekAvg = Math.round(weeklyData.reduce((a, b) => a + b, 0) / 7);
+  const weekDelta = thisWeekAvg - prevWeekAvg;
+
+  // ── Session timer tick (forces re-render every 60s for nudge timing) ─────────
+  useEffect(() => {
+    const interval = setInterval(() => setSessionTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Level-up detection ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (stats.level > prevLevelRef.current && prevLevelRef.current > 0) {
+      setShowLevelUp(true);
+      const timer = setTimeout(() => setShowLevelUp(false), 4000);
+      prevLevelRef.current = stats.level;
+      return () => clearTimeout(timer);
+    }
+    prevLevelRef.current = stats.level;
+  }, [stats.level]);
+
+  // ── Progress ring pulse when all habits complete ─────────────────────────────
+  useEffect(() => {
+    const good = habits.filter(h => h.type === 'good');
+    const done = good.filter(h => h.completedDates.includes(today));
+    const allDone = good.length > 0 && done.length === good.length;
+    if (allDone && !ringPulsedRef.current) {
+      ringPulsedRef.current = true;
+      Animated.sequence([
+        Animated.timing(ringScaleAnim, { toValue: 1.08, duration: 300, useNativeDriver: true }),
+        Animated.spring(ringScaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
+      ]).start();
+    } else if (!allDone) {
+      ringPulsedRef.current = false;
+    }
+  }, [habits, today]);
 
   const chartData = chartTab === 'Week' ? weeklyData : chartTab === 'Month' ? monthlyData : yearlyData;
   const cumulativeChartData = chartTab === 'Week' ? cumulativeWeeklyData : chartTab === 'Month' ? cumulativeMonthlyData : cumulativeYearlyData;
@@ -686,6 +784,9 @@ export default function DashboardScreen() {
     setRelapseLesson('');
     setRelapseMicro('');
   }
+
+  // ── Journals sub-tab (mobile) ──────────────────────────────────────────────
+  const [journalsSubTab, setJournalsSubTab] = useState<'tasks' | 'records' | 'recovery'>('tasks');
 
   // ── Journal state ──────────────────────────────────────────────────────────
   const [journalExpanded, setJournalExpanded] = useState(false);
@@ -851,6 +952,19 @@ export default function DashboardScreen() {
       .slice(0, 3);
   }, [habits]);
 
+  // Per-category completion breakdown (for analytics modal)
+  const categoryBreakdown = useMemo(() => {
+    const cats: Record<string, { total: number; count: number }> = {};
+    habits.filter(h => h.type === 'good' && h.category).forEach(h => {
+      if (!cats[h.category!]) cats[h.category!] = { total: 0, count: 0 };
+      cats[h.category!].total += getHabitCompletionRate(h);
+      cats[h.category!].count += 1;
+    });
+    return Object.entries(cats)
+      .map(([cat, { total, count }]) => ({ cat, avg: Math.round(total / count) }))
+      .sort((a, b) => b.avg - a.avg);
+  }, [habits]);
+
   function openJournalForm(habitId: string, habitName: string) {
     setJournalHabitId(habitId);
     setJournalHabitName(habitName);
@@ -963,41 +1077,114 @@ export default function DashboardScreen() {
     return 'evening';
   };
 
+  // ── Consistent card section header ───────────────────────────────────────────
+  const SectionTitle = ({
+    icon, title, count, color, onToggle, expanded, action,
+  }: {
+    icon: string; title: string; count?: number; color?: string;
+    onToggle?: () => void; expanded?: boolean;
+    action?: React.ReactNode;
+  }) => (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={onToggle ? 0.7 : 1}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        marginBottom: expanded !== false ? Spacing.sm : 0,
+        paddingBottom: expanded !== false ? Spacing.sm : 0,
+        borderBottomWidth: expanded !== false ? 1 : 0,
+        borderBottomColor: colors.border,
+      }}
+    >
+      <Text style={{ fontSize: 15 }}>{icon}</Text>
+      <Text style={{ flex: 1, fontSize: FontSize.sm, fontWeight: '700', color: color || colors.text, letterSpacing: -0.2 }}>{title}</Text>
+      {count !== undefined && (
+        <View style={{ backgroundColor: colors.surfaceLight, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '700' }}>{count}</Text>
+        </View>
+      )}
+      {action}
+      {onToggle && (
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginLeft: 2 }}>
+          {expanded ? '▲' : '▼'}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+
   // ── Shared habit row renderer (used by Build + Break sections) ──────────────
   const renderHabitRow = (habit: typeof habits[number]) => {
     const isCompleted = habit.completedDates.includes(today);
     const isGood = habit.type === 'good';
-    const habitColor = isGood ? colors.success : colors.danger;
-    const accentBarColor = isCompleted ? (isGood ? colors.accent : colors.danger) : colors.border;
+    const habitColor = isGood ? colors.accent : colors.danger;
+    const accentBarColor = isCompleted ? habitColor : colors.border;
+    // Flame scales with streak: 1+ day = 🔥, 7+ = 🔥🔥, 30+ = 🔥🔥🔥
+    const flameEmoji = habit.streak >= 30 ? '🔥🔥🔥' : habit.streak >= 7 ? '🔥🔥' : '🔥';
     const streakText = isGood
-      ? `🔥 ${habit.streak} day streak`
-      : isCompleted ? '⚠️ Marked today' : `${habit.streak} days avoided`;
-    const streakColor = isGood && habit.streak > 0 ? colors.warning : colors.textSecondary;
+      ? habit.streak > 0 ? `${flameEmoji} ${habit.streak}-day streak` : '— Start your streak'
+      : isCompleted ? '⚠️ Slipped today' : habit.streak > 0 ? `✓ ${habit.streak} days clean` : '— Stay strong today';
+    const streakColor = isGood && habit.streak >= 7 ? colors.warning
+      : isGood && habit.streak > 0 ? colors.accent
+      : !isGood && !isCompleted && habit.streak > 0 ? colors.success
+      : colors.textSecondary;
     const isTimerHabit = habit.name.toLowerCase().includes('pomodoro') || habit.name.toLowerCase().includes('timer');
     return (
       <View
         key={habit.id}
         style={{
           flexDirection: 'row', alignItems: 'center',
-          paddingVertical: Spacing.md, paddingRight: contentPadding, paddingLeft: contentPadding - 4,
+          paddingVertical: 14, paddingRight: contentPadding, paddingLeft: contentPadding - 4,
           borderBottomWidth: 1, borderBottomColor: colors.border,
           borderLeftWidth: 4, borderLeftColor: accentBarColor,
-          backgroundColor: colors.surface,
+          backgroundColor: isCompleted
+            ? (isGood ? colors.accent + '14' : colors.danger + '0D')
+            : colors.surface,
         }}
       >
-        <TouchableOpacity
-          onPress={() => handleToggleHabit(habit.id, today)}
-          style={{
-            width: 32, height: 32, borderRadius: 8, borderWidth: 2,
-            borderColor: habitColor, backgroundColor: isCompleted ? habitColor : 'transparent',
-            alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm,
-          }}
-        >
-          {isCompleted && <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' }}>{isGood ? '✓' : '✗'}</Text>}
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ scale: getCheckboxScale(habit.id) }] }}>
+          <TouchableOpacity
+            onPress={() => handleToggleHabit(habit.id, today)}
+            style={{
+              width: 30, height: 30,
+              borderRadius: 15,  // circle for both build & break habits
+              borderWidth: isCompleted ? 0 : 2,
+              borderColor: habitColor,
+              backgroundColor: isCompleted ? habitColor : 'transparent',
+              alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm,
+            }}
+          >
+            {isCompleted && <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800' }}>{isGood ? '✓' : '✗'}</Text>}
+          </TouchableOpacity>
+        </Animated.View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: FontSize.md, fontWeight: '600', color: colors.text, lineHeight: FontSize.md * 1.3 }}>{habit.name}</Text>
-          <Text style={{ fontSize: FontSize.xs, color: streakColor, marginTop: 2, fontWeight: habit.streak > 0 && isGood ? '600' : '400' }}>{streakText}</Text>
+          <Text style={{
+            fontSize: FontSize.sm, fontWeight: '600', color: colors.text,
+            lineHeight: FontSize.sm * 1.35,
+            textDecorationLine: (isCompleted && !isGood) ? 'line-through' : 'none',
+          }}>{habit.name}</Text>
+          <Text style={{
+            fontSize: FontSize.caption, color: streakColor, marginTop: 2,
+            fontWeight: (habit.streak > 0) ? '600' : '400',
+          }}>{streakText}</Text>
+          {/* 7-day completion dots */}
+          <View style={{ flexDirection: 'row', gap: 3, marginTop: 4 }}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = new Date(); d.setDate(d.getDate() - (6 - i));
+              const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              const done = habit.completedDates.includes(ds);
+              const isT = i === 6; // today
+              return (
+                <View key={i} style={{
+                  width: 7, height: 7, borderRadius: 2,
+                  backgroundColor: done
+                    ? (isGood ? colors.accent : colors.danger)
+                    : colors.border,
+                  borderWidth: isT ? 1 : 0,
+                  borderColor: isT ? (isGood ? colors.accent : colors.danger) : 'transparent',
+                }} />
+              );
+            })}
+          </View>
         </View>
         {isCompleted && isGood && (
           inlineJournalHabitId === habit.id ? (
@@ -1057,9 +1244,28 @@ export default function DashboardScreen() {
         {/* Sidebar */}
         <View style={{ width: sidebarCollapsed ? 48 : 220, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface }}>
           {/* Dashboard title + collapse toggle */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: sidebarCollapsed ? Spacing.xs : Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: sidebarCollapsed ? Spacing.xs : Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             {!sidebarCollapsed && (
-              <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>Dashboard</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: FontSize.sm, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Dashboard</Text>
+                {/* Mini Level + XP in sidebar header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>Lv.{stats.level}</Text>
+                  </View>
+                  <View style={{ flex: 1, height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
+                    <View style={{ height: 3, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>{stats.xp % 100}xp</Text>
+                </View>
+              </View>
+            )}
+            {sidebarCollapsed && (
+              <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, marginBottom: 2 }}>
+                <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2 }}>
+                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>{stats.level}</Text>
+                </View>
+              </View>
             )}
             <TouchableOpacity onPress={() => setSidebarCollapsed(c => !c)} style={{ padding: Spacing.xs }}>
               <Text style={{ fontSize: FontSize.md, color: colors.textSecondary }}>{sidebarCollapsed ? '›' : '‹'}</Text>
@@ -1090,7 +1296,7 @@ export default function DashboardScreen() {
                   <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
                   {cat.id === 'today' && sidebarCollapsed && (goodHabits.length - completedGoodHabits.length) > 0 && (
                     <View style={{ position: 'absolute', top: -4, right: -6, backgroundColor: colors.warning, borderRadius: 6, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '700' }}>{goodHabits.length - completedGoodHabits.length}</Text>
+                      <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>{goodHabits.length - completedGoodHabits.length}</Text>
                     </View>
                   )}
                 </View>
@@ -1138,20 +1344,50 @@ export default function DashboardScreen() {
         {dashboardCategory === 'today' && (
         <View style={{ flex: 1 }}>
 
-          {/* Daily quote (compact banner) */}
-          {prefs.showMotivationQuote && (
-            <View style={{
-              paddingHorizontal: contentPadding,
-              paddingVertical: Spacing.sm,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
-              backgroundColor: colors.accentLight,
-            }}>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontStyle: 'italic', lineHeight: FontSize.sm * 1.5 }} numberOfLines={2}>
+          {/* ── Desktop Today Header: XP strip + quote ── */}
+          <View style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              {/* Level badge */}
+              <View style={{
+                backgroundColor: colors.accent, borderRadius: 10,
+                paddingHorizontal: 12, paddingVertical: 5,
+                alignItems: 'center', flexDirection: 'row', gap: 5,
+              }}>
+                <Text style={{ color: '#000', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Lvl</Text>
+                <Text style={{ color: '#000', fontSize: 18, fontWeight: '900' }}>{stats.level}</Text>
+              </View>
+              {/* XP bar */}
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>⚡ XP</Text>
+                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
+                </View>
+                <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+                  <View style={{ height: 4, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
+                </View>
+              </View>
+              {/* Streak pill */}
+              {longestStreak > 0 && (
+                <View style={{ backgroundColor: colors.warning + '20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.warning + '50' }}>
+                  <Text style={{ color: colors.warning, fontSize: 11, fontWeight: '800' }}>
+                    🔥 {longestStreak}d
+                  </Text>
+                </View>
+              )}
+              {/* Today progress */}
+              <View style={{ backgroundColor: colors.accentLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '40' }}>
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>
+                  {completedGoodHabits.length}/{goodHabits.length} ✓
+                </Text>
+              </View>
+            </View>
+            {/* Quote below */}
+            {prefs.showMotivationQuote && (
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, fontStyle: 'italic', marginTop: Spacing.sm, lineHeight: FontSize.xs * 1.6 }} numberOfLines={1}>
                 {dailyQuote}
               </Text>
-            </View>
-          )}
+            )}
+          </View>
 
           {/* Habit list — scrollable, split into Build + Break sections */}
           <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
@@ -1268,19 +1504,75 @@ export default function DashboardScreen() {
         {dashboardCategory === 'progress' && (
           <View style={{ flex: 1, overflow: 'hidden' }}>
 
+            {/* ── Desktop RPG Level Header ── */}
+            <View style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, padding: contentPadding }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: contentPadding }}>
+                {/* Level badge */}
+                <View style={{
+                  width: 64, height: 64, borderRadius: 32,
+                  backgroundColor: colors.accent,
+                  alignItems: 'center', justifyContent: 'center',
+                  shadowColor: colors.accent, shadowOpacity: 0.3, shadowRadius: 10,
+                  elevation: 5,
+                }}>
+                  <Text style={{ color: '#000', fontSize: 8, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
+                  <Text style={{ color: '#000', fontSize: 26, fontWeight: '900', lineHeight: 30 }}>{stats.level}</Text>
+                </View>
+
+                {/* XP + title */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '800', marginBottom: 2 }}>
+                    {stats.level < 5 ? 'Habit Seeker' : stats.level < 10 ? 'Habit Builder' : stats.level < 20 ? 'Habit Master' : stats.level < 50 ? 'Habit Legend' : '💎 Ascended'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 6 }}>
+                    {100 - (stats.xp % 100)} XP to next level
+                  </Text>
+                  <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+                    <View style={{ height: 6, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 3 }} />
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 3, fontWeight: '600' }}>{stats.xp % 100}/100 XP</Text>
+                </View>
+
+                {/* Milestone badges inline */}
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {([
+                    { count: 7, emoji: '🌟' },
+                    { count: 30, emoji: '⚡' },
+                    { count: 50, emoji: '🔥' },
+                    { count: 100, emoji: '💎' },
+                    { count: 365, emoji: '🏆' },
+                  ]).map(b => {
+                    const earned = totalHabitsCompleted >= b.count;
+                    return (
+                      <View key={b.count} style={{
+                        width: 44, height: 44, borderRadius: 22,
+                        backgroundColor: earned ? colors.accent + '25' : colors.background,
+                        alignItems: 'center', justifyContent: 'center',
+                        borderWidth: 1.5,
+                        borderColor: earned ? colors.accent + '70' : colors.border,
+                        opacity: earned ? 1 : 0.4,
+                      }}>
+                        <Text style={{ fontSize: 18 }}>{b.emoji}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
             {/* ── Compact stats row ── */}
             <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {([
                 { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}% done`, color: colors.accent },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Lvl', value: `${stats.level}`, sub: `${stats.xp % 100}/100 XP`, color: colors.accent },
-                { label: 'Current Streak', value: `${stats.currentStreak}d`, sub: '100% days', color: colors.warning },
-                { label: 'Longest Streak', value: `${longestStreak}d`, sub: 'best run', color: colors.warning },
+                { label: 'Total Done', value: `${totalHabitsCompleted}`, sub: 'all time', color: colors.accent },
+                { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
+                { label: 'Best Streak', value: `${longestStreak}d`, sub: 'personal best', color: colors.warning },
               ] as const).map((s, i) => (
                 <View key={i} style={{ flex: 1, alignItems: 'center', paddingVertical: Spacing.sm, borderRightWidth: i < 5 ? 1 : 0, borderRightColor: colors.border }}>
-                  <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginBottom: 2 }}>{s.label}</Text>
-                  <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: s.color }}>{s.value}</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginBottom: 2, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</Text>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: '800', color: s.color }}>{s.value}</Text>
                   <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }} numberOfLines={1}>{s.sub}</Text>
                 </View>
               ))}
@@ -1291,7 +1583,9 @@ export default function DashboardScreen() {
 
               {/* Ring pane */}
               <View style={{ width: 210, borderRightWidth: 1, borderRightColor: colors.border, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg }}>
-                <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
+                <Animated.View style={{ transform: [{ scale: ringScaleAnim }] }}>
+                  <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
+                </Animated.View>
                 {bonusEarnedToday && (
                   <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
                     <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
@@ -1315,15 +1609,22 @@ export default function DashboardScreen() {
                 </View>
 
                 {/* Completion % chart */}
-                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>Good-habit completion %</Text>
-                <View style={{ marginHorizontal: -contentPadding, height: 130, marginBottom: Spacing.md }}>
+                {/* Week-over-week delta chip */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                  <Text style={{ color: weekDelta >= 0 ? colors.success : colors.danger, fontSize: FontSize.xs, fontWeight: '800' }}>
+                    {weekDelta >= 0 ? '▲' : '▼'} {Math.abs(weekDelta)}%
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>vs last week</Text>
+                </View>
+                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>Good-habit completion %</Text>
+                <View style={{ marginHorizontal: -contentPadding, height: 130, marginBottom: Spacing.xl }}>
                   <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                 </View>
 
                 {/* Cumulative chart */}
-                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
-                  <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>📈 Cumulative habit completions</Text>
-                  <View style={{ marginHorizontal: -contentPadding, height: 130 }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md, marginTop: Spacing.xs }}>
+                  <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>📈 Cumulative habit completions</Text>
+                  <View style={{ marginHorizontal: -contentPadding, height: 130, marginBottom: Spacing.lg }}>
                     <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                   </View>
                 </View>
@@ -1399,8 +1700,8 @@ export default function DashboardScreen() {
               <View style={{ padding: contentPadding, paddingBottom: Spacing.lg }}>
 
               {/* Todo List Section */}
-              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.md }}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm, marginBottom: Spacing.md }}>📋 Quick Tasks</Text>
+              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, padding: Spacing.md, marginBottom: Spacing.sm }}>
+                {SectionTitle({ icon: '📋', title: 'Quick Tasks', count: todos?.length || 0 })}
 
                 {/* Add todo input */}
                 <View style={{ flexDirection: 'row', marginBottom: Spacing.md }}>
@@ -1495,23 +1796,18 @@ export default function DashboardScreen() {
 
               {/* Real World Wins */}
               {prefs.showWins && (
-                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-                  <TouchableOpacity
-                    onPress={() => setWinsExpanded(!winsExpanded)}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
-                  >
-                    <Text style={{ color: colors.success, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
-                      🏆 Real World Wins ({realWorldWins.length})
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                      {winsExpanded && (
-                        <TouchableOpacity onPress={() => setShowAddWin(true)}>
-                          <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.sm }}>+ Add</Text>
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm }}>
+                  <View style={{ padding: Spacing.md, paddingBottom: winsExpanded ? Spacing.sm : Spacing.md }}>
+                    {SectionTitle({
+                      icon: '🏆', title: 'Real World Wins', count: realWorldWins.length,
+                      color: colors.success, onToggle: () => setWinsExpanded(!winsExpanded), expanded: winsExpanded,
+                      action: winsExpanded ? (
+                        <TouchableOpacity onPress={() => setShowAddWin(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
+                          <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                         </TouchableOpacity>
-                      )}
-                      <Text style={{ color: colors.textSecondary }}>{winsExpanded ? '▲' : '▼'}</Text>
-                    </View>
-                  </TouchableOpacity>
+                      ) : undefined,
+                    })}
+                  </View>
                   {winsExpanded && (
                     <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
                       {realWorldWins.length === 0 ? (
@@ -1531,16 +1827,13 @@ export default function DashboardScreen() {
 
               {/* Relapse Recovery */}
               {prefs.showRelapse && (
-                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-                  <TouchableOpacity
-                    onPress={() => setRelapseExpanded(!relapseExpanded)}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
-                  >
-                    <Text style={{ color: colors.danger, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
-                      Relapse Recovery ({relapseLog.length})
-                    </Text>
-                    <Text style={{ color: colors.textSecondary }}>{relapseExpanded ? '▲' : '▼'}</Text>
-                  </TouchableOpacity>
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm }}>
+                  <View style={{ padding: Spacing.md, paddingBottom: relapseExpanded ? Spacing.sm : Spacing.md }}>
+                    {SectionTitle({
+                      icon: '🔄', title: 'Relapse Recovery', count: relapseLog.length,
+                      color: colors.danger, onToggle: () => setRelapseExpanded(!relapseExpanded), expanded: relapseExpanded,
+                    })}
+                  </View>
                   {relapseExpanded && (
                     <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
                       {relapseLog.length === 0 ? (
@@ -1561,32 +1854,18 @@ export default function DashboardScreen() {
               )}
 
               {/* Goals */}
-              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-                <TouchableOpacity
-                  onPress={() => setGoalsExpanded(!goalsExpanded)}
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
-                >
-                  <Text style={{ color: colors.warning, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
-                    📍 Goals ({activeGoals.length})
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                    {goalsExpanded && (
-                      <TouchableOpacity onPress={() => {
-                        setEditingGoalId(null);
-                        setGoalTitle('');
-                        setGoalDescription('');
-                        setGoalTargetDate('');
-                        setGoalProgress(0);
-                        setGoalRelatedHabits([]);
-                        setGoalNotes('');
-                        setShowAddGoalModal(true);
-                      }}>
-                        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.md }}>+</Text>
+              <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm }}>
+                <View style={{ padding: Spacing.md, paddingBottom: goalsExpanded ? Spacing.sm : Spacing.md }}>
+                  {SectionTitle({
+                    icon: '🎯', title: 'Goals', count: activeGoals.length,
+                    color: colors.warning, onToggle: () => setGoalsExpanded(!goalsExpanded), expanded: goalsExpanded,
+                    action: goalsExpanded ? (
+                      <TouchableOpacity onPress={() => { setEditingGoalId(null); setGoalTitle(''); setGoalDescription(''); setGoalTargetDate(''); setGoalProgress(0); setGoalRelatedHabits([]); setGoalNotes(''); setShowAddGoalModal(true); }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
+                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                       </TouchableOpacity>
-                    )}
-                    <Text style={{ color: colors.textSecondary }}>{goalsExpanded ? '▲' : '▼'}</Text>
-                  </View>
-                </TouchableOpacity>
+                    ) : undefined,
+                  })}
+                </View>
                 {goalsExpanded && (
                   <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
                     {activeGoals.length === 0 && completedGoals.length === 0 && abandonedGoals.length === 0 ? (
@@ -1620,34 +1899,31 @@ export default function DashboardScreen() {
 
               {/* Why Journals */}
               {prefs.showJournals && (
-                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-                  <TouchableOpacity
-                    onPress={() => setJournalExpanded(!journalExpanded)}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md }}
-                  >
-                    <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.sm, flex: 1 }}>
-                      Why Journals ({journalEntries.length})
-                    </Text>
-                    <Text style={{ color: colors.textSecondary }}>{journalExpanded ? '▲' : '▼'}</Text>
-                  </TouchableOpacity>
+                <View style={{ backgroundColor: colors.surface, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm }}>
+                  <View style={{ padding: Spacing.md, paddingBottom: journalExpanded ? Spacing.sm : Spacing.md }}>
+                    {SectionTitle({
+                      icon: '💭', title: 'Why Journals', count: journalEntries.length,
+                      color: colors.accent, onToggle: () => setJournalExpanded(!journalExpanded), expanded: journalExpanded,
+                    })}
+                  </View>
                   {journalExpanded && (
                     <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
                       {journalEntries.length === 0 ? (
                         <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No entries yet. Tap "Why?" after completing a habit.</Text>
                       ) : (
                         journalEntries.slice(0, 3).map(entry => (
-                          <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
+                          <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.accent }]}>
                             <View style={styles.journalEntryHeader}>
                               <View style={{ flex: 1 }}>
-                                <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
-                                <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
+                                <Text style={[styles.journalEntryHabit, { color: colors.accent }]}>{entry.habitName}</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 10 }}>{formatDisplayDate(entry.date)}</Text>
                               </View>
                               <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
                                 <TouchableOpacity onPress={() => openJournalEdit(entry)}>
-                                  <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
+                                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>✎</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
-                                  <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
+                                  <Text style={{ color: colors.danger, fontSize: 15 }}>✕</Text>
                                 </TouchableOpacity>
                               </View>
                             </View>
@@ -1816,45 +2092,77 @@ export default function DashboardScreen() {
   ) : (
     // ━━━━━━━━ MOBILE/TABLET: TAB-BASED LAYOUT ━━━━━━━━
     <>
-      {/* Tab Bar */}
+      {/* ── Premium Tab Bar ── */}
       <View
         style={{
           flexDirection: 'row',
           backgroundColor: colors.surface,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          paddingTop: 2,
         }}
       >
         {([
-          { id: 'habits', label: 'Habits' },
-          { id: 'progress', label: 'Progress' },
-          { id: 'journals', label: 'Journals' },
-          { id: 'calendar', label: 'Calendar' },
-        ] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            onPress={() => setCurrentTab(tab.id === 'habits' ? 'today' : tab.id)}
-            style={{
-              flex: 1,
-              paddingVertical: Spacing.md,
-              borderBottomWidth: activeTab === tab.id ? 2 : 0,
-              borderBottomColor: colors.accent,
-            }}
-          >
-            <Text
+          {
+            id: 'habits', label: 'Habits', icon: '🏠',
+            badge: goodHabits.length > 0 && completedGoodHabits.length < goodHabits.length
+              ? `${goodHabits.length - completedGoodHabits.length}`
+              : null,
+            badgeColor: colors.warning,
+          },
+          { id: 'progress', label: 'Progress', icon: '📊', badge: null, badgeColor: null },
+          {
+            id: 'journals', label: 'Journal', icon: '📓',
+            badge: todos && todos.filter(t => !t.completed).length > 0
+              ? `${todos.filter(t => !t.completed).length}`
+              : null,
+            badgeColor: colors.accent,
+          },
+          { id: 'calendar', label: 'Calendar', icon: '📅', badge: null, badgeColor: null },
+        ] as const).map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => setCurrentTab(tab.id === 'habits' ? 'today' : tab.id)}
               style={{
-                textAlign: 'center',
-                fontSize: FontSize.xs,
-                color: activeTab === tab.id ? colors.accent : colors.textSecondary,
-                fontWeight: activeTab === tab.id ? '700' : '400',
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: 'center',
+                borderBottomWidth: isActive ? 2 : 0,
+                borderBottomColor: colors.accent,
               }}
             >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity onPress={() => { setLocalPrefs(prefs); setShowCustomizeModal(true); }} style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md }}>
-          <Text style={{ fontSize: 18 }}>⚙️</Text>
+              <View style={{ position: 'relative', marginBottom: 2 }}>
+                <Text style={{ fontSize: 15 }}>{tab.icon}</Text>
+                {tab.badge && !isActive && (
+                  <View style={{
+                    position: 'absolute', top: -4, right: -8,
+                    backgroundColor: tab.badgeColor || colors.warning,
+                    borderRadius: 8, minWidth: 16, height: 16,
+                    alignItems: 'center', justifyContent: 'center',
+                    paddingHorizontal: 3,
+                  }}>
+                    <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>{tab.badge}</Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                style={{
+                  fontSize: FontSize.xs,
+                  color: isActive ? colors.accent : colors.textSecondary,
+                  fontWeight: isActive ? '700' : '500',
+                  letterSpacing: 0.3,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity onPress={() => { setLocalPrefs(prefs); setShowCustomizeModal(true); }} style={{ paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 15 }}>⚙️</Text>
         </TouchableOpacity>
       </View>
 
@@ -1867,21 +2175,79 @@ export default function DashboardScreen() {
         {/* ━━ HABITS TAB ━━ */}
         {currentTab === 'today' && (
           <>
-            {/* ── Daily Motivation Quote ── */}
+            {/* ── Premium Command Header ── */}
+            <View style={{ marginHorizontal: -contentPadding, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, padding: contentPadding, paddingBottom: 12 }}>
+              {/* Row 1: Greeting + Level Badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '600' }}>
+                    Good {getGreeting()}
+                  </Text>
+                  <Text style={{ color: colors.text, fontSize: FontSize.lg, fontWeight: '800', letterSpacing: -0.5 }} numberOfLines={1}>
+                    {settings.realName || settings.username || 'Champion'}
+                  </Text>
+                </View>
+                {/* RPG Level Badge */}
+                <View style={{
+                  backgroundColor: colors.accent,
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  alignItems: 'center',
+                  minWidth: 64,
+                }}>
+                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>Level</Text>
+                  <Text style={{ color: '#000', fontSize: 24, fontWeight: '900', lineHeight: 28 }}>{stats.level}</Text>
+                </View>
+              </View>
+
+              {/* Row 2: XP Progress Bar */}
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>
+                    ⚡ XP to Level {stats.level + 1}
+                  </Text>
+                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
+                </View>
+                <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
+                  <View style={{
+                    height: 5,
+                    width: `${stats.xp % 100}%` as any,
+                    backgroundColor: colors.accent,
+                    borderRadius: 3,
+                  }} />
+                </View>
+              </View>
+
+              {/* Row 3: Quick stat chips */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent : colors.text, fontSize: 15, fontWeight: '800', lineHeight: 18 }}>
+                    {completedGoodHabits.length}/{goodHabits.length}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1, fontWeight: '600' }}>Today</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: longestStreak > 0 ? colors.warning : colors.textSecondary, fontSize: 15, fontWeight: '800', lineHeight: 18 }}>
+                    {longestStreak > 0 ? `🔥 ${longestStreak}` : '—'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1, fontWeight: '600' }}>Streak</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: weekStats.completionRate >= 80 ? colors.success : weekStats.completionRate >= 50 ? colors.warning : colors.textSecondary, fontSize: 15, fontWeight: '800', lineHeight: 18 }}>
+                    {weekStats.completionRate}%
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1, fontWeight: '600' }}>This Week</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ── Daily Quote (refined) ── */}
             {prefs.showMotivationQuote && (
               <View style={{ marginHorizontal: -contentPadding, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.accentLight }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontStyle: 'italic', lineHeight: FontSize.sm * 1.5 }} numberOfLines={2}>
+                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontStyle: 'italic', lineHeight: FontSize.xs * 1.6 }} numberOfLines={2}>
                   {dailyQuote}
                 </Text>
-              </View>
-            )}
-
-            {/* ── Streak Highlight ── */}
-            {prefs.showStreakHighlight && habitWithLongestStreak && longestStreak > 0 && (
-              <View style={{ marginHorizontal: -contentPadding, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '700' }}>🔥 Best Streak: </Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '800' }}>{longestStreak}d</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginLeft: Spacing.xs }}>{habitWithLongestStreak.name}</Text>
               </View>
             )}
 
@@ -1894,14 +2260,132 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* ── BUILD section ── */}
+            {/* ── DONE FOR TODAY card — replaces habit list when all done ── */}
+            {bonusEarnedToday && goodHabits.length > 0 && (() => {
+              const sessionMin = Math.floor((Date.now() - sessionStartRef.current) / 60000);
+              const sessionSec = Math.floor((Date.now() - sessionStartRef.current) / 1000) % 60;
+              const sessionStr = sessionMin > 0 ? `${sessionMin}m ${sessionSec}s` : `${sessionSec}s`;
+              const xpToday = completedGoodHabits.length + 2; // 1 per habit + 2 bonus
+              const dayPhrases = [
+                "Your habits are done — go live your day. 🌍",
+                "That's it for today. Great work. 💪",
+                "Done. Now go be the person you're building. 🚀",
+                "All checked. The real world awaits. ✨",
+                "You showed up for yourself today. 🏆",
+                "Mission complete. See you tomorrow. 👊",
+                "Today's chapter: complete. 📖",
+              ];
+              const phrase = dayPhrases[new Date().getDay() % dayPhrases.length];
+              return (
+                <View style={{ alignItems: 'center', padding: Spacing.lg, paddingTop: Spacing.xl }}>
+                  {/* Big check badge */}
+                  <View style={{
+                    width: 84, height: 84, borderRadius: 42,
+                    backgroundColor: colors.accent,
+                    alignItems: 'center', justifyContent: 'center',
+                    marginBottom: Spacing.md,
+                    shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8,
+                  }}>
+                    <Text style={{ fontSize: 42, color: '#000' }}>✓</Text>
+                  </View>
+
+                  {/* Title + phrase */}
+                  <Text style={{ fontSize: FontSize.xxl, fontWeight: '900', color: colors.text, textAlign: 'center', marginBottom: 6 }}>
+                    All done for today!
+                  </Text>
+                  <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg, lineHeight: FontSize.sm * 1.6 }}>
+                    {phrase}
+                  </Text>
+
+                  {/* Stats chips */}
+                  <View style={{ flexDirection: 'row', gap: 8, width: '100%', marginBottom: Spacing.md }}>
+                    <View style={{ flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontSize: FontSize.lg, fontWeight: '800', color: colors.warning }}>🔥 {longestStreak}</Text>
+                      <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>day streak</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontSize: FontSize.lg, fontWeight: '800', color: colors.accent }}>⚡ +{xpToday}</Text>
+                      <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>XP today</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontSize: FontSize.lg, fontWeight: '800', color: colors.text }}>🕐 {sessionStr}</Text>
+                      <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>session</Text>
+                    </View>
+                  </View>
+
+                  {/* Tomorrow's preview */}
+                  <View style={{ width: '100%', backgroundColor: colors.surface, borderRadius: 14, padding: Spacing.md, borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.md }}>
+                    <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: Spacing.sm }}>
+                      Tomorrow's habits ({goodHabits.length})
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {goodHabits.slice(0, 4).map(h => (
+                        <View key={h.id} style={{ backgroundColor: colors.accentLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '40' }}>
+                          <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '600' }} numberOfLines={1}>{h.name}</Text>
+                        </View>
+                      ))}
+                      {goodHabits.length > 4 && (
+                        <View style={{ backgroundColor: colors.surfaceLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>+{goodHabits.length - 4} more</Text>
+                        </View>
+                      )}
+                    </View>
+                    {longestStreak > 0 && (
+                      <Text style={{ color: colors.warning, fontSize: FontSize.xs, marginTop: Spacing.sm, fontWeight: '700' }}>
+                        🔥 Come back tomorrow to keep your {longestStreak}-day streak!
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Screen time nudge (appears after 10 min) */}
+                  {sessionMin >= 10 && (
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textAlign: 'center', fontStyle: 'italic', marginBottom: Spacing.sm }}>
+                      You've been here {sessionMin} minutes. Your habits are done — you're free. 👋
+                    </Text>
+                  )}
+
+                  {/* Jump to progress or edit */}
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs }}>
+                    <Button title="📊 See Progress" variant="ghost" size="small" onPress={() => setCurrentTab('progress')} />
+                    <TouchableOpacity onPress={() => setBonusEarnedToday(false)} style={{ paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textDecorationLine: 'underline' }}>Edit habits</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* ── BUILD / BREAK sections — hidden when all habits are done ── */}
+            {!bonusEarnedToday && (
+            <>
             {goodHabits.length > 0 && (
-              <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.sm, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
-                <View style={{ width: 3, height: 12, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.xs }} />
-                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Build</Text>
-                <Text style={{ fontSize: FontSize.xs, color: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent : colors.textSecondary, fontWeight: '600' }}>
-                  {completedGoodHabits.length}/{goodHabits.length} done
-                </Text>
+              <View style={{
+                marginHorizontal: -contentPadding,
+                flexDirection: 'row', alignItems: 'center',
+                paddingHorizontal: contentPadding, paddingVertical: 10,
+                backgroundColor: colors.surface,
+                borderTopWidth: 1, borderTopColor: colors.border,
+                borderBottomWidth: 1, borderBottomColor: colors.border,
+                marginTop: Spacing.sm,
+              }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 4, height: 16, backgroundColor: colors.accent, borderRadius: 2 }} />
+                  <Text style={{ fontSize: FontSize.xs, fontWeight: '800', color: colors.text, letterSpacing: 0.5, textTransform: 'uppercase' }}>✅ Build</Text>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>habits to grow</Text>
+                </View>
+                <View style={{
+                  backgroundColor: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent + '20' : colors.surfaceLight,
+                  borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3,
+                  borderWidth: 1,
+                  borderColor: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent + '60' : colors.border,
+                }}>
+                  <Text style={{
+                    fontSize: 11, fontWeight: '800',
+                    color: completedGoodHabits.length === goodHabits.length && goodHabits.length > 0 ? colors.accent : colors.textSecondary,
+                  }}>
+                    {completedGoodHabits.length}/{goodHabits.length}
+                  </Text>
+                </View>
               </View>
             )}
             {goodHabits.map(renderHabitRow)}
@@ -1929,12 +2413,29 @@ export default function DashboardScreen() {
 
             {/* ── BREAK section ── */}
             {badHabits.length > 0 && (
-              <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', alignItems: 'center', paddingHorizontal: contentPadding, paddingTop: Spacing.md, paddingBottom: Spacing.xs, backgroundColor: colors.background }}>
-                <View style={{ width: 3, height: 12, backgroundColor: colors.danger, borderRadius: 2, marginRight: Spacing.xs }} />
-                <Text style={{ flex: 1, fontSize: FontSize.xs, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.8, textTransform: 'uppercase' }}>Break</Text>
-                <Text style={{ fontSize: FontSize.xs, color: colors.success, fontWeight: '600' }}>
-                  {badHabits.filter(h => !h.completedDates.includes(today)).length} avoided today
-                </Text>
+              <View style={{
+                marginHorizontal: -contentPadding,
+                flexDirection: 'row', alignItems: 'center',
+                paddingHorizontal: contentPadding, paddingVertical: 10,
+                backgroundColor: colors.surface,
+                borderTopWidth: 1, borderTopColor: colors.border,
+                borderBottomWidth: 1, borderBottomColor: colors.border,
+                marginTop: Spacing.md,
+              }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 4, height: 16, backgroundColor: colors.danger, borderRadius: 2 }} />
+                  <Text style={{ fontSize: FontSize.xs, fontWeight: '800', color: colors.text, letterSpacing: 0.5, textTransform: 'uppercase' }}>🚫 Break</Text>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>habits to quit</Text>
+                </View>
+                <View style={{
+                  backgroundColor: colors.success + '20',
+                  borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3,
+                  borderWidth: 1, borderColor: colors.success + '50',
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.success }}>
+                    {badHabits.filter(h => !h.completedDates.includes(today)).length} clean
+                  </Text>
+                </View>
               </View>
             )}
             {badHabits.map(renderHabitRow)}
@@ -1989,6 +2490,8 @@ export default function DashboardScreen() {
                 )}
               </View>
             )}
+          </>)}
+          {/* ── End of BUILD/BREAK conditional wrapper ── */}
 
           </>
         )}
@@ -1997,18 +2500,87 @@ export default function DashboardScreen() {
         {currentTab === 'progress' && (
           <>
             {/* Compact stats grid */}
+            {/* ── RPG Level Card ── */}
+            <View style={{ marginHorizontal: -contentPadding, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, padding: contentPadding }}>
+              {/* Level + XP row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                {/* Big level badge */}
+                <View style={{
+                  width: 70, height: 70, borderRadius: 35,
+                  backgroundColor: colors.accent,
+                  alignItems: 'center', justifyContent: 'center',
+                  marginRight: 14,
+                  shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 12,
+                  elevation: 6,
+                }}>
+                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
+                  <Text style={{ color: '#000', fontSize: 28, fontWeight: '900', lineHeight: 32 }}>{stats.level}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '800', marginBottom: 2 }}>
+                    {stats.level < 5 ? 'Habit Seeker' : stats.level < 10 ? 'Habit Builder' : stats.level < 20 ? 'Habit Master' : stats.level < 50 ? 'Habit Legend' : '💎 Ascended'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: 8 }}>
+                    {100 - (stats.xp % 100)} XP to Level {stats.level + 1}
+                  </Text>
+                  {/* XP Bar */}
+                  <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4 }}>
+                    <View style={{
+                      height: 8,
+                      width: `${stats.xp % 100}%` as any,
+                      backgroundColor: colors.accent,
+                      borderRadius: 4,
+                    }} />
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 3, fontWeight: '600' }}>
+                    {stats.xp % 100}/100 XP
+                  </Text>
+                </View>
+              </View>
+
+              {/* Milestone Badges row */}
+              <View>
+                <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>Milestone Badges</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {([
+                    { count: 7, label: '7', emoji: '🌟', title: 'First Week' },
+                    { count: 30, label: '30', emoji: '⚡', title: 'One Month' },
+                    { count: 50, label: '50', emoji: '🔥', title: 'On Fire' },
+                    { count: 100, label: '100', emoji: '💎', title: 'Triple Digits' },
+                    { count: 365, label: '365', emoji: '🏆', title: 'Legendary' },
+                  ]).map(badge => {
+                    const earned = totalHabitsCompleted >= badge.count;
+                    return (
+                      <View key={badge.count} style={{
+                        flex: 1, alignItems: 'center',
+                        backgroundColor: earned ? colors.accent + '20' : colors.background,
+                        borderRadius: 10, paddingVertical: 8,
+                        borderWidth: 1,
+                        borderColor: earned ? colors.accent + '60' : colors.border,
+                        opacity: earned ? 1 : 0.45,
+                      }}>
+                        <Text style={{ fontSize: 20 }}>{badge.emoji}</Text>
+                        <Text style={{ color: earned ? colors.accent : colors.textSecondary, fontSize: 10, fontWeight: '800', marginTop: 2 }}>{badge.label}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* ── Stats Grid ── */}
             <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {([
                 { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accent },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Level', value: `${stats.level}`, sub: `${stats.xp % 100}/100 XP`, color: colors.accent },
+                { label: 'Total', value: `${totalHabitsCompleted}`, sub: 'habits done', color: colors.accent },
                 { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
                 { label: 'Best', value: `${longestStreak}d`, sub: 'longest', color: colors.warning },
               ] as const).map((s, i) => (
                 <View key={i} style={{ width: '33.33%', alignItems: 'center', paddingVertical: Spacing.sm, borderRightWidth: i % 3 !== 2 ? 1 : 0, borderBottomWidth: i < 3 ? 1 : 0, borderColor: colors.border }}>
-                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 2 }}>{s.label}</Text>
-                  <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: s.color }}>{s.value}</Text>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 2, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</Text>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: '800', color: s.color }}>{s.value}</Text>
                   <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }} numberOfLines={1}>{s.sub}</Text>
                 </View>
               ))}
@@ -2039,13 +2611,13 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs, paddingHorizontal: Spacing.sm }}>Good-habit completion %</Text>
-              <View style={{ height: 130, marginBottom: Spacing.md }}>
+              <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.sm, paddingHorizontal: Spacing.sm }}>Good-habit completion %</Text>
+              <View style={{ height: 130, marginBottom: Spacing.xl }}>
                 <LineGraph data={chartData} labels={chartLabels} paddingHorizontal={contentPadding} />
               </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.sm }}>
-                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.xs, paddingHorizontal: Spacing.sm }}>📈 Cumulative habit completions</Text>
-                <View style={{ height: 130 }}>
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md }}>
+                <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginBottom: Spacing.sm, paddingHorizontal: Spacing.sm }}>📈 Cumulative habit completions</Text>
+                <View style={{ height: 130, marginBottom: Spacing.md }}>
                   <LineGraph data={cumulativeChartData} labels={chartLabels} paddingHorizontal={contentPadding} />
                 </View>
               </View>
@@ -2241,178 +2813,237 @@ export default function DashboardScreen() {
         {/* ━━ JOURNALS TAB ━━ */}
         {currentTab === 'journals' && (
           <>
-            {/* ── Quick Tasks (Todo) ── */}
-            <Card style={{ marginBottom: Spacing.md }}>
-              <Text style={[styles.subsectionLabel, { color: colors.text, marginBottom: Spacing.md }]}>📋 Quick Tasks</Text>
-              <View style={{ flexDirection: 'row', marginBottom: Spacing.md }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.background, marginRight: Spacing.sm, fontSize: FontSize.sm }]}
-                  placeholder="Add a quick task..."
-                  placeholderTextColor={colors.textTertiary}
-                  onChangeText={setQuickAddTodoText}
-                  value={quickAddTodoText}
-                />
-                <TouchableOpacity
-                  onPress={() => {
-                    if (quickAddTodoText?.trim?.() && addTodo) {
-                      const newTodo: Todo = {
-                        id: Date.now().toString(),
-                        title: quickAddTodoText.trim(),
-                        completed: false,
-                        createdAt: new Date().toISOString(),
-                        xpReward: 1,
-                      };
-                      addTodo(newTodo);
-                      setQuickAddTodoText('');
-                    }
-                  }}
-                  style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: Spacing.sm, justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>+</Text>
-                </TouchableOpacity>
-              </View>
-              {!todos || todos.length === 0 ? (
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>No tasks yet</Text>
-              ) : (
-                todos.map(todo => (
-                  <View key={todo.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs, backgroundColor: todo.completed ? colors.success + '15' : 'transparent', borderRadius: BorderRadius.sm, marginBottom: Spacing.xs }}>
-                    <TouchableOpacity
-                      onPress={() => toggleTodo && toggleTodo(todo.id)}
-                      style={{ width: 18, height: 18, borderRadius: 3, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: todo.completed ? colors.accent : 'transparent', marginRight: Spacing.sm, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      {todo.completed && <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>✓</Text>}
-                    </TouchableOpacity>
-                    <Text style={{ flex: 1, color: todo.completed ? colors.textSecondary : colors.text, fontSize: FontSize.sm, textDecorationLine: todo.completed ? 'line-through' : 'none' }}>{todo.title}</Text>
-                    <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: FontSize.xs }}>+{todo.xpReward} XP</Text>
-                    <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)}>
-                      <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </Card>
+            {/* ── Sub-navigation: Tasks / Wins & Goals / Recovery ── */}
+            <View style={{
+              marginHorizontal: -contentPadding,
+              flexDirection: 'row', gap: 0,
+              backgroundColor: colors.surface,
+              borderBottomWidth: 1, borderBottomColor: colors.border,
+              paddingHorizontal: contentPadding, paddingVertical: Spacing.sm,
+            }}>
+              {([
+                { id: 'tasks' as const, label: '📋 Tasks', badge: todos?.filter(t => !t.completed).length || 0 },
+                { id: 'records' as const, label: '🏆 Wins & Goals', badge: 0 },
+                { id: 'recovery' as const, label: '🔄 Recovery', badge: 0 },
+              ]).map(st => {
+                const isActive = journalsSubTab === st.id;
+                return (
+                  <TouchableOpacity
+                    key={st.id}
+                    onPress={() => setJournalsSubTab(st.id)}
+                    style={{
+                      flex: 1, alignItems: 'center', paddingVertical: 7, paddingHorizontal: 4,
+                      borderRadius: 8,
+                      backgroundColor: isActive ? colors.accent + '20' : 'transparent',
+                      borderWidth: isActive ? 1 : 0,
+                      borderColor: isActive ? colors.accent + '50' : 'transparent',
+                      marginHorizontal: 2,
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: isActive ? '800' : '500', color: isActive ? colors.accent : colors.textSecondary, textAlign: 'center' }}>
+                      {st.label}
+                    </Text>
+                    {st.badge > 0 && !isActive && (
+                      <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2 }}>
+                        <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '700' }}>{st.badge}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            <Card style={{ marginBottom: Spacing.md }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: winsExpanded ? Spacing.md : 0 }}>
-                <TouchableOpacity onPress={() => setWinsExpanded(!winsExpanded)} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: Spacing.sm }}>
-                  <Text style={[styles.subsectionLabel, { color: colors.success }]}>Real World Wins</Text>
-                  <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({realWorldWins.length})</Text>
-                  <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                    {winsExpanded ? '▲' : '▼'}
-                  </Text>
-                </TouchableOpacity>
-                {winsExpanded && (
-                  <Button title="+ Add" variant="ghost" size="small" onPress={() => setShowAddWin(true)} />
-                )}
-              </View>
-              {winsExpanded && (
-                <>
-                  {realWorldWins.length === 0 && (
-                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No wins recorded yet. Celebrate your progress!</Text>
-                  )}
-                  {realWorldWins.slice(0, 3).map(win => (
-                    <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
-                      <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
-                      <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
+            {/* ── TASKS sub-tab ── */}
+            {journalsSubTab === 'tasks' && (
+              <Card>
+                {SectionTitle({ icon: '📋', title: 'Quick Tasks', count: todos?.length || 0 })}
+                <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.background, marginRight: Spacing.sm, fontSize: FontSize.sm }]}
+                    placeholder="Add a task..."
+                    placeholderTextColor={colors.textTertiary}
+                    onChangeText={setQuickAddTodoText}
+                    value={quickAddTodoText}
+                    onSubmitEditing={() => {
+                      if (quickAddTodoText?.trim?.() && addTodo) {
+                        addTodo({ id: Date.now().toString(), title: quickAddTodoText.trim(), completed: false, createdAt: new Date().toISOString(), xpReward: 1 });
+                        setQuickAddTodoText('');
+                      }
+                    }}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (quickAddTodoText?.trim?.() && addTodo) {
+                        addTodo({ id: Date.now().toString(), title: quickAddTodoText.trim(), completed: false, createdAt: new Date().toISOString(), xpReward: 1 });
+                        setQuickAddTodoText('');
+                      }
+                    }}
+                    style={{ backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: Spacing.sm, justifyContent: 'center', minWidth: 36, alignItems: 'center' }}
+                  >
+                    <Text style={{ color: '#000', fontSize: FontSize.sm, fontWeight: '800' }}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                {!todos || todos.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.md, fontStyle: 'italic' }}>No tasks yet — add one above</Text>
+                ) : (
+                  todos.map(todo => (
+                    <View key={todo.id} style={{
+                      flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+                      borderBottomWidth: 1, borderBottomColor: colors.border,
+                    }}>
+                      <TouchableOpacity
+                        onPress={() => toggleTodo && toggleTodo(todo.id)}
+                        style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.accent, backgroundColor: todo.completed ? colors.accent : 'transparent', marginRight: Spacing.sm, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        {todo.completed && <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>✓</Text>}
+                      </TouchableOpacity>
+                      <Text style={{ flex: 1, color: todo.completed ? colors.textSecondary : colors.text, fontSize: FontSize.sm, textDecorationLine: todo.completed ? 'line-through' : 'none' }}>{todo.title}</Text>
+                      <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: 10 }}>+{todo.xpReward}xp</Text>
+                      <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)} style={{ padding: 4 }}>
+                        <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
+                      </TouchableOpacity>
                     </View>
-                  ))}
-                  {realWorldWins.length > 3 && (
-                    <TouchableOpacity
-                      style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
-                    >
-                      <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                        View All Wins ({realWorldWins.length})
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </Card>
+                  ))
+                )}
+              </Card>
+            )}
 
-            <Card style={{ marginBottom: Spacing.md }}>
-              <TouchableOpacity onPress={() => setRelapseExpanded(!relapseExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: relapseExpanded ? Spacing.md : 0 }}>
-                <Text style={[styles.subsectionLabel, { color: colors.danger }]}>Relapse Recovery</Text>
-                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({relapseLog.length})</Text>
-                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                  {relapseExpanded ? '▲' : '▼'}
-                </Text>
-              </TouchableOpacity>
-              {relapseExpanded && (
-                <>
-                  {relapseLog.length === 0 ? (
-                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No relapses logged. Keep it up!</Text>
-                  ) : (
+            {/* ── WINS & GOALS sub-tab ── */}
+            {journalsSubTab === 'records' && (
+              <>
+                {/* Real World Wins */}
+                <Card style={{ marginBottom: Spacing.xs }}>
+                  {SectionTitle({
+                    icon: '🏆', title: 'Real World Wins', count: realWorldWins.length,
+                    color: colors.success,
+                    onToggle: () => setWinsExpanded(!winsExpanded),
+                    expanded: winsExpanded,
+                    action: winsExpanded ? (
+                      <TouchableOpacity onPress={() => setShowAddWin(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
+                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                      </TouchableOpacity>
+                    ) : undefined,
+                  })}
+                  {winsExpanded && (
                     <>
-                      {relapseLog.slice(0, 2).map(entry => (
-                        <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger }]}>
-                          <Text style={[styles.recoveryHabit, { color: colors.danger, fontWeight: '700' }]}>{entry.habitName}</Text>
-                          <Text style={[styles.recoveryTrigger, { color: colors.textSecondary }]}>Trigger: {entry.trigger}</Text>
-                          {entry.lesson && <Text style={[styles.recoveryLesson, { color: colors.text }]}>Lesson: {entry.lesson}</Text>}
-                          <Text style={[styles.recoveryDate, { color: colors.textSecondary, fontSize: FontSize.xs }]}>{formatDisplayDate(entry.date)}</Text>
-                        </View>
-                      ))}
-                      {relapseLog.length > 2 && (
-                        <TouchableOpacity
-                          style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
-                        >
-                          <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                            View History ({relapseLog.length})
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </Card>
-
-            <Card>
-              <TouchableOpacity onPress={() => setJournalExpanded(!journalExpanded)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: journalExpanded ? Spacing.md : 0 }}>
-                <Text style={[styles.subsectionLabel, { color: colors.accent }]}>Why Journals</Text>
-                <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>({journalEntries.length})</Text>
-                <Text style={{ marginLeft: 'auto', color: colors.textSecondary, fontSize: 14 }}>
-                  {journalExpanded ? '▲' : '▼'}
-                </Text>
-              </TouchableOpacity>
-              {journalExpanded && (
-                <>
-                  {journalEntries.length === 0 ? (
-                    <Text style={[styles.emptyNote, { color: colors.textSecondary }]}>No journal entries yet. Tap "Why?" after completing a habit.</Text>
-                  ) : (
-                    <>
-                      {journalEntries.slice(0, 2).map(entry => (
-                        <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.success }]}>
-                          <View style={styles.journalEntryHeader}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.journalEntryHabit, { color: colors.success }]}>{entry.habitName}</Text>
-                              <Text style={[styles.relapseEntryDate, { color: colors.textSecondary }]}>{formatDisplayDate(entry.date)}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-                              <TouchableOpacity onPress={() => openJournalEdit(entry)}>
-                                <Text style={{ color: colors.accent, fontSize: 16 }}>✎</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
-                                <Text style={{ color: colors.danger, fontSize: 16 }}>🗑️</Text>
-                              </TouchableOpacity>
-                            </View>
+                      {realWorldWins.length === 0 ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontStyle: 'italic', textAlign: 'center', paddingVertical: Spacing.sm }}>No wins yet — celebrate your progress!</Text>
+                      ) : (
+                        realWorldWins.slice(0, 3).map(win => (
+                          <View key={win.id} style={[styles.winEntry, { borderLeftColor: colors.success }]}>
+                            <Text style={[styles.winText, { color: colors.text }]}>{win.text}</Text>
+                            <Text style={[styles.winDate, { color: colors.textSecondary }]}>{formatDisplayDate(win.date)}</Text>
                           </View>
-                          <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
-                        </View>
-                      ))}
-                      {journalEntries.length > 2 && (
-                        <TouchableOpacity
-                          style={{ paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}
-                        >
-                          <Text style={{ color: colors.accent, fontSize: FontSize.sm, textAlign: 'center' }}>
-                            View All ({journalEntries.length})
-                          </Text>
-                        </TouchableOpacity>
+                        ))
+                      )}
+                      {realWorldWins.length > 3 && (
+                        <Text style={{ color: colors.accent, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.sm }}>+{realWorldWins.length - 3} more wins</Text>
                       )}
                     </>
                   )}
-                </>
-              )}
-            </Card>
+                </Card>
+
+                {/* Goals */}
+                <Card style={{ marginBottom: Spacing.xs }}>
+                  {SectionTitle({
+                    icon: '🎯', title: 'Goals', count: activeGoals.length,
+                    color: colors.accent,
+                    onToggle: () => setGoalsExpanded(!goalsExpanded),
+                    expanded: goalsExpanded,
+                    action: goalsExpanded ? (
+                      <TouchableOpacity onPress={() => setShowAddGoalModal(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
+                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                      </TouchableOpacity>
+                    ) : undefined,
+                  })}
+                  {goalsExpanded && (
+                    <>
+                      {activeGoals.length === 0 ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontStyle: 'italic', textAlign: 'center', paddingVertical: Spacing.sm }}>No active goals — add your first one!</Text>
+                      ) : (
+                        activeGoals.slice(0, 3).map(goal => (
+                          <TouchableOpacity key={goal.id} onPress={() => openEditGoal(goal)} style={{ paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ flex: 1, color: colors.text, fontSize: FontSize.sm, fontWeight: '600' }} numberOfLines={1}>{goal.title}</Text>
+                              <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '700' }}>{goal.progress}%</Text>
+                            </View>
+                            <View style={{ height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
+                              <View style={{ height: 3, width: `${goal.progress}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
+                            </View>
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </>
+                  )}
+                </Card>
+
+                {/* Why Journals */}
+                <Card>
+                  {SectionTitle({
+                    icon: '💭', title: 'Why Journals', count: journalEntries.length,
+                    color: colors.accent,
+                    onToggle: () => setJournalExpanded(!journalExpanded),
+                    expanded: journalExpanded,
+                  })}
+                  {journalExpanded && (
+                    <>
+                      {journalEntries.length === 0 ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontStyle: 'italic', textAlign: 'center', paddingVertical: Spacing.sm }}>
+                          No entries yet — tap "Why?" after completing a habit
+                        </Text>
+                      ) : (
+                        journalEntries.slice(0, 3).map(entry => (
+                          <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.accent }]}>
+                            <View style={styles.journalEntryHeader}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.journalEntryHabit, { color: colors.accent }]}>{entry.habitName}</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 10 }}>{formatDisplayDate(entry.date)}</Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                                <TouchableOpacity onPress={() => openJournalEdit(entry)}>
+                                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>✎</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteJournal(entry.id)}>
+                                  <Text style={{ color: colors.danger, fontSize: 15 }}>✕</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                            <Text style={[styles.journalEntryText, { color: colors.text }]}>{entry.text}</Text>
+                          </View>
+                        ))
+                      )}
+                    </>
+                  )}
+                </Card>
+              </>
+            )}
+
+            {/* ── RECOVERY sub-tab ── */}
+            {journalsSubTab === 'recovery' && (
+              <Card>
+                {SectionTitle({
+                  icon: '🔄', title: 'Relapse Recovery Log', count: relapseLog.length,
+                  color: colors.danger,
+                })}
+                {relapseLog.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: Spacing.lg }}>
+                    <Text style={{ fontSize: 36, marginBottom: Spacing.sm }}>💪</Text>
+                    <Text style={{ color: colors.text, fontSize: FontSize.sm, fontWeight: '600', marginBottom: 4 }}>Clean record!</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, textAlign: 'center' }}>No relapses logged. If you slip, tap "Relapsed" on a bad habit to learn from it.</Text>
+                  </View>
+                ) : (
+                  relapseLog.slice(0, 5).map(entry => (
+                    <View key={entry.id} style={[styles.recoveryEntry, { borderLeftColor: colors.danger, marginBottom: Spacing.sm }]}>
+                      <Text style={{ color: colors.danger, fontWeight: '700', fontSize: FontSize.sm }}>{entry.habitName}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 }}>Trigger: {entry.trigger}</Text>
+                      {entry.lesson && <Text style={{ color: colors.text, fontSize: FontSize.xs, marginTop: 2, fontStyle: 'italic' }}>"{entry.lesson}"</Text>}
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 4 }}>{formatDisplayDate(entry.date)}</Text>
+                    </View>
+                  ))
+                )}
+              </Card>
+            )}
           </>
         )}
       </ScrollView>
@@ -2478,6 +3109,54 @@ export default function DashboardScreen() {
             </View>
           </View>
         </Modal>
+      )}
+
+      {/* ── LEVEL-UP OVERLAY ────────────────────────────────────────────────── */}
+      {showLevelUp && (
+        <Modal visible transparent animationType="fade">
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setShowLevelUp(false)}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.80)', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <View style={{
+              backgroundColor: colors.surface, borderRadius: 28,
+              padding: 40, alignItems: 'center', marginHorizontal: 32,
+              borderWidth: 2, borderColor: colors.warning,
+              shadowColor: colors.warning, shadowOpacity: 0.5,
+              shadowRadius: 24, elevation: 24,
+            }}>
+              <Text style={{ fontSize: 64, marginBottom: 8 }}>⚡</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.warning, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>
+                Level Up!
+              </Text>
+              <Text style={{ fontSize: 52, fontWeight: '900', color: colors.text, lineHeight: 60, marginBottom: 4 }}>
+                {stats.level}
+              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.accent, marginBottom: 6 }}>
+                {stats.level < 5 ? 'Habit Seeker' : stats.level < 10 ? 'Habit Builder' : stats.level < 20 ? 'Habit Master' : stats.level < 50 ? 'Habit Legend' : '💎 Ascended'}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+                Keep going — your future self is watching.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowLevelUp(false)}
+                style={{ backgroundColor: colors.accent, borderRadius: 14, paddingHorizontal: 32, paddingVertical: 12 }}
+              >
+                <Text style={{ color: '#000', fontWeight: '800', fontSize: 15 }}>Let's go! 🚀</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* ── TOAST NOTIFICATIONS ─────────────────────────────────────────────── */}
+      {toasts.length > 0 && (
+        <View style={{ position: 'absolute', top: 52, left: 0, right: 0, zIndex: 9999 }} pointerEvents="box-none">
+          {toasts.map(toast => (
+            <Toast key={toast.id} message={toast} onDismiss={dismissToast} />
+          ))}
+        </View>
       )}
 
       {/* ── ADD EVENT MODAL ────────────────────────────────────────────────── */}
@@ -3190,6 +3869,28 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               </View>
+
+              {/* By Category breakdown */}
+              {categoryBreakdown.length > 0 && (
+                <View style={{ marginTop: Spacing.lg }}>
+                  <Text style={[styles.subsectionLabel, { color: colors.warning, marginBottom: Spacing.md }]}>By Category</Text>
+                  {categoryBreakdown.map(({ cat, avg }) => (
+                    <View key={cat} style={{ marginBottom: Spacing.sm }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: colors.text, fontSize: FontSize.sm }}>{cat}</Text>
+                        <Text style={{
+                          fontSize: FontSize.xs, fontWeight: '700',
+                          color: avg >= 80 ? colors.success : avg >= 50 ? colors.warning : colors.danger,
+                        }}>{avg}%</Text>
+                      </View>
+                      <ProgressBar
+                        progress={avg / 100}
+                        color={avg >= 80 ? colors.success : avg >= 50 ? colors.warning : colors.danger}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>

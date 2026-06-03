@@ -22,6 +22,19 @@ import { containsProfanity, getProfanityWarning } from '../../utils/profanityFil
 
 type CommunityTab = 'events' | 'forums';
 
+// Returns human-readable countdown to event
+function getEventCountdown(date: string, time?: string): string {
+  const eventDate = new Date(`${date}T${time || '00:00'}:00`);
+  const diff = eventDate.getTime() - Date.now();
+  if (diff < 0) return 'Past event';
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'Starting soon';
+  if (hours < 24) return `In ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Tomorrow';
+  return `In ${days} days`;
+}
+
 const FORUM_CATEGORIES = [
   'All', 'Digital Detox', 'Habits', 'Mental Health',
   'Relapse Recovery', 'Addiction Recovery', 'Fitness', 'Social',
@@ -464,9 +477,17 @@ export default function CommunityScreen() {
                 </View>
               </View>
 
-              <Text style={[s.postMeta, { marginBottom: Spacing.xs }]}>
-                {event.date}{event.time ? ` · ${event.time}` : ''} · {event.location.name}
-              </Text>
+              {/* Countdown badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xs }}>
+                <View style={{ backgroundColor: colors.accent + '20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: colors.accent + '50' }}>
+                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>
+                    {getEventCountdown(event.date, event.time)}
+                  </Text>
+                </View>
+                <Text style={[s.postMeta]}>
+                  {event.date}{event.time ? ` · ${event.time}` : ''} · {event.location.name}
+                </Text>
+              </View>
 
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.sm }} numberOfLines={3}>
                 {event.description}
@@ -948,6 +969,20 @@ export default function CommunityScreen() {
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.caption, marginTop: 2 }}>
                   {new Date(post.created_at).toLocaleDateString()}
                 </Text>
+              </View>
+              {/* Category pill + comment count badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {post.category && post.category !== 'All' && (
+                  <View style={{ backgroundColor: colors.surfaceLight, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>{post.category}</Text>
+                  </View>
+                )}
+                {(post.comment_count || 0) > 0 && (
+                  <View style={{ backgroundColor: colors.accent + '20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: colors.accent + '40' }}>
+                    <Text style={{ color: colors.accent, fontSize: 10 }}>💬</Text>
+                    <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{post.comment_count}</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -1923,21 +1958,8 @@ export default function CommunityScreen() {
         </View>
       )}
 
-      {/* Show posts list and detail side by side when post is selected on wider screens */}
-      {selectedPost && activeTab === 'forums' && screenWidth > BREAKPOINTS.tablet ? (
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          {/* Posts list on the left */}
-          <View style={{ width: '40%', borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.background }}>
-            {renderForumsListOnly()}
-          </View>
-          {/* Post detail on the right */}
-          <View style={{ flex: 1, backgroundColor: colors.background }}>
-            {renderForumsDetailOnly()}
-          </View>
-        </View>
-      ) : (
-        activeTab === 'events' ? renderEvents() : renderForums()
-      )}
+      {/* Single-column: list or detail based on selection */}
+      {activeTab === 'events' ? renderEvents() : renderForums()}
     </View>
   );
 }

@@ -119,6 +119,19 @@ export default function LearnScreen() {
   const displayed = filtered.slice(0, visibleCount);
   const alreadyAdded = (id: string) => habits.some(h => h.id === id || h.name === learnHabits.find(l => l.id === id)?.name);
 
+  // Recommended: same categories as user's existing habits, not yet added, good habits only
+  const recommended = useMemo(() => {
+    if (habits.length === 0) return [];
+    const userCategories = new Set(habits.map(h => h.category).filter(Boolean));
+    return learnHabits
+      .filter(lh =>
+        userCategories.has(lh.category) &&
+        !habits.some(h => h.name.toLowerCase() === lh.name.toLowerCase()) &&
+        lh.type === 'good'
+      )
+      .slice(0, 3);
+  }, [habits]);
+
   const handleAddHabit = (learnHabit: LearnHabit, microHabitName?: string) => {
     const name = microHabitName || learnHabit.name;
     // Micro habits are always 'good' because they help reduce bad habits
@@ -195,6 +208,62 @@ export default function LearnScreen() {
   const discoverColumn = (
     <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
         <SectionHeader title="Discover" subtitle="Learn. Decide. Act." />
+
+        {/* ── Trending chips ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: Spacing.md }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.xs }}
+        >
+          <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, fontWeight: '700', alignSelf: 'center', marginRight: 4 }}>🔥 Trending:</Text>
+          {['Meditation', 'Cold Shower', 'Deep Work Blocks', 'Breathwork', 'Gratitude Practice'].map(name => (
+            <TouchableOpacity
+              key={name}
+              onPress={() => { setSearch(name); setVisibleCount(5); setSelectedCategory(null); setSelectedType('all'); }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 4,
+                paddingHorizontal: Spacing.sm, paddingVertical: 5,
+                borderRadius: BorderRadius.full,
+                backgroundColor: colors.surfaceLight,
+                borderWidth: 1, borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: FontSize.xs, fontWeight: '600' }}>{name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ── Recommended for You (when user has habits and no active search) ── */}
+        {recommended.length > 0 && !search && !selectedCategory && (
+          <View style={{ marginBottom: Spacing.md }}>
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: Spacing.sm, paddingHorizontal: Spacing.md }}>
+              ✨ Recommended for You
+            </Text>
+            {recommended.map(lh => (
+              <TouchableOpacity
+                key={lh.id}
+                onPress={() => setSelectedHabit(lh)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  backgroundColor: colors.surface,
+                  borderRadius: BorderRadius.md,
+                  borderWidth: 1, borderColor: colors.accent + '40',
+                  padding: Spacing.sm,
+                  marginBottom: 6, marginHorizontal: Spacing.md,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: FontSize.sm, fontWeight: '700' }}>{lh.name}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 1 }} numberOfLines={1}>{lh.category}</Text>
+                </View>
+                <View style={{ backgroundColor: colors.accent + '20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '700' }}>View →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Search */}
         <View style={s.searchRow}>

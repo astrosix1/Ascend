@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { AppProvider, useApp } from './src/contexts/AppContext';
+import LoadingSkeleton, { HabitRowSkeleton } from './src/components/LoadingSkeleton';
 import AppNavigator from './src/navigation/AppNavigator';
 import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
@@ -19,6 +20,7 @@ interface AuthState {
   userId: string | null;
   email: string | null;
 }
+
 
 // Checks subscription for logged-in users.
 // Redirects to projects/ascend page if no active subscription.
@@ -240,8 +242,13 @@ function Root() {
 
   if (!auth.checked || isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#F5A623" />
+      <View style={{ flex: 1, backgroundColor: '#0F0F0F', padding: 16, paddingTop: 48 }}>
+        <LoadingSkeleton height={88} borderRadius={14} style={{ marginBottom: 12 }} />
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+          {[1, 2, 3].map(i => <LoadingSkeleton key={i} height={52} borderRadius={10} style={{ flex: 1 }} />)}
+        </View>
+        <LoadingSkeleton height={36} borderRadius={8} style={{ marginBottom: 4 }} />
+        {[1, 2, 3, 4].map(i => <HabitRowSkeleton key={i} />)}
       </View>
     );
   }
