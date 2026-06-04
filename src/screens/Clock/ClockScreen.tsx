@@ -10,6 +10,12 @@ import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { PomodoroSession, DetoxSession, Alarm } from '../../utils/types';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  scheduleAlarmNotifications,
+} from '../../utils/webPush';
 
 type ClockTab = 'alarm' | 'pomodoro' | 'detox';
 type PomodoroState = 'idle' | 'studying' | 'break';
@@ -48,6 +54,18 @@ export default function ClockScreen() {
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeTab, setActiveTab] = useState<ClockTab>('alarm');
+  const [notifPermission, setNotifPermission] = useState(getNotificationPermission());
+
+  const handleEnableNotifications = async () => {
+    const result = await requestNotificationPermission();
+    setNotifPermission(result);
+    if (result === 'granted') {
+      scheduleAlarmNotifications(alarms);
+      Alert.alert('Notifications Enabled', 'You\'ll now receive reminders for your alarms. 🔔');
+    } else if (result === 'denied') {
+      Alert.alert('Notifications Blocked', 'Please enable notifications in your browser settings to use alarms.');
+    }
+  };
 
   // ─── HELPER: Calculate timer state from global activeTimer ──────────────────
   // Consolidated to eliminate duplication in initial state and sync logic
@@ -524,6 +542,32 @@ export default function ClockScreen() {
             </View>
             <ScrollView style={{ flex: 1, padding: Spacing.md }} contentContainerStyle={{ paddingBottom: 40 }}>
             {activeTab === 'alarm' && <>
+            {/* Push notification permission banner */}
+            {isNotificationSupported() && notifPermission !== 'granted' && (
+              <Card>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Text style={{ fontSize: 24 }}>🔔</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.alarmLabel, { color: colors.text, fontWeight: '600', marginBottom: 2 }]}>
+                      Enable Alarm Notifications
+                    </Text>
+                    <Text style={[s.alarmLabel, { color: colors.textSecondary }]}>
+                      {notifPermission === 'denied'
+                        ? 'Notifications blocked. Enable in browser settings.'
+                        : 'Get browser reminders when your alarms fire.'}
+                    </Text>
+                  </View>
+                  {notifPermission !== 'denied' && (
+                    <TouchableOpacity
+                      onPress={handleEnableNotifications}
+                      style={{ backgroundColor: colors.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Enable</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </Card>
+            )}
             {alarms.map(alarm => (
               <Card key={alarm.id}>
                 <View style={s.alarmRow}>

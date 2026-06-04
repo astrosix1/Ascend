@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Colors, ThemeColors } from '../utils/theme';
 import { getData, setData, KEYS } from '../utils/storage';
+import { initPushNotifications, scheduleAlarmNotifications } from '../utils/webPush';
 import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm, Todo } from '../utils/types';
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
@@ -277,7 +278,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (savedDetox) setDetoxHistory(savedDetox);
         if (savedFavorites) setForumFavorites(savedFavorites);
         if (savedReflections) setReflectionResponses(savedReflections);
-        if (savedAlarms) setAlarmsState(savedAlarms);
+        if (savedAlarms) {
+          setAlarmsState(savedAlarms);
+          // Initialize push notifications with saved alarms
+          initPushNotifications(savedAlarms).catch(err =>
+            console.warn('[Push] Init error:', err)
+          );
+        }
       }).catch(err => {
         console.warn('[AppContext] Deferred data load error:', err);
       });
@@ -1107,6 +1114,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setAlarms = useCallback((updated: Alarm[]) => {
     setAlarmsState(updated);
     persist(KEYS.ALARMS, updated);
+    // Reschedule web push notifications whenever alarms change
+    scheduleAlarmNotifications(updated);
   }, [persist]);
 
   const clearSyncError = useCallback(() => setSyncError(null), []);
