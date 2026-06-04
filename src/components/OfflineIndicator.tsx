@@ -39,7 +39,7 @@ export function OfflineIndicator({ theme = 'dark' }: OfflineIndicatorProps) {
   return (
     <View
       style={{
-        backgroundColor: '#f39c12', // Orange warning color
+        backgroundColor: colors.warning,
         paddingHorizontal: 16,
         paddingVertical: 8,
         flexDirection: 'row',
@@ -48,11 +48,11 @@ export function OfflineIndicator({ theme = 'dark' }: OfflineIndicatorProps) {
         gap: 8,
       }}
     >
-      <Text style={{ color: '#1A1A1A', fontSize: 12, fontWeight: '600' }}>
+      <Text style={{ color: colors.background, fontSize: 12, fontWeight: '600' }}>
         ⚠️ Offline
       </Text>
-      <Text style={{ color: '#1A1A1A', fontSize: 12 }}>·</Text>
-      <Text style={{ color: '#1A1A1A', fontSize: 12 }}>
+      <Text style={{ color: colors.background, fontSize: 12 }}>·</Text>
+      <Text style={{ color: colors.background, fontSize: 12 }}>
         Changes will sync when you're back online
       </Text>
     </View>

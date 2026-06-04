@@ -1,8 +1,12 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
+import { useApp } from '../contexts/AppContext';
+import { Spacing, FontSize } from '../utils/theme';
 
 export const Paywall: React.FC = () => {
+  const { colors } = useApp();
+
   const handleSubscribe = async (plan: string) => {
     const url = `https://asix.live/checkout?app=ascend&plan=${plan}`;
     try {
@@ -13,13 +17,13 @@ export const Paywall: React.FC = () => {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#1A1A1A' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 }}>
-        <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#FFF', marginBottom: 8 }}>
+        <Text style={{ fontSize: 32, fontWeight: 'bold', color: colors.text, marginBottom: 8 }}>
           🚀 Ascend Pro
         </Text>
-        <Text style={{ fontSize: 14, color: '#888', textAlign: 'center' }}>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center' }}>
           Unlock the full power of habit tracking with advanced features and unlimited access
         </Text>
       </View>
@@ -29,25 +33,25 @@ export const Paywall: React.FC = () => {
         {/* Free Tier */}
         <View
           style={{
-            backgroundColor: '#222',
+            backgroundColor: colors.surface,
             borderRadius: 12,
             padding: 20,
             marginBottom: 16,
             borderWidth: 1,
-            borderColor: '#333',
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFF', marginBottom: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>
             Free Tier (Current)
           </Text>
           <View style={{ gap: 8 }}>
-            <Text style={{ color: '#888', fontSize: 14 }}>✓ Limited to 5 habits</Text>
-            <Text style={{ color: '#888', fontSize: 14 }}>✓ Basic analytics</Text>
-            <Text style={{ color: '#888', fontSize: 14 }}>✓ Offline mode</Text>
-            <Text style={{ color: '#e74c3c', fontSize: 14 }}>✗ Cloud sync limited</Text>
-            <Text style={{ color: '#e74c3c', fontSize: 14 }}>✗ Community features</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>✓ Limited to 5 habits</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>✓ Basic analytics</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>✓ Offline mode</Text>
+            <Text style={{ color: colors.danger, fontSize: 14 }}>✗ Cloud sync limited</Text>
+            <Text style={{ color: colors.danger, fontSize: 14 }}>✗ Community features</Text>
           </View>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFF', marginTop: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginTop: 16 }}>
             $0/month
           </Text>
         </View>
@@ -55,37 +59,37 @@ export const Paywall: React.FC = () => {
         {/* Pro Tier */}
         <View
           style={{
-            backgroundColor: '#1A3A3A',
+            backgroundColor: colors.surfaceLight,
             borderRadius: 12,
             padding: 20,
             borderWidth: 2,
-            borderColor: '#F5A623',
+            borderColor: colors.accent,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFF', marginBottom: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>
             Pro Tier (Recommended)
           </Text>
           <View style={{ gap: 8 }}>
-            <Text style={{ color: '#2ECC71', fontSize: 14 }}>✓ Unlimited habits</Text>
-            <Text style={{ color: '#2ECC71', fontSize: 14 }}>✓ Advanced analytics & insights</Text>
-            <Text style={{ color: '#2ECC71', fontSize: 14 }}>✓ Full cloud sync</Text>
-            <Text style={{ color: '#2ECC71', fontSize: 14 }}>✓ Community access</Text>
-            <Text style={{ color: '#2ECC71', fontSize: 14 }}>✓ Priority support</Text>
+            <Text style={{ color: colors.success, fontSize: 14 }}>✓ Unlimited habits</Text>
+            <Text style={{ color: colors.success, fontSize: 14 }}>✓ Advanced analytics & insights</Text>
+            <Text style={{ color: colors.success, fontSize: 14 }}>✓ Full cloud sync</Text>
+            <Text style={{ color: colors.success, fontSize: 14 }}>✓ Community access</Text>
+            <Text style={{ color: colors.success, fontSize: 14 }}>✓ Priority support</Text>
           </View>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#F5A623', marginTop: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.accent, marginTop: 16 }}>
             $9.99/month
           </Text>
           <TouchableOpacity
             onPress={() => handleSubscribe('pro')}
             style={{
-              backgroundColor: '#F5A623',
+              backgroundColor: colors.accent,
               paddingVertical: 12,
               borderRadius: 8,
               marginTop: 16,
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: '#000', fontSize: 16, fontWeight: 'bold' }}>
+            <Text style={{ color: colors.background, fontSize: 16, fontWeight: 'bold' }}>
               Subscribe to Pro
             </Text>
           </TouchableOpacity>
@@ -94,7 +98,7 @@ export const Paywall: React.FC = () => {
 
       {/* Enterprise CTA */}
       <View style={{ paddingHorizontal: 20, marginBottom: 40 }}>
-        <Text style={{ color: '#888', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
           Need more? Contact us for enterprise plans
         </Text>
         <TouchableOpacity
@@ -103,19 +107,19 @@ export const Paywall: React.FC = () => {
             paddingVertical: 12,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: '#666',
+            borderColor: colors.border,
             alignItems: 'center',
           }}
         >
-          <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '500' }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '500' }}>
             Contact Sales
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* FAQ */}
-      <View style={{ paddingHorizontal: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#333', paddingTop: 20 }}>
-        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFF', marginBottom: 12 }}>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 20 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>
           FAQ
         </Text>
         <View style={{ gap: 12 }}>
