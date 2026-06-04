@@ -25,6 +25,7 @@ import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 import DailyProgressRing from '../../components/DailyProgressRing';
+import { HabitRowSkeleton, StatCardSkeleton } from '../../components/LoadingSkeleton';
 
 type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)
@@ -384,6 +385,7 @@ export default function DashboardScreen() {
     milestoneTrigger,
     totalHabitsCompleted,
     milestonesCrossed,
+    isLoading,
   } = useApp();
 
   const today = getToday();
@@ -3635,7 +3637,12 @@ export default function DashboardScreen() {
               )}
 
               {/* ── Habit list ── */}
-              {habits.length === 0 && !showAddForm && (
+              {isLoading && (
+                <View style={{ marginTop: Spacing.md }}>
+                  {[1, 2, 3].map(i => <HabitRowSkeleton key={i} />)}
+                </View>
+              )}
+              {!isLoading && habits.length === 0 && !showAddForm && (
                 <Text style={[styles.emptyNote, { color: colors.textSecondary, textAlign: 'center', marginTop: Spacing.lg }]}>
                   No habits yet. Tap "＋ New Habit" to get started!
                 </Text>
