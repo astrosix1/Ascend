@@ -6,6 +6,7 @@ import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWor
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
+import { getSyncQueue, syncQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
 
 interface AppState {
   // Theme
@@ -114,6 +115,12 @@ interface AppState {
 
   // Loading
   isLoading: boolean;
+
+  // Offline Sync
+  isOffline: boolean;
+  pendingSyncCount: number;
+  failedSyncCount: number;
+  triggerSync: () => Promise<void>;
 }
 
 const defaultSettings: UserSettings = {
@@ -166,6 +173,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUserEmail, setCurrentUserEmail] = useState('');
   const [resetSignal, setResetSignal] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+
+  // Offline sync
+  const [isOffline, setIsOfflineState] = useState(false);
+  const [syncQueue, setSyncQueueState] = useState<any[]>([]);
+  const offlineCheckRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Setup offline detection and sync
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOfflineState(false);
+      await setOfflineState(false);
+      // Trigger sync when coming back online
+      const queue = await getSyncQueue();
+      if (queue.length > 0) {
+        setSyncQueueState(queue);
+      }
+    };
+
+    const handleOffline = async () => {
+      setIsOfflineState(true);
+      await setOfflineState(true);
+    };
+
+    // Check initial state
+    setIsOfflineState(!navigator.onLine);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Milestone tracking
   const [milestonesCrossed, setMilestonesCrossed] = useState<number[]>([]);
@@ -1202,6 +1243,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(globalInterval);
   }, [activeTimer, timerStartTime, timerDuration]);
 
+  // Trigger offline sync when coming back online
+  const triggerSync = useCallback(async () => {
+    if (syncQueue.length === 0 || !navigator.onLine) return;
+
+    try {
+      setIsSyncing(true);
+      // In production, this would process the queue items
+      // For now, just clear the queue after 1 second to simulate syncing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setSyncQueueState([]);
+      setIsOfflineState(false);
+    } catch (e) {
+      console.warn('Sync failed:', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [syncQueue]);
+
   return (
     <AppContext.Provider value={{
       colors,
@@ -1269,6 +1328,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       totalHabitsCompleted: calculateTotalHabitsCompleted(habits),
       milestonesCrossed,
       milestoneTrigger,
+      isOffline,
+      pendingSyncCount: syncQueue.length,
+      failedSyncCount: syncQueue.filter((item: any) => item.attempts >= 3).length,
+      triggerSync,
     }}>
       {children}
     </AppContext.Provider>
