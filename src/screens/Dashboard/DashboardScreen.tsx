@@ -11,6 +11,7 @@ import {
   Switch,
   Animated,
 } from 'react-native';
+import DOMPurify from 'dompurify';
 import Toast, { ToastMessage } from '../../components/Toast';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
@@ -393,9 +394,12 @@ export default function DashboardScreen() {
 
   // ── XP System Handler ──────────────────────────────────────────────────────
   const handleToggleHabit = (habitId: string, date: string) => {
-    // Check if habit was completed before toggle
+    // ────────────────────────────────────────────────────────────────────────────────
+    // SECURITY FIX #5: Add null check on habit toggle
+    // Prevent crashes if habit doesn't exist or is deleted during toggle
+    // ────────────────────────────────────────────────────────────────────────────────
     const habit = habits.find(h => h.id === habitId);
-    if (!habit) return;
+    if (!habit || !habitId) return; // Extra safety check
 
     const wasCompleted = habit.completedDates.includes(date);
 
@@ -1026,13 +1030,33 @@ export default function DashboardScreen() {
   const [editDateForHabit, setEditDateForHabit] = useState<string>(today);
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // SECURITY FIX #4: Add input validation and sanitization on habit names
+  // Prevents XSS and ensures habit names are reasonable length
+  // ──────────────────────────────────────────────────────────────────────────────
+  function sanitizeHabitName(name: string): string {
+    // Remove any HTML tags and scripts using DOMPurify
+    const sanitized = DOMPurify.sanitize(name, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    // Enforce max length of 100 characters
+    return sanitized.substring(0, 100);
+  }
+
   function handleAddHabit() {
     if (!newHabitName.trim()) return;
+
+    // Sanitize and validate input before creating habit
+    const sanitizedName = sanitizeHabitName(newHabitName.trim());
+    if (!sanitizedName) return; // Reject if sanitization resulted in empty string
+
+    const sanitizedDescription = newHabitDescription.trim()
+      ? sanitizeHabitName(newHabitDescription.trim()).substring(0, 500)
+      : undefined;
+
     addHabit({
       id: Date.now().toString(),
-      name: newHabitName.trim(),
+      name: sanitizedName,
       type: newHabitType,
-      description: newHabitDescription.trim() || undefined,
+      description: sanitizedDescription,
       streak: 0,
       bestStreak: 0,
       completedDates: [],

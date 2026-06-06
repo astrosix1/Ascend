@@ -1011,8 +1011,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         });
 
-        // Save merged data
-        await saveUserDataPartial(currentUserId, updates, metadata);
+        // SECURITY FIX #2: Add error handling to sync promise chain
+        // Prevent silent failures and unhandled promise rejections
+        await saveUserDataPartial(currentUserId, updates, metadata).catch(err => {
+          console.error('[Sync] Failed to save merged data:', err);
+          throw err; // Re-throw so catch block below handles it
+        });
         setLastSyncTime(new Date().toISOString());
         setSyncError(null);
       } else {
@@ -1043,7 +1047,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         });
 
-        await saveUserDataPartial(currentUserId, updates, metadata);
+        // SECURITY FIX #2: Add error handling to sync promise chain
+        // Prevent silent failures and unhandled promise rejections
+        await saveUserDataPartial(currentUserId, updates, metadata).catch(err => {
+          console.error('[Sync] Failed to push local data:', err);
+          throw err; // Re-throw so catch block below handles it
+        });
         setLastSyncTime(new Date().toISOString());
         setSyncError(null);
       }

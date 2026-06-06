@@ -299,10 +299,20 @@ function MobileNavigator() {
 }
 
 function DesktopNavigator() {
-  const { colors, toggleTheme, theme } = useApp();
+  const { colors, toggleTheme, theme, currentUserId } = useApp();
   const [activeScreen, setActiveScreen] = useState('dashboard');
   useDocumentTitle();
   useNotificationPermission();
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // SECURITY FIX #1: Auth guards on protected routes (Dashboard, Settings)
+  // Prevent unauthenticated users from accessing private screens
+  // ──────────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUserId && (activeScreen === 'dashboard' || activeScreen === 'settings')) {
+      setActiveScreen('community'); // Redirect to public screen
+    }
+  }, [currentUserId, activeScreen]);
 
   // ── Global keyboard shortcuts: Cmd/Ctrl + 1-5 for screen navigation ──────────
   useEffect(() => {
@@ -324,13 +334,17 @@ function DesktopNavigator() {
 
       if (e.key in screenMap) {
         e.preventDefault();
+        // SECURITY: Also check auth before allowing navigation to protected screens
+        if (!currentUserId && (screenMap[e.key] === 'dashboard' || screenMap[e.key] === 'settings')) {
+          return;
+        }
         setActiveScreen(screenMap[e.key]);
       }
     };
 
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, []);
+  }, [currentUserId]);
 
   const ScreenComponent = screenMap[activeScreen] || DashboardScreen;
 
