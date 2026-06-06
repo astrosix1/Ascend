@@ -12,6 +12,9 @@ import {
   Animated,
 } from 'react-native';
 import DOMPurify from 'dompurify';
+import AccountabilityInvite from '../../components/AccountabilityInvite';
+import CertificateModal from '../../components/CertificateModal';
+import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 import Toast, { ToastMessage } from '../../components/Toast';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
@@ -27,9 +30,9 @@ import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 import DailyProgressRing from '../../components/DailyProgressRing';
 import { HabitRowSkeleton, StatCardSkeleton } from '../../components/LoadingSkeleton';
-import AccountabilityInvite from '../../components/AccountabilityInvite';
-import CertificateModal from '../../components/CertificateModal';
-import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
+// import AccountabilityInvite from '../../components/AccountabilityInvite';
+// import CertificateModal from '../../components/CertificateModal';
+// import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 
 type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)

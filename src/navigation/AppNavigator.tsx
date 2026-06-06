@@ -307,12 +307,13 @@ function DesktopNavigator() {
   // ──────────────────────────────────────────────────────────────────────────────
   // SECURITY FIX #1: Auth guards on protected routes (Dashboard, Settings)
   // Prevent unauthenticated users from accessing private screens
+  // TEMPORARILY DISABLED FOR DEVELOPMENT - RE-ENABLE AFTER TESTING
   // ──────────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!currentUserId && (activeScreen === 'dashboard' || activeScreen === 'settings')) {
-      setActiveScreen('community'); // Redirect to public screen
-    }
-  }, [currentUserId, activeScreen]);
+  // useEffect(() => {
+  //   if (!currentUserId && (activeScreen === 'dashboard' || activeScreen === 'settings')) {
+  //     setActiveScreen('community'); // Redirect to public screen
+  //   }
+  // }, [currentUserId, activeScreen]);
 
   // ── Global keyboard shortcuts: Cmd/Ctrl + 1-5 for screen navigation ──────────
   useEffect(() => {
