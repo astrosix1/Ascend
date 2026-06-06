@@ -1277,23 +1277,21 @@ export default function DashboardScreen() {
                 <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
               </TouchableOpacity>
 
-              {/* Feature: Accountability Partner Button (7+ day streaks) */}
-              {habit.streak >= 7 && (
-                <TouchableOpacity
-                  onPress={() => openAccountabilityModal(habit.id, habit.name)}
-                  style={[
-                    styles.whyBtn,
-                    {
-                      borderColor: colors.accent,
-                      backgroundColor: habit.accountability?.partner ? colors.accent + '20' : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={[styles.whyBtnText, { color: colors.accent }]}>
-                    {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Feature: Accountability Partner Button (all good habits) */}
+              <TouchableOpacity
+                onPress={() => openAccountabilityModal(habit.id, habit.name)}
+                style={[
+                  styles.whyBtn,
+                  {
+                    borderColor: colors.accent,
+                    backgroundColor: habit.accountability?.partner ? colors.accent + '20' : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[styles.whyBtnText, { color: colors.accent }]}>
+                  {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
+                </Text>
+              </TouchableOpacity>
             </View>
           )
         )}
@@ -2440,8 +2438,8 @@ export default function DashboardScreen() {
               );
             })()}
 
-            {/* ── BUILD / BREAK sections — hidden when all habits are done ── */}
-            {!bonusEarnedToday && (
+            {/* ── BUILD / BREAK sections — always visible so users can access Why? / Partner buttons ── */}
+            {true && (
             <>
             {goodHabits.length > 0 && (
               <View style={{
