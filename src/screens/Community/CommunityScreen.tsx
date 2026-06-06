@@ -20,7 +20,7 @@ import { isSupabaseReady } from '../../utils/runtimeConfig';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { containsProfanity, getProfanityWarning } from '../../utils/profanityFilter';
 
-type CommunityTab = 'events' | 'forums';
+type CommunityTab = 'events' | 'forums' | 'partners';
 
 // Returns human-readable countdown to event
 function getEventCountdown(date: string, time?: string): string {
@@ -40,8 +40,142 @@ const FORUM_CATEGORIES = [
   'Relapse Recovery', 'Addiction Recovery', 'Fitness', 'Social',
 ];
 
+// Extracted so useState hooks aren't called inside .map()
+function PartnerHabitRow({ habit, colors, onSave, onRemove }: {
+  habit: any;
+  colors: any;
+  onSave: (name: string, email: string) => void;
+  onRemove: () => void;
+}) {
+  const partner = habit.accountability?.partner;
+  const [editing, setEditing] = React.useState(false);
+  const [name, setName] = React.useState(partner?.name || '');
+  const [email, setEmail] = React.useState(partner?.email || '');
+
+  const handleSave = () => {
+    if (!name.trim() || !email.trim()) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    onSave(name.trim(), email.trim());
+    setEditing(false);
+    Alert.alert('Partner Set!', `${name.trim()} will be your accountability partner for "${habit.name}".`);
+  };
+
+  const handleRemove = () => {
+    Alert.alert('Remove Partner', `Remove ${partner?.name} as your partner for "${habit.name}"?`, [
+      { text: 'Cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => {
+        onRemove();
+        setName('');
+        setEmail('');
+        setEditing(false);
+      }},
+    ]);
+  };
+
+  return (
+    <View style={{
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.lg,
+      borderWidth: 1,
+      borderColor: partner ? colors.accent + '60' : colors.border,
+      padding: Spacing.md,
+      marginBottom: Spacing.sm,
+    }}>
+      {/* Habit info */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: colors.text }}>{habit.name}</Text>
+          <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>
+            🔥 {habit.streak}-day streak
+          </Text>
+        </View>
+        {partner ? (
+          <View style={{ backgroundColor: colors.accent + '20', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '60' }}>
+            <Text style={{ fontSize: FontSize.xs, color: colors.accent, fontWeight: '700' }}>🤝 Partner set</Text>
+          </View>
+        ) : (
+          <View style={{ backgroundColor: colors.surfaceLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>No partner</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Current partner info */}
+      {partner && !editing && (
+        <View style={{ backgroundColor: colors.background, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm }}>
+          <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Current Partner</Text>
+          <Text style={{ fontSize: FontSize.sm, fontWeight: '700', color: colors.text }}>{partner.name}</Text>
+          <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary }}>{partner.email}</Text>
+          <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>
+            Invited {new Date(partner.invitedAt).toLocaleDateString()}
+          </Text>
+        </View>
+      )}
+
+      {/* Edit form */}
+      {editing ? (
+        <View>
+          <TextInput
+            placeholder="Partner's name"
+            placeholderTextColor={colors.textSecondary}
+            value={name}
+            onChangeText={setName}
+            style={{ borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, padding: Spacing.sm, color: colors.text, backgroundColor: colors.background, fontSize: FontSize.sm, marginBottom: Spacing.sm }}
+          />
+          <TextInput
+            placeholder="Partner's email"
+            placeholderTextColor={colors.textSecondary}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={{ borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, padding: Spacing.sm, color: colors.text, backgroundColor: colors.background, fontSize: FontSize.sm, marginBottom: Spacing.sm }}
+          />
+          <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+            <TouchableOpacity
+              onPress={() => setEditing(false)}
+              style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingVertical: 10, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.textSecondary }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              style={{ flex: 1, backgroundColor: colors.accent, borderRadius: BorderRadius.md, paddingVertical: 10, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: FontSize.sm, fontWeight: '700', color: '#FFF' }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+          <TouchableOpacity
+            onPress={() => { setName(partner?.name || ''); setEmail(partner?.email || ''); setEditing(true); }}
+            style={{ flex: 1, backgroundColor: partner ? colors.surfaceLight : colors.accent, borderRadius: BorderRadius.md, paddingVertical: 10, alignItems: 'center', borderWidth: partner ? 1 : 0, borderColor: colors.border }}
+          >
+            <Text style={{ fontSize: FontSize.sm, fontWeight: '700', color: partner ? colors.text : '#FFF' }}>
+              {partner ? '✏️ Change Partner' : '+ Add Partner'}
+            </Text>
+          </TouchableOpacity>
+          {partner && (
+            <TouchableOpacity
+              onPress={handleRemove}
+              style={{ backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.md, paddingVertical: 10, paddingHorizontal: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
+            >
+              <Text style={{ fontSize: FontSize.sm, fontWeight: '700', color: colors.danger }}>Remove</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function CommunityScreen() {
-  const { colors, settings, addCalendarEvent, removeCalendarEvent, forumFavorites, toggleForumFavorite, currentUserId } = useApp();
+  const { colors, settings, addCalendarEvent, removeCalendarEvent, forumFavorites, toggleForumFavorite, currentUserId, habits, updateHabit } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   // Derive ready-state at render time so it reacts to in-app config saves
@@ -415,6 +549,47 @@ export default function CommunityScreen() {
       </TouchableOpacity>
     </View>
   );
+
+  // ─── PARTNERS VIEW ─────────────────────────────────────────────────────────
+  const renderPartners = () => {
+    const goodHabits = habits.filter(h => h.type === 'good');
+    return (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md }}>
+        <View style={{ marginBottom: Spacing.lg }}>
+          <Text style={{ fontSize: FontSize.xl, fontWeight: '800', color: colors.text, marginBottom: 4 }}>
+            🤝 Accountability Partners
+          </Text>
+          <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary, lineHeight: 20 }}>
+            Invite someone you trust to witness your progress on any habit.
+          </Text>
+        </View>
+        {goodHabits.length === 0 ? (
+          <View style={{ alignItems: 'center', padding: Spacing.xl, backgroundColor: colors.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontSize: 40, marginBottom: Spacing.md }}>🌱</Text>
+            <Text style={{ fontSize: FontSize.md, fontWeight: '700', color: colors.text, marginBottom: Spacing.xs }}>No habits yet</Text>
+            <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary, textAlign: 'center' }}>
+              Add some habits on the Dashboard first, then come back to assign partners.
+            </Text>
+          </View>
+        ) : (
+          goodHabits.map(habit => (
+            <PartnerHabitRow
+              key={habit.id}
+              habit={habit}
+              colors={colors}
+              onSave={(name, email) => {
+                updateHabit(habit.id, {
+                  accountability: { partner: { name, email, invitedAt: new Date().toISOString() } }
+                });
+              }}
+              onRemove={() => updateHabit(habit.id, { accountability: undefined })}
+            />
+          ))
+        )}
+        <View style={{ height: Spacing.xl }} />
+      </ScrollView>
+    );
+  };
 
   // ─── EVENTS VIEW ───────────────────────────────────────────────────────────
   const renderEvents = () => {
@@ -1899,6 +2074,7 @@ export default function CommunityScreen() {
           {([
             { id: 'events' as CommunityTab, label: 'Local Events', icon: '📅', sub: settings.location ? 'Near ' + settings.location : 'Set location first' },
             { id: 'forums' as CommunityTab, label: 'Forums', icon: '💬', sub: 'Anonymous · Supportive' },
+            { id: 'partners' as CommunityTab, label: 'Partners', icon: '🤝', sub: 'Accountability · Support' },
           ]).map(cat => {
             const isActive = activeTab === cat.id;
             return (
@@ -1927,15 +2103,16 @@ export default function CommunityScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
             <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
-              {activeTab === 'events' ? 'Local Events' : 'Community Forums'}
+              {activeTab === 'events' ? 'Local Events' : activeTab === 'forums' ? 'Community Forums' : 'Accountability Partners'}
             </Text>
             <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>
               {activeTab === 'events'
                 ? (settings.location ? 'Near ' + settings.location : 'Set location in Settings')
-                : 'Anonymous · Supportive'}
+                : activeTab === 'forums' ? 'Anonymous · Supportive'
+                : 'Set a partner for any habit'}
             </Text>
           </View>
-          {activeTab === 'events' ? renderEvents() : renderForumsDesktopFlattened()}
+          {activeTab === 'events' ? renderEvents() : activeTab === 'forums' ? renderForumsDesktopFlattened() : renderPartners()}
         </View>
       </View>
     );
@@ -1947,19 +2124,23 @@ export default function CommunityScreen() {
       {/* Tab bar — only show when not in post detail / new post view */}
       {!selectedPost && !showNewPost && (
         <View style={s.tabRow}>
-          {(['events', 'forums'] as CommunityTab[]).map(tab => (
-            <TouchableOpacity key={tab} style={s.tab} onPress={() => setActiveTab(tab)}>
-              <Text style={[s.tabText, { color: activeTab === tab ? colors.accent : colors.textSecondary }]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          {([
+            { id: 'events', label: 'Events' },
+            { id: 'forums', label: 'Forums' },
+            { id: 'partners', label: '🤝 Partners' },
+          ] as { id: CommunityTab; label: string }[]).map(tab => (
+            <TouchableOpacity key={tab.id} style={s.tab} onPress={() => setActiveTab(tab.id)}>
+              <Text style={[s.tabText, { color: activeTab === tab.id ? colors.accent : colors.textSecondary }]}>
+                {tab.label}
               </Text>
-              {activeTab === tab && <View style={{ height: 2, width: 30, backgroundColor: colors.accent, marginTop: 4, borderRadius: 1 }} />}
+              {activeTab === tab.id && <View style={{ height: 2, width: 30, backgroundColor: colors.accent, marginTop: 4, borderRadius: 1 }} />}
             </TouchableOpacity>
           ))}
         </View>
       )}
 
       {/* Single-column: list or detail based on selection */}
-      {activeTab === 'events' ? renderEvents() : renderForums()}
+      {activeTab === 'events' ? renderEvents() : activeTab === 'forums' ? renderForums() : renderPartners()}
     </View>
   );
 }
