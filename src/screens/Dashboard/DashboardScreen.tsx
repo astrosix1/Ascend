@@ -1269,9 +1269,29 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-              <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+              <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+                <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+              </TouchableOpacity>
+
+              {/* Feature: Accountability Partner Button (7+ day streaks) */}
+              {habit.streak >= 7 && (
+                <TouchableOpacity
+                  onPress={() => openAccountabilityModal(habit.id, habit.name)}
+                  style={[
+                    styles.whyBtn,
+                    {
+                      borderColor: colors.accent,
+                      backgroundColor: habit.accountability?.partner ? colors.accent + '20' : 'transparent',
+                    },
+                  ]}
+                >
+                  <Text style={[styles.whyBtnText, { color: colors.accent }]}>
+                    {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )
         )}
         {isCompleted && !isGood && (
