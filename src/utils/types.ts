@@ -11,6 +11,14 @@ export interface Habit {
   completedDates: string[]; // ISO date strings
   createdAt: string;
   category?: string;
+  // Feature: Accountability partnerships and recovery certificates
+  accountability?: {
+    partner?: {
+      name: string;
+      email: string;
+      invitedAt: string;
+    };
+  };
 }
 
 export interface Todo {

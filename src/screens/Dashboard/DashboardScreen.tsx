@@ -27,6 +27,9 @@ import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 import DailyProgressRing from '../../components/DailyProgressRing';
 import { HabitRowSkeleton, StatCardSkeleton } from '../../components/LoadingSkeleton';
+import AccountabilityInvite from '../../components/AccountabilityInvite';
+import CertificateModal from '../../components/CertificateModal';
+import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 
 type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals';
 // Mobile-responsive day labels (short on small screens, full on larger)
@@ -439,6 +442,11 @@ export default function DashboardScreen() {
         const potentialStreak = habit.streak + 1;
         if ([7, 14, 30, 50, 100].includes(potentialStreak)) {
           setTimeout(() => showToast(`🔥 ${potentialStreak}-Day Streak!`, 'warning', 4500), 700);
+
+          // Feature: Check for streak certificate at milestones
+          if ([7, 14, 21, 30, 50, 100].includes(potentialStreak)) {
+            setTimeout(() => checkAndDisplayCertificate(habitId), 1200);
+          }
         }
       }
     }
@@ -899,6 +907,34 @@ export default function DashboardScreen() {
   function handleLogRelapse() {
     openRelapseForm(temptationHabitId, temptationHabitName);
     setShowTemptationModal(false);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Feature: Accountability Partnerships & Recovery Certificates
+  // ──────────────────────────────────────────────────────────────────────────────
+  const [showAccountabilityModal, setShowAccountabilityModal] = useState(false);
+  const [accountabilityHabitId, setAccountabilityHabitId] = useState('');
+  const [accountabilityHabitName, setAccountabilityHabitName] = useState('');
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [currentCertificate, setCurrentCertificate] = useState<Certificate | null>(null);
+
+  function openAccountabilityModal(habitId: string, habitName: string) {
+    setAccountabilityHabitId(habitId);
+    setAccountabilityHabitName(habitName);
+    setShowAccountabilityModal(true);
+  }
+
+  // Check for streak milestones and award certificates
+  function checkAndDisplayCertificate(habitId: string) {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit || settings.username === undefined) return;
+
+    const certificate = checkStreakCertificate(habit, settings.username);
+    if (certificate) {
+      setCurrentCertificate(certificate);
+      setShowCertificateModal(true);
+      showToast(`🏆 Certificate Unlocked: ${habit.streak}-Day Streak!`, 'success', 5000);
+    }
   }
 
   // ── Dashboard Customization ─────────────────────────────────────────────────
@@ -4080,6 +4116,21 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── ACCOUNTABILITY INVITE MODAL ──────────────────────────────────── */}
+      <AccountabilityInvite
+        habitId={accountabilityHabitId}
+        habitName={accountabilityHabitName}
+        visible={showAccountabilityModal}
+        onClose={() => setShowAccountabilityModal(false)}
+      />
+
+      {/* ── RECOVERY CERTIFICATE MODAL ──────────────────────────────────── */}
+      <CertificateModal
+        certificate={currentCertificate}
+        visible={showCertificateModal}
+        onClose={() => setShowCertificateModal(false)}
+      />
     </>
   );
 }
