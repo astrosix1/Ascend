@@ -201,7 +201,7 @@ async function sendEmail(to: string, toName: string, subject: string, html: stri
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Ascend <onboarding@resend.dev>',
+      from: 'Ascend <updates@asix.live>',
       to: [to],
       subject,
       html,
