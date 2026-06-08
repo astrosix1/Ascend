@@ -115,22 +115,21 @@ export default function AccountabilityInvite({
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text
-              style={[
-                styles.title,
-                { color: colors.text },
-              ]}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                🤝 Accountability Partner
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                For: {habitName}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{ padding: 4, marginLeft: 8 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              🤝 Accountability Partner
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: colors.textSecondary },
-              ]}
-            >
-              For: {habitName}
-            </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 20, lineHeight: 22 }}>✕</Text>
+            </TouchableOpacity>
           </View>
 
           {hasPartner ? (
@@ -146,14 +145,24 @@ export default function AccountabilityInvite({
                 {habit?.accountability?.partner?.email}
               </Text>
 
-              <TouchableOpacity
-                onPress={handleRemovePartner}
-                style={[styles.removeButton, { borderColor: colors.danger }]}
-              >
-                <Text style={[styles.removeButtonText, { color: colors.danger }]}>
-                  Remove Partner
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={[styles.removeButton, { flex: 1, borderColor: colors.border }]}
+                >
+                  <Text style={[styles.removeButtonText, { color: colors.textSecondary }]}>
+                    Close
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRemovePartner}
+                  style={[styles.removeButton, { flex: 1, borderColor: colors.danger }]}
+                >
+                  <Text style={[styles.removeButtonText, { color: colors.danger }]}>
+                    Remove
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             // Show invite form

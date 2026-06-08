@@ -1299,14 +1299,34 @@ export default function DashboardScreen() {
           </View>
         )}
         {isCompleted && !isGood && (
-          <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
-            <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
+              <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => openAccountabilityModal(habit.id, habit.name)}
+              style={[styles.whyBtn, { borderColor: colors.danger, backgroundColor: habit.accountability?.partner ? colors.danger + '20' : 'transparent' }]}
+            >
+              <Text style={[styles.whyBtnText, { color: colors.danger }]}>
+                {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
         {!isCompleted && !isGood && (
-          <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
-            <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
+              <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => openAccountabilityModal(habit.id, habit.name)}
+              style={[styles.whyBtn, { borderColor: colors.warning, backgroundColor: habit.accountability?.partner ? colors.warning + '20' : 'transparent' }]}
+            >
+              <Text style={[styles.whyBtnText, { color: colors.warning }]}>
+                {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
         {isTimerHabit && (
           <TouchableOpacity
