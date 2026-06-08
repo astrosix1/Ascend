@@ -1251,49 +1251,52 @@ export default function DashboardScreen() {
             })}
           </View>
         </View>
-        {isCompleted && isGood && (
-          inlineJournalHabitId === habit.id ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <TextInput
-                placeholder="Why did you do this?"
-                value={inlineJournalText}
-                onChangeText={setInlineJournalText}
-                onSubmitEditing={handleInlineJournalSave}
-                style={{ width: 150, fontSize: FontSize.xs, color: colors.text, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 2, paddingHorizontal: Spacing.xs }}
-                placeholderTextColor={colors.textTertiary}
-                autoFocus
-                returnKeyType="done"
-              />
-              <TouchableOpacity onPress={handleInlineJournalSave} style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: Spacing.sm, paddingVertical: 3 }}>
-                <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>✓</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setInlineJournalHabitId(null)}>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-                <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
-              </TouchableOpacity>
+        {isGood && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            {/* Why? button — only when completed */}
+            {isCompleted && (
+              inlineJournalHabitId === habit.id ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+                  <TextInput
+                    placeholder="Why did you do this?"
+                    value={inlineJournalText}
+                    onChangeText={setInlineJournalText}
+                    onSubmitEditing={handleInlineJournalSave}
+                    style={{ width: 150, fontSize: FontSize.xs, color: colors.text, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 2, paddingHorizontal: Spacing.xs }}
+                    placeholderTextColor={colors.textTertiary}
+                    autoFocus
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity onPress={handleInlineJournalSave} style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: Spacing.sm, paddingVertical: 3 }}>
+                    <Text style={{ color: '#FFF', fontSize: FontSize.xs, fontWeight: '700' }}>✓</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setInlineJournalHabitId(null)}>
+                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+                  <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+                </TouchableOpacity>
+              )
+            )}
 
-              {/* Feature: Accountability Partner Button (all good habits) */}
-              <TouchableOpacity
-                onPress={() => openAccountabilityModal(habit.id, habit.name)}
-                style={[
-                  styles.whyBtn,
-                  {
-                    borderColor: colors.accent,
-                    backgroundColor: habit.accountability?.partner ? colors.accent + '20' : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={[styles.whyBtnText, { color: colors.accent }]}>
-                  {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )
+            {/* Accountability Partner Button — always visible on good habits */}
+            <TouchableOpacity
+              onPress={() => openAccountabilityModal(habit.id, habit.name)}
+              style={[
+                styles.whyBtn,
+                {
+                  borderColor: colors.accent,
+                  backgroundColor: habit.accountability?.partner ? colors.accent + '20' : 'transparent',
+                },
+              ]}
+            >
+              <Text style={[styles.whyBtnText, { color: colors.accent }]}>
+                {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
         {isCompleted && !isGood && (
           <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
