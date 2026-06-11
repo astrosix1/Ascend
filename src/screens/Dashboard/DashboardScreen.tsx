@@ -24,7 +24,8 @@ import SectionHeader from '../../components/SectionHeader';
 import ProgressBar from '../../components/ProgressBar';
 import LineGraph from '../../components/LineGraph';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
-import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, Todo } from '../../utils/types';
+import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, Todo, Habit } from '../../utils/types';
+import RecoveryTimelineModal from '../../components/RecoveryTimelineModal';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
@@ -919,6 +920,7 @@ export default function DashboardScreen() {
   const [accountabilityHabitId, setAccountabilityHabitId] = useState('');
   const [accountabilityHabitName, setAccountabilityHabitName] = useState('');
   const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [timelineHabit, setTimelineHabit] = useState<Habit | null>(null);
   const [currentCertificate, setCurrentCertificate] = useState<Certificate | null>(null);
 
   function openAccountabilityModal(habitId: string, habitName: string) {
@@ -1300,6 +1302,9 @@ export default function DashboardScreen() {
         )}
         {isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accent }]}>📈</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
               <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
             </TouchableOpacity>
@@ -1315,6 +1320,9 @@ export default function DashboardScreen() {
         )}
         {!isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accent }]}>📈</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
               <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
             </TouchableOpacity>
@@ -4174,6 +4182,13 @@ export default function DashboardScreen() {
         certificate={currentCertificate}
         visible={showCertificateModal}
         onClose={() => setShowCertificateModal(false)}
+      />
+
+      {/* ── RECOVERY TIMELINE MODAL ─────────────────────────────────────── */}
+      <RecoveryTimelineModal
+        habit={timelineHabit}
+        visible={!!timelineHabit}
+        onClose={() => setTimelineHabit(null)}
       />
     </>
   );
