@@ -26,6 +26,7 @@ import LineGraph from '../../components/LineGraph';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, Todo, Habit } from '../../utils/types';
 import RecoveryTimelineModal from '../../components/RecoveryTimelineModal';
+import { wouldUseFreeze } from '../../utils/streakFreeze';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
@@ -451,6 +452,17 @@ export default function DashboardScreen() {
           if ([7, 14, 21, 30, 50, 100].includes(potentialStreak)) {
             setTimeout(() => checkAndDisplayCertificate(habitId), 1200);
           }
+        }
+        // Toast: a freeze token bridged a missed day (good habits only)
+        if (wouldUseFreeze({
+          type: habit.type,
+          completedDates: habit.completedDates,
+          frozenDates: habit.frozenDates,
+          streak: habit.streak,
+          freezeTokens: habit.freezeTokens,
+          date,
+        })) {
+          setTimeout(() => showToast('❄️ Streak saved! A freeze bridged your missed day.', 'success', 4500), 700);
         }
       }
     }
@@ -1187,8 +1199,9 @@ export default function DashboardScreen() {
     const accentBarColor = isCompleted ? habitColor : colors.border;
     // Flame scales with streak: 1+ day = 🔥, 7+ = 🔥🔥, 30+ = 🔥🔥🔥
     const flameEmoji = habit.streak >= 30 ? '🔥🔥🔥' : habit.streak >= 7 ? '🔥🔥' : '🔥';
+    const freezeBadge = isGood && (habit.freezeTokens ?? 0) > 0 ? `  ❄️×${habit.freezeTokens}` : '';
     const streakText = isGood
-      ? habit.streak > 0 ? `${flameEmoji} ${habit.streak}-day streak` : '— Start your streak'
+      ? (habit.streak > 0 ? `${flameEmoji} ${habit.streak}-day streak` : '— Start your streak') + freezeBadge
       : isCompleted ? '⚠️ Slipped today' : habit.streak > 0 ? `✓ ${habit.streak} days clean` : '— Stay strong today';
     const streakColor = isGood && habit.streak >= 7 ? colors.warning
       : isGood && habit.streak > 0 ? colors.accent

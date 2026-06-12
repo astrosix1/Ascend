@@ -11,6 +11,9 @@ export interface Habit {
   completedDates: string[]; // ISO date strings
   createdAt: string;
   category?: string;
+  // Streak freeze (good habits only): forgiveness for a single missed day.
+  freezeTokens?: number;   // available freeze tokens, capped (see streakFreeze.ts)
+  frozenDates?: string[];  // dates bridged by a freeze — continuity, not completions
   // Feature: Accountability partnerships and recovery certificates
   accountability?: {
     partner?: {

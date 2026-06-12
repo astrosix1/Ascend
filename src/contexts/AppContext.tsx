@@ -4,6 +4,7 @@ import { getData, setData, KEYS } from '../utils/storage';
 import { initPushNotifications, scheduleAlarmNotifications } from '../utils/webPush';
 import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm, Todo } from '../utils/types';
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
+import { resolveStreakOnComplete } from '../utils/streakFreeze';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
 import { getSyncQueue, syncQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
@@ -419,6 +420,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const isCompleted = h.completedDates.includes(date);
         let newDates: string[];
         let newStreak = 0;
+        let newFreezeTokens = h.freezeTokens ?? 0;
+        let newFrozenDates = h.frozenDates ?? [];
 
         if (isCompleted) {
           // Uncompleting a habit - remove the date and recalculate streak from remaining dates
@@ -433,21 +436,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
             newStreak = 0;
           }
         } else {
-          // Completing a habit - add the date and check if it's consecutive
+          // Completing a habit - add the date. The resolver continues the streak,
+          // or (good habits only) spends a freeze token to bridge a single missed day.
           newDates = [...h.completedDates, date];
-
-          // Check if today is consecutive to yesterday
-          const today = new Date(date);
-          const yesterday = new Date(today);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-          // If yesterday's completion exists, continue streak; otherwise start fresh at 1
-          if (h.completedDates.includes(yesterdayStr)) {
-            newStreak = h.streak + 1;
-          } else {
-            newStreak = 1; // Fresh start after gap
-          }
+          const res = resolveStreakOnComplete({
+            type: h.type,
+            completedDates: h.completedDates,
+            frozenDates: h.frozenDates,
+            streak: h.streak,
+            freezeTokens: h.freezeTokens,
+            date,
+          });
+          newStreak = res.newStreak;
+          newFreezeTokens = res.freezeTokens;
+          newFrozenDates = res.frozenDates;
         }
 
         return {
@@ -455,6 +457,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           completedDates: newDates,
           streak: newStreak,
           bestStreak: Math.max(h.bestStreak, newStreak),
+          freezeTokens: newFreezeTokens,
+          frozenDates: newFrozenDates,
         };
       });
       persist(KEYS.HABITS, updated);
