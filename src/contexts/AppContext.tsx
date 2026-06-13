@@ -5,6 +5,7 @@ import { initPushNotifications, scheduleAlarmNotifications } from '../utils/webP
 import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm, Todo } from '../utils/types';
 import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
 import { resolveStreakOnComplete } from '../utils/streakFreeze';
+import { performRedirect, buildLoginRedirectUrl } from '../utils/authHelpers';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
 import { getSyncQueue, syncQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
@@ -1151,6 +1152,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Clear local context state
     setCurrentUserId(null);
     setCurrentUserEmail('');
+    // Explicit sign-out → send the user to the sign-in page (web only).
+    // SAFE here because signOutUser is only invoked by the Sign Out buttons
+    // (TopHeader + Settings), never during app load or login — so it can't
+    // misfire the way a state-watching effect could.
+    if (typeof window !== 'undefined') {
+      const isLocalhost =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        performRedirect(buildLoginRedirectUrl());
+      }
+    }
   }, []);
 
   const resetAuth = useCallback(async () => {
