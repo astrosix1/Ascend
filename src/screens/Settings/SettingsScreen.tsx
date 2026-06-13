@@ -269,8 +269,22 @@ export default function SettingsScreen() {
                 <Button
                   title="Sign Out"
                   variant="ghost"
-                  onPress={() => {
-                    signOutUser().catch(err => console.error('Sign out error:', err));
+                  onPress={async () => {
+                    try {
+                      await signOutUser();
+                    } catch (err) {
+                      console.error('Sign out error:', err);
+                    }
+                    if (typeof window !== 'undefined') {
+                      const isLocalhost =
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+                      if (!isLocalhost) {
+                        window.location.replace(
+                          'https://asix.live/login?redirect=https://asix.live/projects/ascend'
+                        );
+                      }
+                    }
                   }}
                 />
               </>

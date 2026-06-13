@@ -63,6 +63,15 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
 
   const handleSignOut = async () => {
     await signOutUser();
+    if (typeof window !== 'undefined') {
+      const isLocalhost =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        window.location.replace(
+          'https://asix.live/login?redirect=https://asix.live/projects/ascend'
+        );
+      }
+    }
   };
 
   const handleSyncPress = () => {
