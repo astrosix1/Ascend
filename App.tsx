@@ -74,17 +74,6 @@ function Root() {
     if (!auth.checked) return;
     if (currentUserId === null && auth.userId !== null) {
       setAuth({ checked: true, userId: null, email: null });
-      // Actually perform the redirect. The SIGNED_OUT auth listener is only
-      // registered when there was NO session at startup (the early return
-      // above skips it for already-logged-in users), so sign-out from a live
-      // session would otherwise show "Redirecting to login..." forever.
-      const isLocalhost = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1'
-      );
-      if (typeof window !== 'undefined' && !isLocalhost) {
-        performRedirect(buildLoginRedirectUrl());
-      }
     }
   }, [currentUserId, auth.checked, auth.userId]);
 
