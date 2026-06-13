@@ -675,6 +675,23 @@ export async function signOut() {
   const sb = getSupabaseClient();
   if (!sb) return;
   await sb.auth.signOut();
+
+  // Clear the shared .asix.live cookies that sign-in set via set-session.
+  // Those cookies have a 1-year lifetime, so without this the session
+  // silently resurrects after a "sign out".
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('https://asix.live/api/auth/clear-session', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      console.log('[Auth] Cleared shared domain session on asix.live');
+    } catch (err) {
+      // Non-fatal — local sign-out already succeeded
+      console.warn('[Auth] Failed to clear shared domain session:', err);
+    }
+  }
 }
 
 export async function getSession() {
