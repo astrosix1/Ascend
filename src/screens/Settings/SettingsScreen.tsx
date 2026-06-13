@@ -23,7 +23,7 @@ const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }
 ];
 
 export default function SettingsScreen() {
-  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, signOutUser, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
+  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
@@ -267,23 +267,11 @@ export default function SettingsScreen() {
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>Signed in as</Text>
                 <Text style={{ color: colors.text, fontSize: FontSize.sm, marginBottom: Spacing.md }}>{currentUserEmail}</Text>
                 <Button
-                  title="Sign Out"
+                  title="🏠 Back to Dashboard"
                   variant="ghost"
-                  onPress={async () => {
-                    try {
-                      await signOutUser();
-                    } catch (err) {
-                      console.error('Sign out error:', err);
-                    }
+                  onPress={() => {
                     if (typeof window !== 'undefined') {
-                      const isLocalhost =
-                        window.location.hostname === 'localhost' ||
-                        window.location.hostname === '127.0.0.1';
-                      if (!isLocalhost) {
-                        window.location.replace(
-                          'https://asix.live/login?redirect=https://asix.live/projects/ascend'
-                        );
-                      }
+                      window.open('https://asix.live/dashboard', '_blank', 'noopener,noreferrer');
                     }
                   }}
                 />

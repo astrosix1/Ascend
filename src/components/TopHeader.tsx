@@ -44,7 +44,7 @@ const DEFAULT_PREFS = {
 };
 
 export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
-  const { colors, theme, currentUserEmail, signOutUser, syncError, clearSyncError, manualSync, settings, updateSettings } = useApp();
+  const { colors, theme, currentUserEmail, syncError, clearSyncError, manualSync, settings, updateSettings } = useApp();
   const desktop = useIsDesktop();
 
   // ── Dashboard Customize ──────────────────────────────────────────────────────
@@ -61,16 +61,9 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
     setShowCustomize(false);
   }
 
-  const handleSignOut = async () => {
-    await signOutUser();
+  const handleGoToDashboard = () => {
     if (typeof window !== 'undefined') {
-      const isLocalhost =
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (!isLocalhost) {
-        window.location.replace(
-          'https://asix.live/login?redirect=https://asix.live/projects/ascend'
-        );
-      }
+      window.open('https://asix.live/dashboard', '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -168,14 +161,14 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
             </Text>
           </TouchableOpacity>
 
-          {/* Sign Out */}
+          {/* Back to Dashboard */}
           {currentUserEmail && (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={handleSignOut}
+              onPress={handleGoToDashboard}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 16, color: colors.warning }}>⎋</Text>
+              <Text style={{ fontSize: 16 }}>🏠</Text>
             </TouchableOpacity>
           )}
         </View>
