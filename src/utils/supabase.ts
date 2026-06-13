@@ -674,7 +674,11 @@ export async function signIn(email: string, password: string) {
 export async function signOut() {
   const sb = getSupabaseClient();
   if (!sb) return;
-  await sb.auth.signOut();
+  // scope: 'local' clears only this Ascend session.
+  // The default 'global' scope revokes ALL refresh tokens for the user
+  // across every device/app — including asix.live — which breaks the
+  // Portfolio's shared session and locks the user out of everything.
+  await sb.auth.signOut({ scope: 'local' });
 }
 
 export async function getSession() {

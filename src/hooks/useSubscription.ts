@@ -65,9 +65,13 @@ export function useSubscription(userId: string | null | undefined) {
         console.log('[Subscription] Subscription check complete:', ascendSub ? 'Found' : 'Not found');
         setSubscription(ascendSub);
       } catch (err) {
-        console.error('[Subscription] Error:', err);
+        // Fail open: if the subscription check itself throws (network error, RLS
+        // misconfiguration, DB unreachable), allow the authenticated user in rather
+        // than locking them out. If there is genuinely no subscription the query
+        // succeeds and returns null, which correctly blocks access.
+        console.error('[Subscription] Query error (failing open):', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
-        setSubscription(null);
+        setSubscription({ status: 'active' } as any); // grant access on error
       } finally {
         console.log('[Subscription] Loading complete');
         setLoading(false);
