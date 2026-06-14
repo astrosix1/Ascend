@@ -972,7 +972,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history', 'todos', 'goals'] as DataType[]);
+    // 'todos' and 'goals' are NOT columns in user_data — including them causes
+    // loadUserDataPartial to build a SELECT for non-existent columns, which
+    // PostgREST rejects with a 400. Remove them here; add back only when the
+    // DB schema has been migrated to include those columns.
+    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history'] as DataType[]);
 
     try {
       setIsSyncing(true);
