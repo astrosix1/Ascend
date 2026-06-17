@@ -11,7 +11,7 @@ import EQGameExercise from './EQGameExercise';
 import EQCompletion from './EQCompletion';
 import EQPatternsInsight from './EQPatternsInsight';
 
-type EQScreen = 'landing' | 'scenario' | 'game' | 'patterns' | 'completion';
+type EQScreen = 'landing' | 'scenario-browser' | 'game-browser' | 'scenario-active' | 'game-active' | 'patterns' | 'completion';
 
 export default function EQLab() {
   const { colors } = useApp();
@@ -24,9 +24,9 @@ export default function EQLab() {
   const handleStartExercise = (exercise: ScenarioExercise | GameExercise) => {
     setSelectedExercise(exercise);
     if ('gameType' in exercise) {
-      setScreen('game');
+      setScreen('game-active');
     } else {
-      setScreen('scenario');
+      setScreen('scenario-active');
     }
   };
 
@@ -57,7 +57,7 @@ export default function EQLab() {
       {/* Navigation Cards */}
       <View style={{ paddingHorizontal: Spacing.md, gap: Spacing.md }}>
         {/* Scenarios */}
-        <TouchableOpacity onPress={() => setScreen('scenario')}>
+        <TouchableOpacity onPress={() => setScreen('scenario-browser')}>
           <Card style={{ borderLeftWidth: 4, borderLeftColor: colors.accent }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm }}>
               <Text style={{ fontSize: 28 }}>💬</Text>
@@ -78,7 +78,7 @@ export default function EQLab() {
         </TouchableOpacity>
 
         {/* Games */}
-        <TouchableOpacity onPress={() => setScreen('game')}>
+        <TouchableOpacity onPress={() => setScreen('game-browser')}>
           <Card style={{ borderLeftWidth: 4, borderLeftColor: colors.success }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm }}>
               <Text style={{ fontSize: 28 }}>🎮</Text>
@@ -215,7 +215,23 @@ export default function EQLab() {
     );
   }
 
-  if (screen === 'scenario' && selectedExercise && 'choices' in selectedExercise) {
+  if (screen === 'scenario-browser') {
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {renderScenarioBrowser()}
+      </View>
+    );
+  }
+
+  if (screen === 'game-browser') {
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {renderGameBrowser()}
+      </View>
+    );
+  }
+
+  if (screen === 'scenario-active' && selectedExercise && 'choices' in selectedExercise) {
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
         <EQScenarioExercise
@@ -226,7 +242,7 @@ export default function EQLab() {
     );
   }
 
-  if (screen === 'game' && selectedExercise && 'gameType' in selectedExercise) {
+  if (screen === 'game-active' && selectedExercise && 'gameType' in selectedExercise) {
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
         <EQGameExercise
@@ -262,10 +278,10 @@ export default function EQLab() {
     );
   }
 
-  // Default: show scenario/game browser based on where we came from
+  // Fallback (shouldn't reach here)
   return (
     <View style={[s.container, { backgroundColor: colors.background }]}>
-      {renderScenarioBrowser()}
+      {renderLanding()}
     </View>
   );
 }
