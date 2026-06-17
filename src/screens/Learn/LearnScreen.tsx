@@ -13,13 +13,14 @@ import { learnHabits, habitCategories } from '../../data/learnHabits';
 import { Habit, LearnHabit, GoalEntry } from '../../utils/types';
 import { generateHabitsFromGoal, generateGoalsFromHabit } from '../../utils/claude-ai';
 import { getData, setData, KEYS } from '../../utils/storage';
+import EQLab from './EQLab';
 
 export default function LearnScreen() {
   const { colors, addHabit, habits, addGoal } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
-  // Discover tab state
-  const [learnTab, setLearnTab] = useState<'discover' | 'generator'>('discover');
+  // Learn tab state
+  const [learnTab, setLearnTab] = useState<'discover' | 'generator' | 'eq'>('discover');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'all' | 'good' | 'bad'>('all');
@@ -508,6 +509,7 @@ export default function LearnScreen() {
             {([
               { key: 'discover' as const, label: 'Habit Library', icon: '🔍', sub: 'Learn · Decide · Act' },
               { key: 'generator' as const, label: 'AI Generator', icon: '✨', sub: 'Powered by Claude' },
+              { key: 'eq' as const, label: 'EQ Lab', icon: '💭', sub: 'Emotional Intelligence' },
             ]).map(cat => {
               const isActive = learnTab === cat.key;
               return (
@@ -535,13 +537,13 @@ export default function LearnScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
               <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
-                {learnTab === 'discover' ? 'Habit Library' : 'AI Generator'}
+                {learnTab === 'discover' ? 'Habit Library' : learnTab === 'generator' ? 'AI Generator' : 'EQ Lab'}
               </Text>
               <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>
-                {learnTab === 'discover' ? 'Learn · Decide · Act' : 'Powered by Claude'}
+                {learnTab === 'discover' ? 'Learn · Decide · Act' : learnTab === 'generator' ? 'Powered by Claude' : 'Emotional Intelligence'}
               </Text>
             </View>
-            {learnTab === 'discover' ? discoverColumn : generatorColumn}
+            {learnTab === 'discover' ? discoverColumn : learnTab === 'generator' ? generatorColumn : <EQLab />}
           </View>
         </View>
       )}
@@ -554,6 +556,7 @@ export default function LearnScreen() {
             {([
               { key: 'discover',  label: '🔍 Discover' },
               { key: 'generator', label: '✨ Generator' },
+              { key: 'eq', label: '💭 EQ Lab' },
             ] as const).map(({ key, label }) => (
               <TouchableOpacity
                 key={key}
@@ -568,6 +571,7 @@ export default function LearnScreen() {
           </View>
           {learnTab === 'discover' && discoverColumn}
           {learnTab === 'generator' && generatorColumn}
+          {learnTab === 'eq' && <EQLab />}
         </>
       )}
 
