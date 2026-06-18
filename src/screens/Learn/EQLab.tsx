@@ -10,8 +10,9 @@ import EQScenarioExercise from './EQScenarioExercise';
 import EQGameExercise from './EQGameExercise';
 import EQCompletion from './EQCompletion';
 import EQPatternsInsight from './EQPatternsInsight';
+import ConversationMasterGame from './ConversationMasterGame';
 
-type EQScreen = 'landing' | 'scenario-browser' | 'game-browser' | 'scenario-active' | 'game-active' | 'patterns' | 'completion';
+type EQScreen = 'landing' | 'scenario-browser' | 'game-browser' | 'scenario-active' | 'game-active' | 'patterns' | 'completion' | 'conversation-master';
 
 export default function EQLab() {
   const { colors } = useApp();
@@ -94,6 +95,27 @@ export default function EQLab() {
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
               Build emotional awareness and empathy through engaging mini-games.
+            </Text>
+          </Card>
+        </TouchableOpacity>
+
+        {/* Conversation Master */}
+        <TouchableOpacity onPress={() => setScreen('conversation-master')}>
+          <Card style={{ borderLeftWidth: 4, borderLeftColor: colors.accent }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm }}>
+              <Text style={{ fontSize: 28 }}>🎮</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: FontSize.md }}>
+                  Conversation Master
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 }}>
+                  Interactive mini-game
+                </Text>
+              </View>
+              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
+              Navigate real conversations and build emotional intelligence through interactive dialogue.
             </Text>
           </Card>
         </TouchableOpacity>
@@ -261,6 +283,14 @@ export default function EQLab() {
           timeSpent={completionData.timeSpent}
           onDone={handleCompletionDone}
         />
+      </View>
+    );
+  }
+
+  if (screen === 'conversation-master') {
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        <ConversationMasterGame />
       </View>
     );
   }
