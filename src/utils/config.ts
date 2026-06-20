@@ -7,8 +7,9 @@
  *    Create a project, then copy the URL and anon key from
  *    Project Settings → API.
  *
- * 2. TICKETMASTER — free at https://developer.ticketmaster.com
- *    Register and create an app to get a Consumer Key.
+ * 2. SEATGEEK — free at https://seatgeek.com/account/develop
+ *    Register and create an app to get a client_id.
+ *    Set it as SEATGEEK_CLIENT_ID in eventsApi.ts.
  *
  * 3. EMAILJS — free at https://www.emailjs.com
  *    Create a service, template, and copy the IDs below.

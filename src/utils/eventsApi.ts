@@ -7,9 +7,9 @@ interface WeatherDay {
 
 const weatherCache = new Map<string, WeatherDay>();
 
-// Ticketmaster Discovery API — free tier, 5,000 calls/day
-// Get your own free key at: https://developer.ticketmaster.com/products-and-docs/apis/getting-started/
-const TICKETMASTER_KEY = 'f2bPm4Y6Xpue19oHJMbFmSiZQKQOuVo0';
+// SeatGeek Discovery API — free tier, commercial use permitted
+// Register at https://seatgeek.com/account/develop to get a client_id
+const SEATGEEK_CLIENT_ID = 'YOUR_SEATGEEK_CLIENT_ID';
 
 async function fetchTemperature(lat: number, lon: number, date: string): Promise<WeatherDay | null> {
   if (!lat || !lon) return null;
@@ -53,9 +53,7 @@ async function geocodeCity(cityName: string): Promise<{ lat: number; lon: number
   }
 }
 
-export async function fetchLocalEvents(
-  city: string,
-): Promise<CommunityEvent[]> {
+export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> {
   try {
     const cityName = city ? city.split(',')[0].trim() : '';
     if (!cityName) {
@@ -63,69 +61,68 @@ export async function fetchLocalEvents(
       return [];
     }
 
-    console.log('[Events] Fetching Ticketmaster events for:', cityName);
+    console.log('[Events] Fetching SeatGeek events for:', cityName);
 
-    // Build Ticketmaster Discovery API request
+    // Geocode in parallel for weather enrichment — events load regardless
+    const coordsPromise = geocodeCity(cityName);
+
     const params = new URLSearchParams({
-      apikey: TICKETMASTER_KEY,
-      city: cityName,
-      size: '20',
-      sort: 'date,asc',
-      // Include a variety of event types relevant to wellness/lifestyle
-      classificationName: 'music,sports,arts,family,miscellaneous',
+      client_id: SEATGEEK_CLIENT_ID,
+      'venue.city': cityName,
+      per_page: '20',
+      sort: 'datetime_local.asc',
     });
 
-    const apiUrl = `https://app.ticketmaster.com/discovery/v2/events.json?${params.toString()}`;
-    console.log('[Events] Calling Ticketmaster API...');
+    const apiUrl = `https://api.seatgeek.com/2/events?${params.toString()}`;
+    console.log('[Events] Calling SeatGeek API...');
 
     const response = await fetch(apiUrl);
     console.log('[Events] Response status:', response.status);
 
     if (!response.ok) {
       const body = await response.text();
-      console.error('[Events] Ticketmaster error:', response.status, body.slice(0, 200));
+      console.error('[Events] SeatGeek error:', response.status, body.slice(0, 200));
       return [];
     }
 
     const data = await response.json();
-    const rawEvents: any[] = data?._embedded?.events || [];
-    console.log(`[Events] Got ${rawEvents.length} events from Ticketmaster`);
+    const rawEvents: any[] = data?.events || [];
+    console.log(`[Events] Got ${rawEvents.length} events from SeatGeek`);
 
     if (rawEvents.length === 0) return [];
 
-    // Transform Ticketmaster format → CommunityEvent
+    const coords = await coordsPromise;
+
     const communityEvents = await Promise.all(
       rawEvents.slice(0, 20).map(async (event: any): Promise<CommunityEvent | null> => {
         try {
-          // Date + time
-          const localDate: string = event.dates?.start?.localDate || new Date().toISOString().split('T')[0];
-          const localTime: string = event.dates?.start?.localTime?.slice(0, 5) || '00:00';
+          const datetimeLocal: string = event.datetime_local || '';
+          const localDate: string =
+            datetimeLocal.split('T')[0] || new Date().toISOString().split('T')[0];
+          const localTime: string = datetimeLocal.split('T')[1]?.slice(0, 5) || '00:00';
 
-          // Venue
-          const venue = event._embedded?.venues?.[0];
-          const venueName: string = venue?.name || cityName;
-          const lat: number = parseFloat(venue?.location?.latitude || '0') || 0;
-          const lon: number = parseFloat(venue?.location?.longitude || '0') || 0;
+          const venue = event.venue || {};
+          const venueName: string = venue.name || cityName;
+          const lat: number = venue.location?.lat || coords?.lat || 0;
+          const lon: number = venue.location?.lon || coords?.lon || 0;
 
-          // Category
-          const segment: string = event.classifications?.[0]?.segment?.name || 'Event';
-          const genre: string = event.classifications?.[0]?.genre?.name || '';
-          const category = genre && genre !== 'Undefined' ? genre : segment;
+          const rawType: string = event.type || 'event';
+          const category: string = rawType.charAt(0).toUpperCase() + rawType.slice(1);
 
-          // Weather (only if we have coords)
+          const performer: string = event.performers?.[0]?.name || '';
+          const description: string = performer
+            ? `${performer} at ${venueName}`
+            : `${category} at ${venueName}`;
+
           const weather = lat && lon ? await fetchTemperature(lat, lon, localDate) : null;
 
           return {
-            id: event.id || (event.name + localDate),
-            title: event.name || 'Untitled Event',
-            description: event.info || event.pleaseNote || `${category} event at ${venueName}`,
+            id: String(event.id),
+            title: event.title || event.short_title || 'Untitled Event',
+            description,
             date: localDate,
             time: localTime,
-            location: {
-              name: venueName,
-              latitude: lat,
-              longitude: lon,
-            },
+            location: { name: venueName, latitude: lat, longitude: lon },
             attendees: 0,
             isGoing: false,
             category,
