@@ -787,11 +787,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const syncUserData = useCallback(async (userId: string) => {
     setIsSyncing(true);
     try {
-      console.log('[Sync] Starting cloud sync for user:', userId);
       const remote = await loadUserData(userId);
 
       if (remote) {
-        console.log('[Sync] Remote data found, loading into local state');
         // Remote data exists — load it into state (remote wins on fresh login)
         const safeJsonParse = (jsonStr: string, fallback: any = null) => {
           try {
@@ -805,7 +803,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.habits) {
           const d = safeJsonParse(remote.habits, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} habits from cloud`);
             setHabits(d);
             await persist(KEYS.HABITS, d);
           }
@@ -813,7 +810,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.stats) {
           const d = safeJsonParse(remote.stats, defaultStats);
           if (d) {
-            console.log('[Sync] Loaded stats from cloud');
             setStats(d);
             await persist(KEYS.STATS, d);
           }
@@ -821,7 +817,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.settings) {
           const d = safeJsonParse(remote.settings, defaultSettings);
           if (d) {
-            console.log('[Sync] Loaded settings from cloud');
             setSettings(d);
             setTheme(d.theme || 'dark');
             await persist(KEYS.SETTINGS, d);
@@ -830,7 +825,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.calendar_events) {
           const d = safeJsonParse(remote.calendar_events, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} calendar events from cloud`);
             setCalendarEvents(d);
             await persist(KEYS.CALENDAR_EVENTS, d);
           }
@@ -838,7 +832,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.real_world_wins) {
           const d = safeJsonParse(remote.real_world_wins, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} wins from cloud`);
             setRealWorldWins(d);
             await persist(KEYS.REAL_WORLD_WINS, d);
           }
@@ -846,7 +839,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.journal_entries) {
           const d = safeJsonParse(remote.journal_entries, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} journal entries from cloud`);
             setJournalEntries(d);
             await persist(KEYS.JOURNAL_ENTRIES, d);
           }
@@ -854,7 +846,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.relapse_log) {
           const d = safeJsonParse(remote.relapse_log, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} relapse entries from cloud`);
             setRelapseLog(d);
             await persist(KEYS.RELAPSE_LOG, d);
           }
@@ -862,7 +853,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.reflection_responses) {
           const d = safeJsonParse(remote.reflection_responses, []);
           if (d && d.length >= 0) {
-            console.log(`[Sync] Loaded ${d.length} reflection responses from cloud`);
             setReflectionResponses(d);
             await persist(KEYS.REFLECTION_RESPONSES, d);
           }
@@ -870,7 +860,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.forum_favorites) {
           const d = safeJsonParse(remote.forum_favorites, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} forum favorites from cloud`);
             setForumFavorites(d);
             await persist(KEYS.FORUM_FAVORITES, d);
           }
@@ -878,7 +867,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.detox_history) {
           const d = safeJsonParse(remote.detox_history, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} detox sessions from cloud`);
             setDetoxHistory(d);
             await persist(KEYS.DETOX_HISTORY, d);
           }
@@ -886,7 +874,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.alarms) {
           const d = safeJsonParse(remote.alarms, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} alarms from cloud`);
             setAlarmsState(d);
             await persist(KEYS.ALARMS, d);
           }
@@ -894,7 +881,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.pomodoro_history) {
           const d = safeJsonParse(remote.pomodoro_history, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} pomodoro sessions from cloud`);
             setPomodoroHistory(d);
             await persist(KEYS.POMODORO_HISTORY, d);
           }
@@ -902,7 +888,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.todos) {
           const d = safeJsonParse(remote.todos, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} todos from cloud`);
             setTodos(d);
             await persist(KEYS.TODOS, d);
           }
@@ -910,14 +895,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (remote.goals) {
           const d = safeJsonParse(remote.goals, []);
           if (d && Array.isArray(d)) {
-            console.log(`[Sync] Loaded ${d.length} goals from cloud`);
             setGoals(d);
             await persist(KEYS.GOALS, d);
           }
         }
-        console.log('[Sync] Cloud data loaded successfully');
       } else {
-        console.log('[Sync] No remote data found, pushing local data to cloud');
         // No remote data yet — push local data to cloud
         const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections, localTodos, localGoals] =
           await Promise.all([
@@ -933,15 +915,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getData<GoalEntry[]>(KEYS.GOALS),
           ]);
 
-        console.log('[Sync] Pushing initial data to cloud:', {
-          habits: localHabits?.length || 0,
-          stats: !!localStats,
-          settings: !!localSettings,
-          wins: localWins?.length || 0,
-          todos: localTodos?.length || 0,
-          goals: localGoals?.length || 0,
-        });
-
         await saveUserData(userId, {
           habits: JSON.stringify(localHabits || []),
           stats: JSON.stringify(localStats || {}),
@@ -954,7 +927,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           todos: JSON.stringify(localTodos || []),
           goals: JSON.stringify(localGoals || []),
         });
-        console.log('[Sync] Initial data pushed to cloud');
       }
     } catch (e) {
       console.error('[Sync] Sync error:', e);
@@ -980,14 +952,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsSyncing(true);
-      console.log('[Sync] Manual sync initiated for types:', toSync);
 
       // Load remote data for these types
       const remote = await loadUserDataPartial(currentUserId, toSync);
 
       if (remote) {
-        // Merge each datatype with conflict resolution
-        console.log('[Sync] Merging remote data with local state');
 
         // Build update payload from current in-memory state.
         // Never save empty strings — that would silently wipe cloud data.
@@ -1029,7 +998,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSyncError(null);
       } else {
         // No remote data - push local
-        console.log('[Sync] No remote data found - pushing local data');
         const metadata: Record<DataType, SyncMetadata> = {};
         const updates: Partial<Record<DataType, string>> = {
           habits: JSON.stringify(habits),
@@ -1065,7 +1033,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSyncError(null);
       }
 
-      console.log('[Sync] Manual sync completed successfully');
       dirtyStateRef.current.clear();
     } catch (error) {
       console.error('[Sync] Manual sync failed:', error);
@@ -1118,7 +1085,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const payload: Partial<Record<DataType, string>> = {};
       typesToSave.forEach(t => { if (stateMap[t] !== undefined) payload[t] = stateMap[t]!; });
 
-      console.log('[Sync] Auto-saving', typesToSave.length, 'type(s) to cloud');
       saveUserData(currentUserId, {
         habits: JSON.stringify(habits),
         stats: JSON.stringify(stats),
@@ -1133,7 +1099,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         alarms: JSON.stringify(alarms),
         pomodoro_history: JSON.stringify(pomodoroHistory),
       }).then(() => {
-        console.log('[Sync] Auto-save completed');
         dirtyStateRef.current.clear();
         setSyncError(null);
         setLastSyncTime(new Date().toISOString());
