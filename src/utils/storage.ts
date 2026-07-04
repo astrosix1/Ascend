@@ -83,7 +83,6 @@ export async function clearAllData(): Promise<void> {
     ];
 
     await Promise.all(userDataKeys.map(key => AsyncStorage.removeItem(key)));
-    console.log('[Storage] All user data cleared');
   } catch (err: any) {
     console.error('[Storage] Failed to clear all data:', err.message || err);
     // Still fail silently for offline resilience

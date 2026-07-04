@@ -208,8 +208,6 @@ export async function deleteComment(commentId: string): Promise<{ success: boole
   const sb = getSupabaseClient();
   if (!sb) return { success: false, error: 'Supabase not configured' };
 
-  console.log('Attempting to delete comment:', commentId);
-
   try {
     // First, fetch the comment to verify ownership
     const { data: comment, error: fetchError } = await sb
@@ -230,8 +228,6 @@ export async function deleteComment(commentId: string): Promise<{ success: boole
       return { success: false, error: 'You must be signed in to delete' };
     }
 
-    console.log('Comment user_id:', comment.user_id, 'Current user:', user.id);
-
     // Check ownership
     if (comment.user_id !== user.id) {
       console.warn('User does not own this comment');
@@ -249,7 +245,6 @@ export async function deleteComment(commentId: string): Promise<{ success: boole
       return { success: false, error: deleteError.message || 'Failed to delete comment' };
     }
 
-    console.log('Comment deleted successfully');
     return { success: true };
   } catch (err: any) {
     console.error('Delete comment error:', err);
@@ -293,8 +288,6 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
   const sb = getSupabaseClient();
   if (!sb) return { success: false, error: 'Supabase not configured' };
 
-  console.log('Attempting to delete post:', postId);
-
   try {
     // Delete the post (RLS policy on the backend will verify ownership)
     const { error: deleteError } = await sb
@@ -307,7 +300,6 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
       return { success: false, error: deleteError.message || 'Failed to delete post' };
     }
 
-    console.log('Post deleted successfully');
     return { success: true };
   } catch (err: any) {
     console.error('Delete post error:', err);
@@ -324,7 +316,6 @@ export async function saveUserData(userId: string, payload: Omit<DBUserData, 'us
     return;
   }
   try {
-    console.log('[DB] Saving user data for userId:', userId);
     const { error } = await sb.from('user_data').upsert(
       {
         user_id: userId,
@@ -341,7 +332,6 @@ export async function saveUserData(userId: string, payload: Omit<DBUserData, 'us
       }
       throw error;
     }
-    console.log('[DB] User data saved successfully');
   } catch (err: any) {
     console.error('[DB] Save user data error:', err.message || err);
     throw err;
@@ -355,19 +345,15 @@ export async function loadUserData(userId: string): Promise<DBUserData | null> {
     return null;
   }
   try {
-    console.log('[DB] Loading user data for userId:', userId);
     const { data, error } = await sb.from('user_data').select('*').eq('user_id', userId).single();
     if (error) {
       // 406 means no rows found, which is expected for new users
-      if (error.code === '406') {
-        console.log('[DB] No existing user data found (first login)');
-      } else {
+      if (error.code !== '406') {
         console.error('[DB] Failed to load user data:', error);
       }
       return null;
     }
     if (data) {
-      console.log('[DB] User data loaded successfully');
       return data;
     }
     return null;
@@ -404,7 +390,6 @@ export async function loadUserDataPartial(
       'conflict_markers',
     ];
 
-    console.log('[DB] Loading partial user data for userId:', userId, 'types:', dataTypes);
     let query = sb.from('user_data').select(columns.join(',')).eq('user_id', userId).single();
 
     // Optional: filter by update time for incremental sync
@@ -415,16 +400,13 @@ export async function loadUserDataPartial(
     const { data, error } = await query;
 
     if (error) {
-      if (error.code === '406') {
-        console.log('[DB] No existing user data found (first login)');
-      } else {
+      if (error.code !== '406') {
         console.error('[DB] Failed to load partial user data:', error);
       }
       return null;
     }
 
     if (data) {
-      console.log('[DB] Partial user data loaded successfully');
       return data;
     }
     return null;
@@ -450,8 +432,6 @@ export async function saveUserDataPartial(
   }
 
   try {
-    console.log('[DB] Saving partial user data for userId:', userId);
-
     // Build update object with data types + their sync timestamps
     const updateData: any = {
       user_id: userId,
@@ -475,8 +455,6 @@ export async function saveUserDataPartial(
     if (error) {
       // If upsert fails with constraint violation, fall back to explicit update
       if (error.code === '23505' || error.message?.includes('duplicate key')) {
-        console.log('[DB] Constraint violation on insert, attempting explicit update...');
-
         // Remove user_id from update data (can't update primary key)
         const { user_id: _ignored, ...updateDataWithoutId } = updateData;
 
@@ -490,7 +468,6 @@ export async function saveUserDataPartial(
           throw updateError;
         }
 
-        console.log('[DB] Fallback update succeeded');
         return;
       }
 
@@ -501,7 +478,6 @@ export async function saveUserDataPartial(
       throw error;
     }
 
-    console.log('[DB] Partial user data saved successfully');
   } catch (err: any) {
     console.error('[DB] Save partial user data error:', err.message || err);
     throw err;
@@ -525,8 +501,6 @@ export async function loadHistoryPaginated(
   }
 
   try {
-    console.log(`[DB] Loading ${dataType} page (limit: ${limit}, offset: ${offset})`);
-
     const { data, error } = await sb
       .from('user_data')
       .select(dataType)
@@ -552,7 +526,6 @@ export async function loadHistoryPaginated(
 
     // Return paginated slice
     const paginated = history.slice(offset, offset + limit);
-    console.log(`[DB] Loaded ${paginated.length} items from ${dataType}`);
     return paginated;
   } catch (err: any) {
     console.error(`[DB] Load ${dataType} error:`, err.message || err);
@@ -577,12 +550,7 @@ export async function appendToHistory(
   }
 
   try {
-    if (newEntries.length === 0) {
-      console.log('[DB] No new entries to append');
-      return;
-    }
-
-    console.log(`[DB] Appending ${newEntries.length} entries to ${dataType}`);
+    if (newEntries.length === 0) return;
 
     // Load existing history
     const { data, error: loadError } = await sb
@@ -630,7 +598,6 @@ export async function appendToHistory(
       throw updateError;
     }
 
-    console.log(`[DB] Successfully appended ${uniqueNewEntries.length} entries to ${dataType}`);
   } catch (err: any) {
     console.error(`[DB] Append to ${dataType} error:`, err.message || err);
     throw err;
@@ -661,7 +628,6 @@ export async function signIn(email: string, password: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ access_token, refresh_token }),
       });
-      console.log('[Auth] Successfully set shared domain session on asix.live');
     } catch (err) {
       // Log but don't fail signin if token relay fails
       console.warn('[Auth] Failed to set shared domain session:', err);

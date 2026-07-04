@@ -5,6 +5,9 @@ import Button from '../../components/Button';
 import Card from '../../components/Card';
 import { Spacing, FontSize, BorderRadius, FontWeight } from '../../utils/theme';
 import { EQExercise } from '../../data/eqExercises';
+import { getData, setData } from '../../utils/storage';
+
+const EQ_HISTORY_KEY = 'ascend_eq_history';
 
 interface EQCompletionProps {
   exercise: EQExercise;
@@ -17,15 +20,21 @@ export default function EQCompletion({ exercise, timeSpent, onDone }: EQCompleti
   const [effectiveness, setEffectiveness] = useState<1 | 2 | 3 | 4 | null>(null);
   const [notes, setNotes] = useState('');
 
-  const handleDone = () => {
-    // TODO: Save completion to database
-    // {
-    //   exerciseId: exercise.id,
-    //   effectiveness,
-    //   reflection: notes,
-    //   timeSpent,
-    //   completedAt: new Date()
-    // }
+  const handleDone = async () => {
+    const record = {
+      exerciseId: exercise.id,
+      exerciseTitle: exercise.title,
+      effectiveness,
+      reflection: notes.trim() || null,
+      timeSpent,
+      completedAt: new Date().toISOString(),
+    };
+    try {
+      const existing = await getData<typeof record[]>(EQ_HISTORY_KEY) ?? [];
+      await setData(EQ_HISTORY_KEY, [...existing, record]);
+    } catch {
+      // Non-critical — proceed even if save fails
+    }
     onDone();
   };
 
