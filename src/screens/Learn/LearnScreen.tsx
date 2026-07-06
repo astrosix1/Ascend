@@ -95,6 +95,7 @@ export default function LearnScreen() {
       id: Date.now().toString() + Math.random(),
       title,
       description: '',
+      category: 'mental',
       targetDate: '',
       status: 'active',
       progress: 0,

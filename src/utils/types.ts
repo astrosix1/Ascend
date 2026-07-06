@@ -137,10 +137,13 @@ export interface RelapseEntry {
   date: string;
 }
 
+export type GoalCategory = 'physical' | 'mental' | 'emotional' | 'social' | 'financial' | 'professional';
+
 export interface GoalEntry {
   id: string;
   title: string;
   description: string;
+  category: GoalCategory;
   targetDate: string; // YYYY-MM-DD
   status: 'active' | 'completed' | 'abandoned';
   progress: number; // 0-100%
