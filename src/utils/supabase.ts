@@ -38,6 +38,13 @@ export interface DBUserData {
   detox_history?: string;       // JSON array
   alarms?: string;              // JSON array
   pomodoro_history?: string;    // JSON array
+  // NOT YET migrated into the user_data table — do not include these keys
+  // when calling saveUserData/upsert, PostgREST will reject unknown columns.
+  // Declared here (optional, read-only in practice) so `remote.todos` /
+  // `remote.goals` type-check on the read path; they'll always be undefined
+  // until the migration lands.
+  todos?: string;
+  goals?: string;
   // Sync metadata columns (per-datatype last sync timestamps)
   last_sync_time?: string | null;
   last_habit_sync?: string | null;

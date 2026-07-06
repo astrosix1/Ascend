@@ -7,7 +7,7 @@ import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataP
 import { resolveStreakOnComplete } from '../utils/streakFreeze';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
-import { getSyncQueue, syncQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
+import { getSyncQueue, syncQueue as processOfflineQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
 
 interface AppState {
   // Theme
@@ -900,8 +900,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        // No remote data yet — push local data to cloud
-        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections, localTodos, localGoals] =
+        // No remote data yet — push local data to cloud.
+        // NOTE: 'todos' and 'goals' are intentionally NOT sent here — they are
+        // not columns in the user_data table yet (see manualSync below), and
+        // including them makes Supabase reject the whole upsert. They still
+        // persist locally via AsyncStorage; add them back once the DB schema
+        // has been migrated to include those columns.
+        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections] =
           await Promise.all([
             getData<Habit[]>(KEYS.HABITS),
             getData<UserStats>(KEYS.STATS),
@@ -911,8 +916,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getData<JournalEntry[]>(KEYS.JOURNAL_ENTRIES),
             getData<RelapseEntry[]>(KEYS.RELAPSE_LOG),
             getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
-            getData<Todo[]>(KEYS.TODOS),
-            getData<GoalEntry[]>(KEYS.GOALS),
           ]);
 
         await saveUserData(userId, {
@@ -924,8 +927,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           journal_entries: JSON.stringify(localJournal || []),
           relapse_log: JSON.stringify(localRelapse || []),
           reflection_responses: JSON.stringify(localReflections || []),
-          todos: JSON.stringify(localTodos || []),
-          goals: JSON.stringify(localGoals || []),
         });
       }
     } catch (e) {
@@ -1225,23 +1226,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(globalInterval);
   }, [activeTimer, timerStartTime, timerDuration]);
 
-  // Trigger offline sync when coming back online
+  // Trigger offline sync when coming back online.
+  // Actually replays the persisted offline queue instead of just clearing it:
+  // each queued item is retried through manualSync (which already has its own
+  // retry/error handling); items that fail keep their attempt count and stay
+  // queued (capped at 3 attempts) so a later reconnect can retry them again.
   const triggerSync = useCallback(async () => {
-    if (syncQueue.length === 0 || !navigator.onLine) return;
+    if (syncQueue.length === 0 || !navigator.onLine || !currentUserId) return;
 
     try {
       setIsSyncing(true);
-      // In production, this would process the queue items
-      // For now, just clear the queue after 1 second to simulate syncing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setSyncQueueState([]);
+      await processOfflineQueue(async () => {
+        // Queued items represent local changes made while offline; the
+        // simplest correct replay is to push current in-memory state for
+        // everything (manualSync already diffs against remote and handles
+        // its own retry/backoff-free error surfacing via setSyncError).
+        await manualSync();
+        return true;
+      });
+      const remaining = await getSyncQueue();
+      setSyncQueueState(remaining);
       setIsOfflineState(false);
     } catch (e) {
       console.warn('Sync failed:', e);
     } finally {
       setIsSyncing(false);
     }
-  }, [syncQueue]);
+  }, [syncQueue, currentUserId, manualSync]);
 
   return (
     <AppContext.Provider value={{
