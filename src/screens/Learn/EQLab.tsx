@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useApp } from '../../contexts/AppContext';
 import Card from '../../components/Card';
@@ -19,11 +19,13 @@ export default function EQLab() {
   const [screen, setScreen] = useState<EQScreen>('landing');
   const [selectedExercise, setSelectedExercise] = useState<ScenarioExercise | GameExercise | null>(null);
   const [completionData, setCompletionData] = useState<{ timeSpent: number; score?: number } | null>(null);
+  const exerciseStartTime = useRef<number | null>(null);
 
   const allExercises = [...SCENARIO_EXERCISES, ...GAME_EXERCISES];
 
   const handleStartExercise = (exercise: ScenarioExercise | GameExercise) => {
     setSelectedExercise(exercise);
+    exerciseStartTime.current = Date.now();
     if ('gameType' in exercise) {
       setScreen('game-active');
     } else {
@@ -32,12 +34,14 @@ export default function EQLab() {
   };
 
   const handleScenarioComplete = (choice: ScenarioChoice) => {
-    setCompletionData({ timeSpent: Math.floor(Math.random() * 300) + 60 }); // Mock time
+    const elapsed = exerciseStartTime.current ? Math.floor((Date.now() - exerciseStartTime.current) / 1000) : 60;
+    setCompletionData({ timeSpent: elapsed });
     setScreen('completion');
   };
 
   const handleGameComplete = (score: number, totalRounds: number) => {
-    setCompletionData({ timeSpent: Math.floor(Math.random() * 300) + 60, score });
+    const elapsed = exerciseStartTime.current ? Math.floor((Date.now() - exerciseStartTime.current) / 1000) : 60;
+    setCompletionData({ timeSpent: elapsed, score });
     setScreen('completion');
   };
 
