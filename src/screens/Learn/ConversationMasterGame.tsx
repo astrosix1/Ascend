@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useApp } from '../../contexts/AppContext';
 import { Spacing, FontSize, BorderRadius, FontWeight } from '../../utils/theme';
@@ -27,6 +27,21 @@ interface GameState {
   chatHistory: ChatMessage[];
   relationshipScore: number;
   eqScores: number[];
+  // Display order for the current node's choices (array of DialogueChoice.id).
+  // Scenario data lists choices best-to-worst by eqScore; shuffling this once
+  // per node-entry (rather than deriving it from currentNodeId) means
+  // replaying the same scenario re-shuffles too, instead of reusing a stale
+  // memoized order for a node id that recurs across playthroughs.
+  choiceOrder: string[];
+}
+
+function shuffled<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 const EMOTION_EMOJI: Record<NPCEmotion, string> = {
@@ -52,6 +67,7 @@ export default function ConversationMasterGame() {
     chatHistory: [],
     relationshipScore: 50,
     eqScores: [],
+    choiceOrder: [],
   });
   const [showChoices, setShowChoices] = useState(false);
   const [isWaitingForNPC, setIsWaitingForNPC] = useState(false);
@@ -63,6 +79,15 @@ export default function ConversationMasterGame() {
     if (!state.scenario || !state.currentNodeId) return null;
     return state.scenario.nodes[state.currentNodeId] || null;
   };
+
+  // Choices in display order for the current node, per gameState.choiceOrder
+  // (set at each node-entry point in handleStartScenario/handleChoice below).
+  const shuffledChoices = useMemo(() => {
+    const node = getCurrentNode(gameState);
+    if (!node?.choices) return [];
+    const byId = new Map(node.choices.map(c => [c.id, c]));
+    return gameState.choiceOrder.map(id => byId.get(id)).filter((c): c is DialogueChoice => !!c);
+  }, [gameState.scenario, gameState.currentNodeId, gameState.choiceOrder]);
 
   const getBarColor = (score: number) => {
     if (score >= 65) return colors.success;
@@ -101,6 +126,7 @@ export default function ConversationMasterGame() {
       chatHistory: [firstMsg],
       relationshipScore: scenario.initialRelationship,
       eqScores: [],
+      choiceOrder: shuffled((startNode.choices || []).map(c => c.id)),
     });
     setScreen('playing');
     setShowChoices(false);
@@ -142,7 +168,11 @@ export default function ConversationMasterGame() {
           text: nextNode.npcMessage,
           emotion: nextNode.npcEmotion,
         };
-        const updated = { ...prev, chatHistory: [...prev.chatHistory, npcMsg] };
+        const updated = {
+          ...prev,
+          chatHistory: [...prev.chatHistory, npcMsg],
+          choiceOrder: shuffled((nextNode.choices || []).map(c => c.id)),
+        };
 
         if (nextNode.isEnding) {
           setTimeout(() => setScreen('outcome'), 1000);
@@ -337,7 +367,7 @@ export default function ConversationMasterGame() {
         {showChoices && currentNode && !currentNode.isEnding && currentNode.choices && (
           <View style={[s.choiceArea, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
             <Text style={[s.choicePrompt, { color: colors.textSecondary }]}>How do you respond?</Text>
-            {currentNode.choices.map(ch => (
+            {shuffledChoices.map(ch => (
               <TouchableOpacity
                 key={ch.id}
                 onPress={() => handleChoice(ch)}
