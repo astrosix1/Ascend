@@ -61,8 +61,6 @@ export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> 
       return [];
     }
 
-    console.log('[Events] Fetching SeatGeek events for:', cityName);
-
     // Geocode in parallel for weather enrichment — events load regardless
     const coordsPromise = geocodeCity(cityName);
 
@@ -74,10 +72,7 @@ export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> 
     });
 
     const apiUrl = `https://api.seatgeek.com/2/events?${params.toString()}`;
-    console.log('[Events] Calling SeatGeek API...');
-
     const response = await fetch(apiUrl);
-    console.log('[Events] Response status:', response.status);
 
     if (!response.ok) {
       const body = await response.text();
@@ -87,7 +82,6 @@ export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> 
 
     const data = await response.json();
     const rawEvents: any[] = data?.events || [];
-    console.log(`[Events] Got ${rawEvents.length} events from SeatGeek`);
 
     if (rawEvents.length === 0) return [];
 
@@ -135,9 +129,7 @@ export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> 
       })
     );
 
-    const valid = communityEvents.filter(Boolean) as CommunityEvent[];
-    console.log(`[Events] Returning ${valid.length} formatted events`);
-    return valid;
+    return communityEvents.filter(Boolean) as CommunityEvent[];
   } catch (err) {
     console.error('[Events] Fatal error:', err);
     return [];

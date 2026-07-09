@@ -61,7 +61,6 @@ export async function syncWithRetry<T>(
 
       if (attempt < finalConfig.maxAttempts) {
         const delay = calculateRetryDelay(attempt, finalConfig);
-        console.log(`[SyncEngine] Retrying in ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }

@@ -86,7 +86,6 @@ export async function migrateGuestDataToCloud(
       }
     } catch (e) {
       // No remote data exists yet (first sign-in) - that's fine
-      console.log('[Migration] No existing remote data, using local as source');
     }
 
     // Step 3: Merge local (guest) data with remote (local-wins strategy for guest data)
@@ -116,15 +115,12 @@ export async function migrateGuestDataToCloud(
       await saveUserDataPartial(userId, stringifiedData as Partial<Record<string, string>>, metadata);
     } catch (e: any) {
       // If save fails, wait a moment and retry (in case of transient issues)
-      console.log('[Migration] First save attempt failed, retrying in 1 second...');
       await new Promise(resolve => setTimeout(resolve, 1000));
       await saveUserDataPartial(userId, stringifiedData as Partial<Record<string, string>>, metadata);
     }
 
     // Step 5: Success - data is now in cloud
     onProgress?.({ status: 'completed', progress: 100 });
-    console.log('[Migration] Guest data successfully migrated to cloud');
-
     return { success: true };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

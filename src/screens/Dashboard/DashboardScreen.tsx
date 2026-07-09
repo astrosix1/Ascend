@@ -32,11 +32,12 @@ import { getData, setData } from '../../utils/storage';
 import { TEMPTATION_ADVICE, getRandomAdviceForHabit } from '../../data/temptationAdvice';
 import DailyProgressRing from '../../components/DailyProgressRing';
 import { HabitRowSkeleton, StatCardSkeleton } from '../../components/LoadingSkeleton';
+import GoalsScreen from './GoalsScreen';
 // import AccountabilityInvite from '../../components/AccountabilityInvite';
 // import CertificateModal from '../../components/CertificateModal';
 // import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 
-type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals';
+type DashboardTab = 'habits' | 'progress' | 'calendar' | 'journals' | 'goals';
 // Mobile-responsive day labels (short on small screens, full on larger)
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS_SHORT = ['S', 'M', 'T', 'W', 'Th', 'F', 'Sa'];
@@ -473,7 +474,7 @@ export default function DashboardScreen() {
 
   // ── Stats / Chart state ────────────────────────────────────────────────────
   // Unified tab state for mobile/desktop persistence
-  const [currentTab, setCurrentTab] = useState<'today' | 'progress' | 'journals' | 'calendar'>('today');
+  const [currentTab, setCurrentTab] = useState<'today' | 'progress' | 'journals' | 'calendar' | 'goals'>('today');
   // Derived activeTab for display purposes (maps 'today' to 'habits' in UI)
   const activeTab = currentTab === 'today' ? 'habits' : currentTab;
   const [chartTab, setChartTab] = useState<'Week' | 'Month' | 'Year'>('Week');
@@ -593,15 +594,17 @@ export default function DashboardScreen() {
 
       // Number shortcuts for desktop category navigation
       if (e.key === '1') setCurrentTab('today');
-      if (e.key === '2') setCurrentTab('progress');
-      if (e.key === '3') setCurrentTab('journals');
-      if (e.key === '4') { setCurrentTab('calendar'); if (!selectedDay) setSelectedDay(today); }
+      if (e.key === '2') setCurrentTab('goals');
+      if (e.key === '3') setCurrentTab('progress');
+      if (e.key === '4') setCurrentTab('journals');
+      if (e.key === '5') { setCurrentTab('calendar'); if (!selectedDay) setSelectedDay(today); }
 
       // Arrow keys for mobile tab navigation (Left = previous, Right = next)
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         setCurrentTab(prev => {
-          if (prev === 'today') return 'progress';
+          if (prev === 'today') return 'goals';
+          if (prev === 'goals') return 'progress';
           if (prev === 'progress') return 'journals';
           if (prev === 'journals') return 'calendar';
           return 'today';
@@ -613,7 +616,8 @@ export default function DashboardScreen() {
           if (prev === 'today') return 'calendar';
           if (prev === 'calendar') return 'journals';
           if (prev === 'journals') return 'progress';
-          if (prev === 'progress') return 'today';
+          if (prev === 'progress') return 'goals';
+          if (prev === 'goals') return 'today';
           return 'today';
         });
       }
@@ -851,6 +855,7 @@ export default function DashboardScreen() {
       id: editingGoalId,
       title: goalTitle,
       description: goalDescription,
+      category: goals.find(g => g.id === editingGoalId)?.category ?? 'mental',
       targetDate: goalTargetDate,
       status: 'active',
       progress: goalProgress,
@@ -862,6 +867,7 @@ export default function DashboardScreen() {
       id: Date.now().toString(),
       title: goalTitle,
       description: goalDescription,
+      category: 'mental',
       targetDate: goalTargetDate,
       status: 'active',
       progress: goalProgress,
@@ -1401,8 +1407,9 @@ export default function DashboardScreen() {
           {/* Category nav */}
           {([
             { id: 'today' as const, label: "Today's Habits", icon: '🏠', sub: completedGoodHabits.length + '/' + goodHabits.length + ' completed' },
+            { id: 'goals' as const, label: 'Goals', icon: '🎯', sub: goals.filter(g => g.status === 'active').length + ' active' },
             { id: 'progress' as const, label: 'Progress', icon: '📊', sub: 'Ring · Chart' },
-            { id: 'journals' as const, label: 'Journals', icon: '📓', sub: 'Wins · Goals · Notes' },
+            { id: 'journals' as const, label: 'Journals', icon: '📓', sub: 'Wins · Notes' },
             { id: 'calendar' as const, label: 'Calendar', icon: '📅', sub: MONTH_NAMES[calMonth] + ' ' + calYear + (currentMonthEventCount > 0 ? ' · ' + currentMonthEventCount + ' event' + (currentMonthEventCount !== 1 ? 's' : '') : '') },
           ]).map(cat => {
             const isActive = dashboardCategory === cat.id;
@@ -1451,7 +1458,7 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ width: 3, height: 18, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.sm }} />
             <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: '700', color: colors.text, letterSpacing: -0.3 }}>
-              {dashboardCategory === 'today' ? "Today's Habits" : dashboardCategory === 'progress' ? 'Progress' : dashboardCategory === 'journals' ? 'Journals' : 'Calendar'}
+              {dashboardCategory === 'today' ? "Today's Habits" : dashboardCategory === 'progress' ? 'Progress' : dashboardCategory === 'journals' ? 'Journals' : dashboardCategory === 'goals' ? 'Goals' : 'Calendar'}
             </Text>
             {dashboardCategory === 'today' && (
               <Button title="+ Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} />
@@ -1460,7 +1467,10 @@ export default function DashboardScreen() {
               <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>Ring · Chart</Text>
             )}
             {dashboardCategory === 'journals' && (
-              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>Wins · Goals · Notes</Text>
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>Wins · Notes</Text>
+            )}
+            {dashboardCategory === 'goals' && (
+              <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>{goals.filter(g => g.status === 'active').length} active</Text>
             )}
             {dashboardCategory === 'calendar' && (
               <Text style={{ fontSize: FontSize.sm, color: colors.textSecondary }}>{MONTH_NAMES[calMonth]} {calYear}</Text>
@@ -1627,6 +1637,11 @@ export default function DashboardScreen() {
           </ScrollView>
         </View>
 
+        )}
+        {dashboardCategory === 'goals' && (
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <GoalsScreen />
+          </View>
         )}
         {dashboardCategory === 'progress' && (
           <View style={{ flex: 1, overflow: 'hidden' }}>
@@ -2237,6 +2252,11 @@ export default function DashboardScreen() {
               : null,
             badgeColor: colors.warning,
           },
+          {
+            id: 'goals', label: 'Goals', icon: '🎯',
+            badge: goals.filter(g => g.status === 'active').length > 0 ? String(goals.filter(g => g.status === 'active').length) : null,
+            badgeColor: colors.accent,
+          },
           { id: 'progress', label: 'Progress', icon: '📊', badge: null, badgeColor: null },
           {
             id: 'journals', label: 'Journal', icon: '📓',
@@ -2621,6 +2641,11 @@ export default function DashboardScreen() {
           {/* ── End of BUILD/BREAK conditional wrapper ── */}
 
           </>
+        )}
+
+        {/* ━━ GOALS TAB (MOBILE) ━━ */}
+        {currentTab === 'goals' && (
+          <GoalsScreen />
         )}
 
         {/* ━━ PROGRESS TAB (MOBILE) ━━ */}

@@ -101,8 +101,6 @@ export function performRedirect(url: string): void {
   // Always clear the flag so it never gets stuck
   localStorage.removeItem(REDIRECT_FLAG);
 
-  console.log('[Redirect] Navigating to:', url);
-
   try {
     window.location.replace(url);
   } catch (error) {

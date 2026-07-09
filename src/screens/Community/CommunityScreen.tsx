@@ -383,7 +383,6 @@ export default function CommunityScreen() {
     }
     setPostSubmitting(true);
     try {
-      console.log('Submitting post:', { title: newPostTitle, body: newPostBody, userId: currentUserId });
       const newPost = await createPost({
         title: newPostTitle.trim(),
         body: newPostBody.trim(),
@@ -391,7 +390,6 @@ export default function CommunityScreen() {
         category: newPostCategory,
         tags: newPostTags.split(',').map(t => t.trim()).filter(Boolean),
       });
-      console.log('Post created:', newPost);
       setShowNewPost(false);
       setNewPostTitle(''); setNewPostBody(''); setNewPostTags('');
       Alert.alert('Success', 'Your post has been published!');

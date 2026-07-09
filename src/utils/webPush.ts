@@ -37,7 +37,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-    console.log('[Push] Service worker registered:', reg.scope);
     return reg;
   } catch (err) {
     console.warn('[Push] Service worker registration failed:', err);
@@ -124,8 +123,6 @@ function scheduleAlarm(alarm: Alarm): void {
 
   scheduledTimeouts.set(alarm.id, timeout);
 
-  const nextFire = new Date(Date.now() + ms);
-  console.log(`[Push] Alarm "${alarm.label}" scheduled for ${nextFire.toLocaleTimeString()}`);
 }
 
 /**
@@ -141,7 +138,6 @@ export function scheduleAlarmNotifications(alarms: Alarm[]): void {
 
   // Schedule each enabled alarm
   alarms.filter(a => a.enabled && a.days.length > 0).forEach(scheduleAlarm);
-  console.log(`[Push] Scheduled ${alarms.filter(a => a.enabled).length} alarm(s)`);
 }
 
 /**
@@ -151,7 +147,6 @@ export function scheduleAlarmNotifications(alarms: Alarm[]): void {
 export function clearAllScheduledNotifications(): void {
   scheduledTimeouts.forEach(t => clearTimeout(t));
   scheduledTimeouts.clear();
-  console.log('[Push] All scheduled notifications cleared');
 }
 
 /**

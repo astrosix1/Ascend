@@ -59,7 +59,7 @@ export default function CertificateModal({
         title: 'My Recovery Certificate',
         text: shareText,
         url: window.location.href,
-      }).catch(err => console.log('Share cancelled:', err));
+      }).catch(() => {});
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(shareText).then(() => {
