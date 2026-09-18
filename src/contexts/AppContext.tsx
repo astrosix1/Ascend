@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { Colors, ThemeColors } from '../utils/theme';
 import { getData, setData, KEYS } from '../utils/storage';
 import { initPushNotifications, scheduleAlarmNotifications } from '../utils/webPush';
@@ -9,7 +9,7 @@ import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
 import { getSyncQueue, syncQueue as processOfflineQueue, setOfflineState, getOfflineState, addToQueue } from '../utils/offlineSync';
 
-interface AppState {
+export interface AppState {
   // Theme
   colors: ThemeColors;
   theme: 'dark' | 'light';
@@ -1112,11 +1112,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUserId, isSyncing, isLoading, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory]);
 
   const signOutUser = useCallback(async () => {
-    // Clear Supabase session (if authenticated)
+    // Clear Supabase session (if authenticated). Local state is cleared
+    // unconditionally below regardless of outcome — guest mode has no
+    // session to sign out of, and a real network/API failure here shouldn't
+    // trap the user in a signed-in-looking state, but it's still logged so a
+    // genuine failure isn't invisible.
     try {
       await signOut();
-    } catch {
-      // Silently ignore if not authenticated (guest mode)
+    } catch (e) {
+      console.warn('[Auth] signOut failed (continuing with local sign-out):', e);
     }
     // Clear local context state
     setCurrentUserId(null);
@@ -1127,8 +1131,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Complete reset: clear Supabase session and local context
     try {
       await signOut();
-    } catch {
-      // Silently ignore
+    } catch (e) {
+      console.warn('[Auth] signOut failed during reset (continuing with local reset):', e);
     }
     setCurrentUserId(null);
     setCurrentUserEmail('');
@@ -1254,78 +1258,112 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [syncQueue, currentUserId, manualSync]);
 
+  // Memoized so unrelated consumers don't re-render on every AppContext state
+  // change — previously this was a fresh object literal every render, so a
+  // single habit toggle or in-flight sync status update re-rendered every
+  // screen that calls useApp(), not just the ones reading the field that
+  // actually changed. All the action functions above are already wrapped in
+  // useCallback, so only the plain state values need to be real dependencies
+  // here; the callbacks are listed too for correctness even though their
+  // references are already stable.
+  const contextValue = useMemo<AppState>(() => ({
+    colors,
+    theme,
+    toggleTheme,
+    habits,
+    addHabit,
+    toggleHabit,
+    removeHabit,
+    updateHabit,
+    stats,
+    addXP,
+    resetProgress,
+    settings,
+    updateSettings,
+    pomodoroHistory,
+    addPomodoroSession,
+    calendarEvents,
+    addCalendarEvent,
+    removeCalendarEvent,
+    realWorldWins,
+    addRealWorldWin,
+    journalEntries,
+    addJournalEntry,
+    updateJournalEntry,
+    deleteJournalEntry,
+    relapseLog,
+    addRelapseEntry,
+    goals,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    todos,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+    detoxHistory,
+    addDetoxSession,
+    activeTimer,
+    timerStartTime,
+    timerDuration,
+    setActiveTimer,
+    timerNotification,
+    setTimerNotification,
+    alarms,
+    setAlarms,
+    syncError,
+    clearSyncError,
+    forumFavorites,
+    toggleForumFavorite,
+    reflectionResponses,
+    addReflectionResponse,
+    currentUserId,
+    currentUserEmail,
+    setCurrentUser,
+    syncUserData,
+    manualSync,
+    signOutUser,
+    resetAuth,
+    resetSignal,
+    isSyncing,
+    lastSyncTime,
+    syncStatuses,
+    isLoading,
+    totalHabitsCompleted: calculateTotalHabitsCompleted(habits),
+    milestonesCrossed,
+    milestoneTrigger,
+    isOffline,
+    pendingSyncCount: syncQueue.length,
+    failedSyncCount: syncQueue.filter((item: any) => item.attempts >= 3).length,
+    triggerSync,
+  }), [
+    colors, theme, toggleTheme,
+    habits, addHabit, toggleHabit, removeHabit, updateHabit,
+    stats, addXP, resetProgress,
+    settings, updateSettings,
+    pomodoroHistory, addPomodoroSession,
+    calendarEvents, addCalendarEvent, removeCalendarEvent,
+    realWorldWins, addRealWorldWin,
+    journalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry,
+    relapseLog, addRelapseEntry,
+    goals, addGoal, updateGoal, deleteGoal,
+    todos, addTodo, toggleTodo, deleteTodo,
+    detoxHistory, addDetoxSession,
+    activeTimer, timerStartTime, timerDuration, setActiveTimer,
+    timerNotification, setTimerNotification,
+    alarms, setAlarms,
+    syncError, clearSyncError,
+    forumFavorites, toggleForumFavorite,
+    reflectionResponses, addReflectionResponse,
+    currentUserId, currentUserEmail, setCurrentUser,
+    syncUserData, manualSync, signOutUser, resetAuth, resetSignal,
+    isSyncing, lastSyncTime, syncStatuses, isLoading,
+    milestonesCrossed, milestoneTrigger, isOffline,
+    syncQueue, triggerSync,
+  ]);
+
   return (
-    <AppContext.Provider value={{
-      colors,
-      theme,
-      toggleTheme,
-      habits,
-      addHabit,
-      toggleHabit,
-      removeHabit,
-      updateHabit,
-      stats,
-      addXP,
-      resetProgress,
-      settings,
-      updateSettings,
-      pomodoroHistory,
-      addPomodoroSession,
-      calendarEvents,
-      addCalendarEvent,
-      removeCalendarEvent,
-      realWorldWins,
-      addRealWorldWin,
-      journalEntries,
-      addJournalEntry,
-      updateJournalEntry,
-      deleteJournalEntry,
-      relapseLog,
-      addRelapseEntry,
-      goals,
-      addGoal,
-      updateGoal,
-      deleteGoal,
-      todos,
-      addTodo,
-      toggleTodo,
-      deleteTodo,
-      detoxHistory,
-      addDetoxSession,
-      activeTimer,
-      timerStartTime,
-      timerDuration,
-      setActiveTimer,
-      timerNotification,
-      setTimerNotification,
-      alarms,
-      setAlarms,
-      syncError,
-      clearSyncError,
-      forumFavorites,
-      toggleForumFavorite,
-      reflectionResponses,
-      addReflectionResponse,
-      currentUserId,
-      currentUserEmail,
-      setCurrentUser,
-      syncUserData,
-      manualSync,
-      signOutUser,
-      resetAuth,
-      resetSignal,
-      isSyncing,
-      lastSyncTime,
-      syncStatuses,
-      isLoading,
-      totalHabitsCompleted: calculateTotalHabitsCompleted(habits),
-      milestonesCrossed,
-      milestoneTrigger,
-      isOffline,
-      pendingSyncCount: syncQueue.length,
-      failedSyncCount: syncQueue.filter((item: any) => item.attempts >= 3).length,
-      triggerSync,
-    }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );
