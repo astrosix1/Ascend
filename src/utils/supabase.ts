@@ -1,6 +1,7 @@
 import { getSupabaseClient, isSupabaseReady } from './runtimeConfig';
 import type { DataType, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution } from './syncEngine';
+import { ASIX_BASE_URL } from './env';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -629,7 +630,7 @@ export async function signIn(email: string, password: string) {
   if (result.data?.session && typeof window !== 'undefined') {
     try {
       const { access_token, refresh_token } = result.data.session;
-      await fetch('https://asix.live/api/auth/set-session', {
+      await fetch(`${ASIX_BASE_URL}/api/auth/set-session`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -737,16 +738,23 @@ alter table forum_comments enable row level security;
 alter table user_data      enable row level security;
 
 create policy "Public read posts"    on forum_posts    for select using (true);
-create policy "Public insert posts"  on forum_posts    for insert with check (true);
+create policy "Insert own posts"     on forum_posts    for insert with check (auth.uid() = user_id);
 create policy "Update own posts"     on forum_posts    for update using (auth.uid() = user_id);
 create policy "Delete own posts"     on forum_posts    for delete using (auth.uid() = user_id);
 create policy "Public read comments" on forum_comments for select using (true);
-create policy "Public insert comments" on forum_comments for insert with check (true);
+create policy "Insert own comments"  on forum_comments for insert with check (auth.uid() = user_id);
 create policy "Update own comments"  on forum_comments for update using (auth.uid() = user_id);
 create policy "Delete own comments"  on forum_comments for delete using (auth.uid() = user_id);
 create policy "Own data only select" on user_data for select using (auth.uid() = user_id);
 create policy "Own data only upsert" on user_data for insert with check (auth.uid() = user_id);
 create policy "Own data only update" on user_data for update using (auth.uid() = user_id);
+
+-- NOTE: insert policies require auth.uid() = user_id, NOT `with check (true)`.
+-- The client already derives user_id server-side from the authenticated
+-- session (see createPost/createComment below), so this doesn't change
+-- legitimate behavior — it only blocks spoofed/anonymous inserts made
+-- directly against the REST API. See supabase/migrations/ for the tracked,
+-- idempotent migration that applies this to an existing database.
 
 ──────────────────────────────────────────────────────────────────────────────
 */
