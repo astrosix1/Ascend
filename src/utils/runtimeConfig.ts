@@ -78,9 +78,13 @@ const WebCookieStorage = {
   setItem(key: string, value: string): void {
     if (typeof document === 'undefined') return;
     const maxAge = 60 * 60 * 24 * 365;
-    const domain = window.location.hostname.includes('localhost') ? '' : '.asix.live';
+    const isLocal = window.location.hostname.includes('localhost');
+    const domain = isLocal ? '' : '.asix.live';
     const domainAttr = domain ? `; domain=${domain}` : '';
-    document.cookie = `${key}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/${domainAttr}; samesite=Lax`;
+    // Secure is required on the real domain (session cookie must never go out
+    // over plain HTTP); omitted on localhost since that's usually plain http.
+    const secureAttr = isLocal ? '' : '; secure';
+    document.cookie = `${key}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/${domainAttr}; samesite=Lax${secureAttr}`;
   },
   removeItem(key: string): void {
     if (typeof document === 'undefined') return;

@@ -1,4 +1,9 @@
-import { AppContextType } from '../types/app';
+// This previously imported from a non-existent '../types/app' module — every
+// call site worked around it with `as any` (see App.tsx) since the broken
+// import meant nothing here was ever actually type-checked. AppState (the
+// real context shape, exported by AppContext.tsx) is the type that was
+// actually meant here.
+import type { AppState as AppContextType } from '../contexts/AppContext';
 import { loadUserDataPartial, saveUserDataPartial } from './supabase';
 
 export interface MigrationState {

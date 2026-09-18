@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { useScreenWidth, BREAKPOINTS } from '../utils/responsive';
+import { isLocalhostHost } from '../utils/env';
 import DesktopSidebar from '../components/DesktopSidebar';
 import TopHeader from '../components/TopHeader';
 import { OfflineIndicator } from '../components/OfflineIndicator';
@@ -38,7 +39,10 @@ function playBeepSequence() {
     playNote(now,        880,  0.18);
     playNote(now + 0.22, 1046, 0.18);
     playNote(now + 0.44, 1318, 0.35);
-  } catch (_) {}
+  } catch (e) {
+    // Non-critical (visual notification still shows) — just logged for debugging.
+    console.warn('[Notification] Failed to play beep sequence:', e);
+  }
 }
 
 // ─── Manage browser tab title ──────────────────────────────────────────────────
@@ -90,7 +94,10 @@ function fireSystemNotification(title: string, body: string) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body, icon: '/favicon.ico' });
     }
-  } catch (_) {}
+  } catch (e) {
+    // Non-critical (in-app toast still shows) — just logged for debugging.
+    console.warn('[Notification] Failed to fire system notification:', e);
+  }
 }
 
 // ─── Notification overlay ─────────────────────────────────────────────────────
@@ -306,14 +313,26 @@ function DesktopNavigator() {
 
   // ──────────────────────────────────────────────────────────────────────────────
   // SECURITY FIX #1: Auth guards on protected routes (Dashboard, Settings)
-  // Prevent unauthenticated users from accessing private screens
-  // TEMPORARILY DISABLED FOR DEVELOPMENT - RE-ENABLE AFTER TESTING
+  // Prevent unauthenticated users from accessing private screens. Guest/local-dev
+  // mode (isLocalhostHost()) is intentionally exempt — App.tsx only lets an
+  // unauthenticated session reach AppNavigator at all when running on localhost,
+  // where the app is meant to work fully signed-out with local-only data.
   // ──────────────────────────────────────────────────────────────────────────────
-  // useEffect(() => {
-  //   if (!currentUserId && (activeScreen === 'dashboard' || activeScreen === 'settings')) {
-  //     setActiveScreen('community'); // Redirect to public screen
-  //   }
-  // }, [currentUserId, activeScreen]);
+  const canAccessScreen = (screen: string) =>
+    !!currentUserId || isLocalhostHost() || (screen !== 'dashboard' && screen !== 'settings');
+
+  // Single gate used by every navigation path (sidebar clicks, keyboard
+  // shortcuts, and the safety-net effect below) so none of them can bypass it.
+  const navigateTo = (screen: string) => {
+    if (!canAccessScreen(screen)) return;
+    setActiveScreen(screen);
+  };
+
+  useEffect(() => {
+    if (!canAccessScreen(activeScreen)) {
+      setActiveScreen('community'); // Redirect to public screen
+    }
+  }, [currentUserId, activeScreen]);
 
   // ── Global keyboard shortcuts: Cmd/Ctrl + 1-5 for screen navigation ──────────
   useEffect(() => {
@@ -325,7 +344,7 @@ function DesktopNavigator() {
       const active = document.activeElement;
       if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
 
-      const screenMap: Record<string, string> = {
+      const keyScreenMap: Record<string, string> = {
         '1': 'dashboard',
         '2': 'clock',
         '3': 'discover',
@@ -333,13 +352,9 @@ function DesktopNavigator() {
         '5': 'settings',
       };
 
-      if (e.key in screenMap) {
+      if (e.key in keyScreenMap) {
         e.preventDefault();
-        // SECURITY: Also check auth before allowing navigation to protected screens
-        if (!currentUserId && (screenMap[e.key] === 'dashboard' || screenMap[e.key] === 'settings')) {
-          return;
-        }
-        setActiveScreen(screenMap[e.key]);
+        navigateTo(keyScreenMap[e.key]);
       }
     };
 
@@ -361,7 +376,7 @@ function DesktopNavigator() {
       <View style={{ flex: 1, flexDirection: 'row' }}>
         <DesktopSidebar
           activeScreen={activeScreen}
-          onNavigate={setActiveScreen}
+          onNavigate={navigateTo}
         />
         <View style={{ flex: 1 }}>
           <ScreenComponent />
