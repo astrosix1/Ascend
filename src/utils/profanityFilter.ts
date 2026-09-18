@@ -7,15 +7,22 @@ const PROFANITY_LIST = [
   'whore', 'slut', 'dick', 'cock', 'pussy', 'cunt'
 ];
 
-// Create a regex that matches whole words (case-insensitive)
-const profanityRegex = new RegExp(`\\b(${PROFANITY_LIST.join('|')})\\b`, 'gi');
+// Matches whole words, case-insensitive. Two separate regex objects on
+// purpose: a global-flagged RegExp's .test() mutates its own lastIndex across
+// calls, so reusing one `g`-flagged instance for repeated .test() calls can
+// silently return false depending on what text was checked right before it
+// (e.g. a short string checked right after a match in a longer one). .replace()
+// resets lastIndex itself each call, so it's safe to share the global one.
+const wordPattern = `\\b(${PROFANITY_LIST.join('|')})\\b`;
+const testRegex = new RegExp(wordPattern, 'i');
+const replaceRegex = new RegExp(wordPattern, 'gi');
 
 export function containsProfanity(text: string): boolean {
-  return profanityRegex.test(text);
+  return testRegex.test(text);
 }
 
 export function censorProfanity(text: string): string {
-  return text.replace(profanityRegex, '***');
+  return text.replace(replaceRegex, '***');
 }
 
 export function getProfanityWarning(): string {
