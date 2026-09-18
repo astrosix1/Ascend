@@ -6,6 +6,8 @@ import {
 import * as Linking from 'expo-linking';
 import { signIn, signUp } from '../../utils/supabase';
 import { useApp } from '../../contexts/AppContext';
+import { ASIX_BASE_URL } from '../../utils/env';
+import { getAuthErrorMessage, getPasswordStrengthError } from '../../utils/authHelpers';
 
 interface Props {
   onAuthenticated: (userId: string, email: string) => void;
@@ -181,7 +183,7 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
       if (error) throw error;
       if (data.user) onAuthenticated(data.user.id, data.user.email || email);
     } catch (err: any) {
-      Alert.alert('Login failed', err.message || 'Please try again.');
+      Alert.alert('Login failed', getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -196,8 +198,9 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
       Alert.alert('Passwords do not match');
       return;
     }
-    if (password.length < 6) {
-      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+    const passwordError = getPasswordStrengthError(password);
+    if (passwordError) {
+      Alert.alert('Weak password', passwordError);
       return;
     }
     setLoading(true);
@@ -210,7 +213,7 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
         ]);
       }
     } catch (err: any) {
-      Alert.alert('Sign up failed', err.message || 'Please try again.');
+      Alert.alert('Sign up failed', getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -229,7 +232,7 @@ export default function AuthScreen({ onAuthenticated, onGuest: onGuestProp }: Pr
       // Redirect to asix.live login page
       // The redirect_uri will bring them back to Ascend after login
       const redirectUri = 'https://ascend.asix.live';
-      const loginUrl = `https://asix.live/login?redirect=${encodeURIComponent(redirectUri)}`;
+      const loginUrl = `${ASIX_BASE_URL}/login?redirect=${encodeURIComponent(redirectUri)}`;
       await Linking.openURL(loginUrl);
     } catch (err) {
       Alert.alert('Error', 'Could not open login page. Please try again.');
