@@ -10,6 +10,7 @@ import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
+import { ASIX_BASE_URL } from '../../utils/env';
 
 type SettingsCategory = 'profile' | 'appearance' | 'boundaries' | 'reflection' | 'sync' | 'partner';
 
@@ -271,7 +272,7 @@ export default function SettingsScreen() {
                   variant="ghost"
                   onPress={() => {
                     if (typeof window !== 'undefined') {
-                      window.open('https://asix.live/dashboard', '_blank', 'noopener,noreferrer');
+                      window.open(`${ASIX_BASE_URL}/dashboard`, '_blank', 'noopener,noreferrer');
                     }
                   }}
                 />

@@ -3,12 +3,13 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useApp } from '../contexts/AppContext';
 import { Spacing, FontSize } from '../utils/theme';
+import { ASIX_BASE_URL } from '../utils/env';
 
 export const Paywall: React.FC = () => {
   const { colors } = useApp();
 
   const handleSubscribe = async (plan: string) => {
-    const url = `https://asix.live/checkout?app=ascend&plan=${plan}`;
+    const url = `${ASIX_BASE_URL}/checkout?app=ascend&plan=${plan}`;
     try {
       await Linking.openURL(url);
     } catch (err) {

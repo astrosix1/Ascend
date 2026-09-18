@@ -1,4 +1,5 @@
 import { CommunityEvent } from './types';
+import { getRuntimeConfig } from './runtimeConfig';
 
 interface WeatherDay {
   high: number;
@@ -7,9 +8,18 @@ interface WeatherDay {
 
 const weatherCache = new Map<string, WeatherDay>();
 
-// SeatGeek Discovery API — free tier, commercial use permitted
-// Register at https://seatgeek.com/account/develop to get a client_id
-const SEATGEEK_CLIENT_ID = 'YOUR_SEATGEEK_CLIENT_ID';
+// SeatGeek Discovery API — free tier, commercial use permitted.
+// The client_id is read from runtimeConfig (backed by config.ts / Settings
+// overrides) rather than hardcoded — this file previously had its own
+//'YOUR_SEATGEEK_CLIENT_ID' placeholder that was never replaced, so every
+// request silently failed and events never loaded.
+// Note: this is sent directly from the client, so it's visible to anyone
+// inspecting network requests — SeatGeek's Discovery API client_id is
+// designed to be used client-side (there's no secret half of the pair for
+// this endpoint), but that still means it has no more protection than "not
+// literally public," and quota abuse from a scraped key is possible. If this
+// becomes a real problem, proxy these requests through a backend instead.
+// Register at https://seatgeek.com/account/develop to get a client_id.
 
 async function fetchTemperature(lat: number, lon: number, date: string): Promise<WeatherDay | null> {
   if (!lat || !lon) return null;
@@ -64,8 +74,14 @@ export async function fetchLocalEvents(city: string): Promise<CommunityEvent[]> 
     // Geocode in parallel for weather enrichment — events load regardless
     const coordsPromise = geocodeCity(cityName);
 
+    const clientId = getRuntimeConfig().meetupKey;
+    if (!clientId) {
+      console.warn('[Events] No SeatGeek client_id configured');
+      return [];
+    }
+
     const params = new URLSearchParams({
-      client_id: SEATGEEK_CLIENT_ID,
+      client_id: clientId,
       'venue.city': cityName,
       per_page: '20',
       sort: 'datetime_local.asc',
