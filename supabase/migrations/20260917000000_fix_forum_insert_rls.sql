@@ -18,11 +18,16 @@ alter table forum_posts    enable row level security;
 alter table forum_comments enable row level security;
 alter table user_data      enable row level security;
 
+-- Drop both the old insecure name and the new name (in case this migration
+-- runs more than once, or the new name already exists from an earlier
+-- out-of-band fix) so this is actually safe to re-run, not just in theory.
 drop policy if exists "Public insert posts" on forum_posts;
+drop policy if exists "Insert own posts" on forum_posts;
 create policy "Insert own posts" on forum_posts
   for insert with check (auth.uid() = user_id);
 
 drop policy if exists "Public insert comments" on forum_comments;
+drop policy if exists "Insert own comments" on forum_comments;
 create policy "Insert own comments" on forum_comments
   for insert with check (auth.uid() = user_id);
 
