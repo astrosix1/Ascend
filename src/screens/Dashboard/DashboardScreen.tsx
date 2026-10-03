@@ -20,6 +20,7 @@ import { feedback } from '../../utils/feedback';
 import QuickAddSheet from '../../components/QuickAddSheet';
 import StartHere from '../../components/StartHere';
 import NextAction from '../../components/NextAction';
+import RecoveryOverview from '../../components/RecoveryOverview';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -1542,6 +1543,10 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
+                <View style={{ paddingTop: Spacing.md }}>
+                  <RecoveryOverview habits={habits} onOpen={setTimelineHabit} onAddQuit={() => setShowQuickAdd(true)} />
+                </View>
+
                 {/* ── Weekly Insights ── */}
                 <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md, marginTop: Spacing.sm }}>
                   <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.sm, marginBottom: Spacing.sm }}>📊 Weekly Insights</Text>
@@ -2546,6 +2551,8 @@ export default function DashboardScreen() {
                 </View>
               </View>
             </Card>
+
+            <RecoveryOverview habits={habits} onOpen={setTimelineHabit} onAddQuit={() => setShowQuickAdd(true)} />
 
             {/* ── Weekly Insights Card ── */}
             <Card style={{ marginBottom: Spacing.md }}>
