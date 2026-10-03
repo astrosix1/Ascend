@@ -107,7 +107,7 @@ export default function EQPatternsInsight({ completions = [] }: EQPatternsInsigh
                       Evidence: {pattern.evidence}
                     </Text>
                     <View style={{ backgroundColor: colors.accent + '15', borderRadius: BorderRadius.md, padding: Spacing.sm }}>
-                      <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '500' }}>
+                      <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '500' }}>
                         ✨ {pattern.suggestion}
                       </Text>
                     </View>
@@ -117,10 +117,10 @@ export default function EQPatternsInsight({ completions = [] }: EQPatternsInsigh
 
             {/* Pro Tips */}
             <Card style={{ backgroundColor: colors.accentLight, marginTop: Spacing.lg }}>
-              <Text style={{ color: colors.accent, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.sm }}>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.sm }}>
                 How to Use These Insights
               </Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm, lineHeight: 20 }}>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.sm, lineHeight: 20 }}>
                 • Use your strengths to help others (share your empathy, communication skills)
                 {'\n'}
                 • Practice scenarios in your growth areas 2-3 times per week

@@ -109,7 +109,7 @@ export default function CertificateModal({
           <Text
             style={[
               styles.achievementText,
-              { color: colors.accent },
+              { color: colors.accentText },
             ]}
           >
             {achievementText}
@@ -139,7 +139,7 @@ export default function CertificateModal({
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
                 Streak Length
               </Text>
-              <Text style={[styles.detailValue, { color: colors.accent }]}>
+              <Text style={[styles.detailValue, { color: colors.accentText }]}>
                 {certificate.streakLength} days
               </Text>
             </View>
@@ -167,7 +167,7 @@ export default function CertificateModal({
               <Text
                 style={[
                   styles.buttonText,
-                  { color: colors.accent },
+                  { color: colors.accentText },
                 ]}
               >
                 📤 Share

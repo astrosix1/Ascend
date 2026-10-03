@@ -421,7 +421,7 @@ export default function ClockScreen() {
       position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', zIndex: 99,
     },
-    detoxBigTimer: { fontSize: 56, fontWeight: '100', color: '#F5A623', fontVariant: ['tabular-nums'] },
+    detoxBigTimer: { fontSize: 56, fontWeight: '100', color: '#F2B44A', fontVariant: ['tabular-nums'] },
     detoxPrompt: { fontSize: FontSize.md, color: '#555', marginTop: Spacing.xl, textAlign: 'center', paddingHorizontal: Spacing.xl },
     durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
     breakActivityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
@@ -485,7 +485,7 @@ export default function ClockScreen() {
                     borderWidth: 1, borderColor: colors.accent,
                   }}
                 >
-                  <Text style={{ color: colors.accent, fontWeight: '600' }}>{act}</Text>
+                  <Text style={{ color: colors.accentText, fontWeight: '600' }}>{act}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -574,7 +574,7 @@ export default function ClockScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.alarmTime}>{alarm.time}</Text>
                     <Text style={s.alarmLabel}>{alarm.label}</Text>
-                    <Text style={[s.alarmLabel, { color: colors.accent }]}>
+                    <Text style={[s.alarmLabel, { color: colors.accentText }]}>
                       {VOICE_OPTIONS.find(opt => opt.value === alarm.voiceOption)?.label ?? alarm.voiceOption}
                     </Text>
                     <View style={s.dayRow}>
@@ -643,7 +643,7 @@ export default function ClockScreen() {
                           borderColor: alarmAmPm === period ? colors.accent : colors.border,
                         }}
                       >
-                        <Text style={{ color: alarmAmPm === period ? '#1A1A1A' : colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm }}>
+                        <Text style={{ color: alarmAmPm === period ? colors.textOnAccent : colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm }}>
                           {period}
                         </Text>
                       </TouchableOpacity>
@@ -695,7 +695,7 @@ export default function ClockScreen() {
                         <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>{opt.desc}</Text>
                       </View>
                       {selected && (
-                        <Text style={{ color: colors.accent, fontSize: 16 }}>✓</Text>
+                        <Text style={{ color: colors.accentText, fontSize: 16 }}>✓</Text>
                       )}
                     </TouchableOpacity>
                   );
@@ -839,7 +839,7 @@ export default function ClockScreen() {
                       {new Date(session.startTime).toLocaleDateString()} · {session.breakActivity || 'No break logged'}
                     </Text>
                   </View>
-                  <Text style={{ color: colors.accent, fontWeight: '700' }}>{session.duration}m</Text>
+                  <Text style={{ color: colors.accentText, fontWeight: '700' }}>{session.duration}m</Text>
                 </View>
               ))
             )}
@@ -924,7 +924,7 @@ export default function ClockScreen() {
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.md }}>
+                    <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: FontSize.md }}>
                       +{session.pointsEarned}
                     </Text>
                     <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>pts</Text>
@@ -966,7 +966,7 @@ export default function ClockScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={s.alarmTime}>{alarm.time}</Text>
                         <Text style={s.alarmLabel}>{alarm.label}</Text>
-                        <Text style={[s.alarmLabel, { color: colors.accent }]}>
+                        <Text style={[s.alarmLabel, { color: colors.accentText }]}>
                           {VOICE_OPTIONS.find(opt => opt.value === alarm.voiceOption)?.label ?? alarm.voiceOption}
                         </Text>
                         <View style={s.dayRow}>
@@ -1056,7 +1056,7 @@ export default function ClockScreen() {
                             <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>{opt.desc}</Text>
                           </View>
                           {selected && (
-                            <Text style={{ color: colors.accent, fontSize: 16 }}>✓</Text>
+                            <Text style={{ color: colors.accentText, fontSize: 16 }}>✓</Text>
                           )}
                         </TouchableOpacity>
                       );
@@ -1213,7 +1213,7 @@ export default function ClockScreen() {
                           {new Date(session.startTime).toLocaleDateString()} · {session.breakActivity || 'No break logged'}
                         </Text>
                       </View>
-                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{session.duration}m</Text>
+                      <Text style={{ color: colors.accentText, fontWeight: '700' }}>{session.duration}m</Text>
                     </View>
                   ))
                 )}
@@ -1303,7 +1303,7 @@ export default function ClockScreen() {
                         </Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: FontSize.md }}>
+                        <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: FontSize.md }}>
                           +{session.pointsEarned}
                         </Text>
                         <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>pts</Text>

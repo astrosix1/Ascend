@@ -22,6 +22,8 @@ const KEYS = {
   ACCOUNTABILITY_PARTNER: 'ascend_accountability_partner',
   MILESTONES_CROSSED: 'ascend_milestones_crossed',
   EQ_HISTORY: 'ascend_eq_history',
+  // Device preference (not account data): optional completion sounds, off by default
+  SOUND_ENABLED: 'ascend_sound_enabled',
   // Which account the local data above belongs to (user id). Lets us detect an
   // account switch on a shared device and avoid mixing two people's data.
   DATA_OWNER: 'ascend_data_owner',

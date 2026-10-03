@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Switch, Alert, Modal, Image
@@ -11,6 +11,7 @@ import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { ASIX_BASE_URL, buildSignInUrl } from '../../utils/env';
+import { feedback, loadFeedbackPrefs, setSoundEnabled } from '../../utils/feedback';
 import { useNavigation } from '@react-navigation/native';
 
 type SettingsCategory = 'profile' | 'appearance' | 'boundaries' | 'reflection' | 'sync' | 'partner' | 'advanced';
@@ -27,6 +28,8 @@ const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }
 
 export default function SettingsScreen() {
   const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, manualSync, isSyncing, lastSyncTime, syncError, requestDiscoverTab } = useApp();
+  const [soundOn, setSoundOn] = useState(false);
+  useEffect(() => { loadFeedbackPrefs().then(setSoundOn); }, []);
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
@@ -189,7 +192,7 @@ export default function SettingsScreen() {
     },
     sectionLabel: { fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '700', letterSpacing: 1, marginTop: Spacing.lg, marginBottom: Spacing.sm },
     statBox: { alignItems: 'center', flex: 1, padding: Spacing.sm },
-    statNumber: { fontSize: FontSize.xl, fontWeight: '700', color: colors.accent },
+    statNumber: { fontSize: FontSize.xl, fontWeight: '700', color: colors.accentText },
     statLabel: { fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'center', marginTop: 2 },
   });
 
@@ -220,7 +223,7 @@ export default function SettingsScreen() {
               />
             ) : (
               <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: FontSize.xl, color: colors.accent, fontWeight: '700' }}>
+                <Text style={{ fontSize: FontSize.xl, color: colors.accentText, fontWeight: '700' }}>
                   {settings.username.charAt(0).toUpperCase()}
                 </Text>
               </View>
@@ -230,7 +233,7 @@ export default function SettingsScreen() {
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Level {stats.level} · {stats.xp} XP</Text>
             </View>
             <TouchableOpacity onPress={() => setShowStats(!showStats)}>
-              <Text style={{ color: colors.accent, fontSize: 20 }}>📊</Text>
+              <Text style={{ color: colors.accentText, fontSize: 20 }}>📊</Text>
             </TouchableOpacity>
           </View>
 
@@ -407,7 +410,7 @@ export default function SettingsScreen() {
           <View style={s.row}>
             <View>
               <Text style={s.label}>Theme</Text>
-              <Text style={s.value}>{theme === 'dark' ? 'Dark Grey' : 'Light Grey'} · Emerald accent</Text>
+              <Text style={s.value}>{theme === 'dark' ? 'Dark slate' : 'Light'} · Blue accent</Text>
             </View>
             <Switch
               value={theme === 'light'}
@@ -419,6 +422,21 @@ export default function SettingsScreen() {
           <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm, lineHeight: 18 }}>
             Easy on the eyes. Reduces blue light to protect your sleep.
           </Text>
+        </Card>
+        <Card>
+          <View style={s.row}>
+            <View style={{ flex: 1, paddingRight: Spacing.md }}>
+              <Text style={s.label}>Completion sound</Text>
+              <Text style={s.value}>A soft chime when you finish a habit. Off by default.</Text>
+            </View>
+            <Switch
+              value={soundOn}
+              onValueChange={(v) => { setSoundOn(v); setSoundEnabled(v); if (v) feedback.success(); }}
+              accessibilityLabel="Completion sound"
+              trackColor={{ false: colors.border, true: colors.accentLight }}
+              thumbColor={soundOn ? colors.accent : '#888'}
+            />
+          </View>
         </Card>
     </>
   );
@@ -531,7 +549,7 @@ export default function SettingsScreen() {
                 opacity: isSyncing ? 0.6 : 1,
               }}
             >
-              <Text style={{ color: colors.accent, fontWeight: '600', fontSize: FontSize.sm }}>
+              <Text style={{ color: colors.accentText, fontWeight: '600', fontSize: FontSize.sm }}>
                 {isSyncing ? '⟳ Syncing...' : '↻ Sync Now'}
               </Text>
             </TouchableOpacity>
@@ -606,7 +624,7 @@ export default function SettingsScreen() {
                   <Text style={s.label}>Add Accountability Partner</Text>
                   <Text style={s.value}>Keep each other accountable via email</Text>
                 </View>
-                <Text style={{ color: colors.accent, fontSize: 16 }}>➕</Text>
+                <Text style={{ color: colors.accentText, fontSize: 16 }}>➕</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -665,7 +683,7 @@ export default function SettingsScreen() {
           {/* Profile mini card */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm }}>
-              <Text style={{ fontSize: FontSize.md, color: colors.accent, fontWeight: '700' }}>{settings.username.charAt(0).toUpperCase()}</Text>
+              <Text style={{ fontSize: FontSize.md, color: colors.accentText, fontWeight: '700' }}>{settings.username.charAt(0).toUpperCase()}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.text }} numberOfLines={1}>{settings.username}</Text>

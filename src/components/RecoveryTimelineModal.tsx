@@ -49,7 +49,7 @@ export default function RecoveryTimelineModal({
 
           {/* Hero — days clean + progress to next milestone */}
           <View style={[styles.hero, { backgroundColor: colors.background }]}>
-            <Text style={[styles.heroDays, { color: colors.accent }]}>{daysClean}</Text>
+            <Text style={[styles.heroDays, { color: colors.accentText }]}>{daysClean}</Text>
             <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>
               {daysClean === 1 ? 'day clean' : 'days clean'} · {reachedCount}/{total} milestones
             </Text>
@@ -69,7 +69,7 @@ export default function RecoveryTimelineModal({
                 </Text>
               </>
             ) : (
-              <Text style={[styles.nextText, { color: colors.accent }]}>
+              <Text style={[styles.nextText, { color: colors.accentText }]}>
                 🏆 Every milestone reached — incredible work.
               </Text>
             )}
@@ -111,7 +111,7 @@ export default function RecoveryTimelineModal({
                         {m.when}
                       </Text>
                       {isNext && (
-                        <Text style={[styles.nextPill, { color: colors.accent, borderColor: colors.accent }]}>
+                        <Text style={[styles.nextPill, { color: colors.accentText, borderColor: colors.accent }]}>
                           UP NEXT
                         </Text>
                       )}

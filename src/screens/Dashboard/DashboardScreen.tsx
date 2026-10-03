@@ -16,6 +16,9 @@ import AccountabilityInvite from '../../components/AccountabilityInvite';
 import CertificateModal from '../../components/CertificateModal';
 import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 import Toast, { ToastMessage } from '../../components/Toast';
+import { feedback } from '../../utils/feedback';
+import QuickAddSheet from '../../components/QuickAddSheet';
+import StartHere from '../../components/StartHere';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -168,6 +171,18 @@ export default function DashboardScreen() {
     // Toggle the habit (contextToggleHabit handles ALL XP: ±1 per habit + ±2 bonus)
     contextToggleHabit(habitId, date);
 
+    // Immediate, calm feedback: haptic/sound now, plus an Undo for completions
+    if (!wasCompleted) {
+      if (habit.type === 'good') {
+        feedback.success();
+        showToast(`Done: ${habit.name}`, 'success', 3500, { label: 'Undo', onPress: () => { contextToggleHabit(habitId, date); feedback.tap(); } });
+      } else {
+        feedback.warning();
+      }
+    } else {
+      feedback.tap();
+    }
+
     // Calculate completed good habits after the toggle for bonus state tracking
     const completedAfter = goodHabits.filter(h => {
       if (h.id === habitId) {
@@ -183,6 +198,7 @@ export default function DashboardScreen() {
       if (allCompletedAfter && !allCompletedBefore && !bonusEarnedToday) {
         // Just completed all habits for the first time today
         setBonusEarnedToday(true);
+        feedback.milestone();
         // Toast: bonus XP earned
         setTimeout(() => showToast('⚡ +2 XP Bonus — all habits done!', 'success', 4000), 400);
       } else if (!allCompletedAfter && allCompletedBefore && bonusEarnedToday) {
@@ -194,6 +210,7 @@ export default function DashboardScreen() {
       if (!wasCompleted) {
         const potentialStreak = habit.streak + 1;
         if ([7, 14, 30, 50, 100].includes(potentialStreak)) {
+          feedback.milestone();
           setTimeout(() => showToast(`🔥 ${potentialStreak}-Day Streak!`, 'warning', 4500), 700);
 
           // Feature: Check for streak certificate at milestones
@@ -252,9 +269,14 @@ export default function DashboardScreen() {
 
   // ── Toast notifications ──────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const showToast = (message: string, type: ToastMessage['type'] = 'success', duration = 3500) => {
+  const showToast = (
+    message: string,
+    type: ToastMessage['type'] = 'success',
+    duration = 3500,
+    action?: { label: string; onPress: () => void },
+  ) => {
     const id = Date.now().toString() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => [...prev, { id, message, type, duration, actionLabel: action?.label, onAction: action?.onPress }]);
   };
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
@@ -686,6 +708,7 @@ export default function DashboardScreen() {
   const [accountabilityHabitName, setAccountabilityHabitName] = useState('');
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [timelineHabit, setTimelineHabit] = useState<Habit | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [currentCertificate, setCurrentCertificate] = useState<Certificate | null>(null);
 
   function openAccountabilityModal(habitId: string, habitName: string) {
@@ -1043,7 +1066,7 @@ export default function DashboardScreen() {
                 </View>
               ) : (
                 <TouchableOpacity onPress={() => { setInlineJournalHabitId(habit.id); setInlineJournalText(''); }} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-                  <Text style={[styles.whyBtnText, { color: colors.accent }]}>Why?</Text>
+                  <Text style={[styles.whyBtnText, { color: colors.accentText }]}>Why?</Text>
                 </TouchableOpacity>
               )
             )}
@@ -1059,7 +1082,7 @@ export default function DashboardScreen() {
                 },
               ]}
             >
-              <Text style={[styles.whyBtnText, { color: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>
                 {habit.accountability?.partner ? '🤝 Partner' : '🤝'}
               </Text>
             </TouchableOpacity>
@@ -1067,8 +1090,8 @@ export default function DashboardScreen() {
         )}
         {isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-              <Text style={[styles.whyBtnText, { color: colors.accent }]}>📈</Text>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} accessibilityRole="button" accessibilityLabel={`Recovery timeline for ${habit.name}`} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈 Recovery</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
               <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
@@ -1085,8 +1108,8 @@ export default function DashboardScreen() {
         )}
         {!isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-              <Text style={[styles.whyBtnText, { color: colors.accent }]}>📈</Text>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} accessibilityRole="button" accessibilityLabel={`Recovery timeline for ${habit.name}`} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈 Recovery</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
               <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
@@ -1106,7 +1129,7 @@ export default function DashboardScreen() {
             onPress={() => navigation.navigate('Clock')}
             style={{ marginLeft: Spacing.xs, backgroundColor: colors.accentLight, borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent }}
           >
-            <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>🍅 Timer</Text>
+            <Text style={{ color: colors.accentText, fontSize: 11, fontWeight: '700' }}>🍅 Timer</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1243,7 +1266,7 @@ export default function DashboardScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                   <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>⚡ XP</Text>
-                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
+                  <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
                 </View>
                 <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
                   <View style={{ height: 4, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
@@ -1259,7 +1282,7 @@ export default function DashboardScreen() {
               )}
               {/* Today progress */}
               <View style={{ backgroundColor: colors.accentLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '40' }}>
-                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>
+                <Text style={{ color: colors.accentText, fontSize: 11, fontWeight: '800' }}>
                   {completedGoodHabits.length}/{goodHabits.length} ✓
                 </Text>
               </View>
@@ -1275,13 +1298,10 @@ export default function DashboardScreen() {
           {/* Habit list — scrollable, split into Build + Break sections */}
           <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
             {habits.length === 0 && (
-              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
-                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
-                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center', lineHeight: FontSize.sm * 1.6 }}>
-                  Tap "+ Add/Edit" to create your first habit.
-                </Text>
-              </View>
+              <StartHere
+                onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
+                onCustom={() => setShowQuickAdd(true)}
+              />
             )}
 
             {/* ── BUILD: habits to grow ── */}
@@ -1372,7 +1392,7 @@ export default function DashboardScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                  <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                  <Text style={{ color: colors.accentText, fontWeight: '700' }}>
                     {(summaryMode === 'week' ? weekStats : monthStats).completionRate}%
                   </Text>
                 </View>
@@ -1453,10 +1473,10 @@ export default function DashboardScreen() {
             {/* ── Compact stats row ── */}
             <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {([
-                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}% done`, color: colors.accent },
+                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}% done`, color: colors.accentText },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Total Done', value: `${totalHabitsCompleted}`, sub: 'all time', color: colors.accent },
+                { label: 'Total Done', value: `${totalHabitsCompleted}`, sub: 'all time', color: colors.accentText },
                 { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
                 { label: 'Best Streak', value: `${longestStreak}d`, sub: 'personal best', color: colors.warning },
               ] as const).map((s, i) => (
@@ -1478,7 +1498,7 @@ export default function DashboardScreen() {
                 </Animated.View>
                 {bonusEarnedToday && (
                   <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
-                    <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
+                    <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
                   </View>
                 )}
               </View>
@@ -1548,7 +1568,7 @@ export default function DashboardScreen() {
                   <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                       <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Level {stats.level} → {stats.level + 1}</Text>
-                      <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
+                      <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
                     </View>
                     <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
                       <View style={{ height: 6, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 3 }} />
@@ -1561,7 +1581,7 @@ export default function DashboardScreen() {
                     const nextMilestone = milestones.find(m => totalHabitsCompleted < m);
                     if (!nextMilestone) return (
                       <View style={{ marginTop: Spacing.sm, alignItems: 'center' }}>
-                        <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
+                        <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
                       </View>
                     );
                     const prevMilestone = milestones[milestones.indexOf(nextMilestone) - 1] || 0;
@@ -1675,7 +1695,7 @@ export default function DashboardScreen() {
                       >
                         {todo.title}
                       </Text>
-                      <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: FontSize.xs }}>+{todo.xpReward} XP</Text>
+                      <Text style={{ color: colors.accentText, fontWeight: '700', marginRight: Spacing.sm, fontSize: FontSize.xs }}>+{todo.xpReward} XP</Text>
                       <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)}>
                         <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
                       </TouchableOpacity>
@@ -1793,7 +1813,7 @@ export default function DashboardScreen() {
                   <View style={{ padding: Spacing.md, paddingBottom: journalExpanded ? Spacing.sm : Spacing.md }}>
                     {SectionTitle({
                       icon: '💭', title: 'Why Journals', count: journalEntries.length,
-                      color: colors.accent, onToggle: () => setJournalExpanded(!journalExpanded), expanded: journalExpanded,
+                      color: colors.accentText, onToggle: () => setJournalExpanded(!journalExpanded), expanded: journalExpanded,
                     })}
                   </View>
                   {journalExpanded && (
@@ -1805,7 +1825,7 @@ export default function DashboardScreen() {
                           <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.accent }]}>
                             <View style={styles.journalEntryHeader}>
                               <View style={{ flex: 1 }}>
-                                <Text style={[styles.journalEntryHabit, { color: colors.accent }]}>{entry.habitName}</Text>
+                                <Text style={[styles.journalEntryHabit, { color: colors.accentText }]}>{entry.habitName}</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize: 10 }}>{formatDisplayDate(entry.date)}</Text>
                               </View>
                               <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
@@ -1840,13 +1860,13 @@ export default function DashboardScreen() {
               {/* Month navigation */}
               <View style={styles.calHeader}>
                 <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
-                  <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
+                  <Text style={[styles.calNavText, { color: colors.accentText }]}>‹</Text>
                 </TouchableOpacity>
                 <Text style={[styles.calMonthLabel, { color: colors.text }]}>
                   {MONTH_NAMES[calMonth]} {calYear}
                 </Text>
                 <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
-                  <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
+                  <Text style={[styles.calNavText, { color: colors.accentText }]}>›</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1883,7 +1903,7 @@ export default function DashboardScreen() {
                         isSelected && { backgroundColor: colors.accent },
                       ]}
                     >
-                      <Text style={[styles.calDayNum, { color: isSelected ? '#FFFFFF' : completionLevel > 0 ? '#1A1A1A' : colors.text }]}>
+                      <Text style={[styles.calDayNum, { color: isSelected ? '#FFFFFF' : completionLevel > 0 ? colors.textOnAccent : colors.text }]}>
                         {day}
                       </Text>
                       {hasEvent && (
@@ -1913,7 +1933,7 @@ export default function DashboardScreen() {
                     {formatDisplayDate(selectedDay ?? today)}
                   </Text>
                   {(selectedDay ?? today) === today && (
-                    <Text style={{ fontSize: FontSize.xs, color: colors.accent, fontWeight: '600', marginTop: 1 }}>Today</Text>
+                    <Text style={{ fontSize: FontSize.xs, color: colors.accentText, fontWeight: '600', marginTop: 1 }}>Today</Text>
                   )}
                 </View>
                 <Button title="+ Add Event" variant="ghost" size="small" onPress={() => { setNewEventDate(selectedDay ?? today); setShowAddEventModal(true); }} />
@@ -1940,7 +1960,7 @@ export default function DashboardScreen() {
                         <View key={evt.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                           <View style={{ width: 4, height: 44, backgroundColor: colors.accent, borderRadius: 2, marginRight: Spacing.md }} />
                           <View style={{ flex: 1 }}>
-                            {evt.time && <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.accent, marginBottom: 2 }}>{evt.time}</Text>}
+                            {evt.time && <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: colors.accentText, marginBottom: 2 }}>{evt.time}</Text>}
                             <Text style={{ fontSize: FontSize.md, fontWeight: '600', color: colors.text }}>{evt.title}</Text>
                           </View>
                           <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)} style={{ padding: Spacing.sm }}>
@@ -2102,7 +2122,7 @@ export default function DashboardScreen() {
                   <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '600' }}>
                     ⚡ XP to Level {stats.level + 1}
                   </Text>
-                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
+                  <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '800' }}>{stats.xp % 100}/100</Text>
                 </View>
                 <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
                   <View style={{
@@ -2140,19 +2160,17 @@ export default function DashboardScreen() {
             {/* ── Daily Quote (refined) ── */}
             {prefs.showMotivationQuote && (
               <View style={{ marginHorizontal: -contentPadding, paddingHorizontal: contentPadding, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.accentLight }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontStyle: 'italic', lineHeight: FontSize.xs * 1.6 }} numberOfLines={2}>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontStyle: 'italic', lineHeight: FontSize.xs * 1.6 }} numberOfLines={2}>
                   {dailyQuote}
                 </Text>
               </View>
             )}
 
             {habits.length === 0 && (
-              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
-                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
-                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' }}>Tap "Add/Edit" to create your first habit.</Text>
-                <Button title="+ Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} style={{ marginTop: Spacing.md }} />
-              </View>
+              <StartHere
+                onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
+                onCustom={() => setShowQuickAdd(true)}
+              />
             )}
 
             {/* ── DONE FOR TODAY card — replaces habit list when all done ── */}
@@ -2199,7 +2217,7 @@ export default function DashboardScreen() {
                       <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>day streak</Text>
                     </View>
                     <View style={{ flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: colors.border }}>
-                      <Text style={{ fontSize: FontSize.lg, fontWeight: '800', color: colors.accent }}>⚡ +{xpToday}</Text>
+                      <Text style={{ fontSize: FontSize.lg, fontWeight: '800', color: colors.accentText }}>⚡ +{xpToday}</Text>
                       <Text style={{ fontSize: FontSize.xs, color: colors.textSecondary, marginTop: 2 }}>XP today</Text>
                     </View>
                     <View style={{ flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: colors.border }}>
@@ -2216,7 +2234,7 @@ export default function DashboardScreen() {
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                       {goodHabits.slice(0, 4).map(h => (
                         <View key={h.id} style={{ backgroundColor: colors.accentLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '40' }}>
-                          <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '600' }} numberOfLines={1}>{h.name}</Text>
+                          <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '600' }} numberOfLines={1}>{h.name}</Text>
                         </View>
                       ))}
                       {goodHabits.length > 4 && (
@@ -2377,7 +2395,7 @@ export default function DashboardScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                  <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                  <Text style={{ color: colors.accentText, fontWeight: '700' }}>
                     {(summaryMode === 'week' ? weekStats : monthStats).completionRate}%
                   </Text>
                 </View>
@@ -2473,10 +2491,10 @@ export default function DashboardScreen() {
             {/* ── Stats Grid ── */}
             <View style={{ marginHorizontal: -contentPadding, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {([
-                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accent },
+                { label: 'Today', value: `${completedGoodHabits.length}/${goodHabits.length}`, sub: `${goodHabits.length > 0 ? Math.round(completedGoodHabits.length / goodHabits.length * 100) : 0}%`, color: colors.accentText },
                 { label: 'Week', value: `${weekStats.completionRate}%`, sub: 'this week', color: colors.success },
                 { label: 'Avoided', value: `${avoidedBadHabitsCount}`, sub: 'bad habits', color: avoidedBadHabitsCount > 0 ? colors.success : colors.textSecondary },
-                { label: 'Total', value: `${totalHabitsCompleted}`, sub: 'habits done', color: colors.accent },
+                { label: 'Total', value: `${totalHabitsCompleted}`, sub: 'habits done', color: colors.accentText },
                 { label: 'Streak', value: `${stats.currentStreak}d`, sub: 'current', color: colors.warning },
                 { label: 'Best', value: `${longestStreak}d`, sub: 'longest', color: colors.warning },
               ] as const).map((s, i) => (
@@ -2493,7 +2511,7 @@ export default function DashboardScreen() {
               <DailyProgressRing completed={completedGoodHabits.length} total={goodHabits.length} size="small" />
               {bonusEarnedToday && (
                 <View style={{ marginTop: Spacing.sm, backgroundColor: colors.accentLight, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 }}>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
+                  <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' }}>🏆 All done! +2 XP</Text>
                 </View>
               )}
             </View>
@@ -2507,7 +2525,7 @@ export default function DashboardScreen() {
                     onPress={() => setChartTab(tab)}
                     style={[styles.tab, { backgroundColor: chartTab === tab ? colors.accent : colors.surfaceLight }]}
                   >
-                    <Text style={[styles.tabText, { color: chartTab === tab ? '#1A1A1A' : colors.textSecondary }]}>
+                    <Text style={[styles.tabText, { color: chartTab === tab ? colors.textOnAccent : colors.textSecondary }]}>
                       {tab}
                     </Text>
                   </TouchableOpacity>
@@ -2553,7 +2571,7 @@ export default function DashboardScreen() {
               <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: colors.surfaceLight, borderRadius: BorderRadius.sm }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Level {stats.level} → {stats.level + 1}</Text>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
+                  <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>{stats.xp % 100}/100 XP</Text>
                 </View>
                 <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
                   <View style={{ height: 6, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 3 }} />
@@ -2566,7 +2584,7 @@ export default function DashboardScreen() {
                 const nextMilestone = milestones.find(m => totalHabitsCompleted < m);
                 if (!nextMilestone) return (
                   <View style={{ marginTop: Spacing.sm, alignItems: 'center' }}>
-                    <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
+                    <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>🏆 All milestones unlocked!</Text>
                   </View>
                 );
                 const prevMilestone = milestones[milestones.indexOf(nextMilestone) - 1] || 0;
@@ -2594,11 +2612,11 @@ export default function DashboardScreen() {
             <Card>
               <View style={styles.calHeader}>
                 <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
-                  <Text style={[styles.calNavText, { color: colors.accent }]}>‹</Text>
+                  <Text style={[styles.calNavText, { color: colors.accentText }]}>‹</Text>
                 </TouchableOpacity>
                 <Text style={[styles.calMonthLabel, { color: colors.text }]}>{MONTH_NAMES[calMonth]} {calYear}</Text>
                 <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
-                  <Text style={[styles.calNavText, { color: colors.accent }]}>›</Text>
+                  <Text style={[styles.calNavText, { color: colors.accentText }]}>›</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.calDayLabels}>
@@ -2634,17 +2652,17 @@ export default function DashboardScreen() {
                       ]}
                       onPress={() => setSelectedDay(isSelected ? null : dateStr)}
                     >
-                      <Text style={{ color: isSelected ? '#1A1A1A' : completionLevel > 0 ? '#1A1A1A' : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
+                      <Text style={{ color: isSelected ? colors.textOnAccent : completionLevel > 0 ? colors.textOnAccent : colors.text, fontSize: FontSize.xs, fontWeight: isToday ? '700' : '400' }}>
                         {day}
                       </Text>
-                      {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? '#1A1A1A' : colors.accent, marginTop: 2 }} />}
+                      {hasEvent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? colors.textOnAccent : colors.accent, marginTop: 2 }} />}
                     </TouchableOpacity>
                   );
                 })}
               </View>
               {selectedDay && (
                 <View style={{ marginTop: Spacing.md }}>
-                  <Text style={{ color: colors.accent, fontWeight: '700', marginBottom: Spacing.xs }}>{formatDisplayDate(selectedDay)}</Text>
+                  <Text style={{ color: colors.accentText, fontWeight: '700', marginBottom: Spacing.xs }}>{formatDisplayDate(selectedDay)}</Text>
 
                   {/* Habits for selected day */}
                   <View style={{ marginBottom: Spacing.md }}>
@@ -2698,7 +2716,7 @@ export default function DashboardScreen() {
                     selectedDayEvents.map(evt => (
                       <View key={evt.id} style={[styles.eventRow, { borderBottomColor: colors.border }]}>
                         <View style={styles.eventRowInfo}>
-                          {evt.time && <Text style={[styles.eventTime, { color: colors.accent }]}>{evt.time}</Text>}
+                          {evt.time && <Text style={[styles.eventTime, { color: colors.accentText }]}>{evt.time}</Text>}
                           <Text style={[styles.eventTitle, { color: colors.text }]}>{evt.title}</Text>
                         </View>
                         <TouchableOpacity onPress={() => removeCalendarEvent(evt.id)}>
@@ -2804,7 +2822,7 @@ export default function DashboardScreen() {
                         {todo.completed && <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>✓</Text>}
                       </TouchableOpacity>
                       <Text style={{ flex: 1, color: todo.completed ? colors.textSecondary : colors.text, fontSize: FontSize.sm, textDecorationLine: todo.completed ? 'line-through' : 'none' }}>{todo.title}</Text>
-                      <Text style={{ color: colors.accent, fontWeight: '700', marginRight: Spacing.sm, fontSize: 10 }}>+{todo.xpReward}xp</Text>
+                      <Text style={{ color: colors.accentText, fontWeight: '700', marginRight: Spacing.sm, fontSize: 10 }}>+{todo.xpReward}xp</Text>
                       <TouchableOpacity onPress={() => deleteTodo && deleteTodo(todo.id)} style={{ padding: 4 }}>
                         <Text style={{ color: colors.danger, fontSize: FontSize.sm }}>✕</Text>
                       </TouchableOpacity>
@@ -2843,7 +2861,7 @@ export default function DashboardScreen() {
                         ))
                       )}
                       {realWorldWins.length > 3 && (
-                        <Text style={{ color: colors.accent, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.sm }}>+{realWorldWins.length - 3} more wins</Text>
+                        <Text style={{ color: colors.accentText, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.sm }}>+{realWorldWins.length - 3} more wins</Text>
                       )}
                     </>
                   )}
@@ -2853,7 +2871,7 @@ export default function DashboardScreen() {
                 <Card style={{ marginBottom: Spacing.xs }}>
                   {SectionTitle({
                     icon: '🎯', title: 'Goals', count: activeGoals.length,
-                    color: colors.accent,
+                    color: colors.accentText,
                     onToggle: () => setGoalsExpanded(!goalsExpanded),
                     expanded: goalsExpanded,
                     action: goalsExpanded ? (
@@ -2871,7 +2889,7 @@ export default function DashboardScreen() {
                           <TouchableOpacity key={goal.id} onPress={() => openEditGoal(goal)} style={{ paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                               <Text style={{ flex: 1, color: colors.text, fontSize: FontSize.sm, fontWeight: '600' }} numberOfLines={1}>{goal.title}</Text>
-                              <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '700' }}>{goal.progress}%</Text>
+                              <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '700' }}>{goal.progress}%</Text>
                             </View>
                             <View style={{ height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
                               <View style={{ height: 3, width: `${goal.progress}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
@@ -2887,7 +2905,7 @@ export default function DashboardScreen() {
                 <Card>
                   {SectionTitle({
                     icon: '💭', title: 'Why Journals', count: journalEntries.length,
-                    color: colors.accent,
+                    color: colors.accentText,
                     onToggle: () => setJournalExpanded(!journalExpanded),
                     expanded: journalExpanded,
                   })}
@@ -2902,7 +2920,7 @@ export default function DashboardScreen() {
                           <View key={entry.id} style={[styles.journalEntry, { borderLeftColor: colors.accent }]}>
                             <View style={styles.journalEntryHeader}>
                               <View style={{ flex: 1 }}>
-                                <Text style={[styles.journalEntryHabit, { color: colors.accent }]}>{entry.habitName}</Text>
+                                <Text style={[styles.journalEntryHabit, { color: colors.accentText }]}>{entry.habitName}</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize: 10 }}>{formatDisplayDate(entry.date)}</Text>
                               </View>
                               <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
@@ -2994,7 +3012,7 @@ export default function DashboardScreen() {
               shadowRadius: 20, elevation: 20,
             }}>
               <Text style={{ fontSize: 72, marginBottom: 12 }}>{getMilestoneEmoji(milestoneTrigger)}</Text>
-              <Text style={{ fontSize: 28, fontWeight: '900', color: colors.accent, marginBottom: 6, textAlign: 'center' }}>
+              <Text style={{ fontSize: 28, fontWeight: '900', color: colors.accentText, marginBottom: 6, textAlign: 'center' }}>
                 {milestoneTrigger} Habits!
               </Text>
               <Text style={{ fontSize: 16, color: colors.text, fontWeight: '700', marginBottom: 8, textAlign: 'center' }}>
@@ -3007,7 +3025,7 @@ export default function DashboardScreen() {
                 backgroundColor: colors.accentLight, borderRadius: 12,
                 paddingHorizontal: 20, paddingVertical: 8,
               }}>
-                <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 13 }}>
+                <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: 13 }}>
                   🎯 Total completed: {totalHabitsCompleted} habits
                 </Text>
               </View>
@@ -3038,7 +3056,7 @@ export default function DashboardScreen() {
               <Text style={{ fontSize: 52, fontWeight: '900', color: colors.text, lineHeight: 60, marginBottom: 4 }}>
                 {stats.level}
               </Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.accent, marginBottom: 6 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.accentText, marginBottom: 6 }}>
                 {stats.level < 5 ? 'Habit Seeker' : stats.level < 10 ? 'Habit Builder' : stats.level < 20 ? 'Habit Master' : stats.level < 50 ? 'Habit Legend' : '💎 Ascended'}
               </Text>
               <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
@@ -3138,7 +3156,7 @@ export default function DashboardScreen() {
               {editingJournalId ? '✏️ Edit Entry' : 'Why did you do it? 💪'}
             </Text>
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-              Habit: <Text style={{ color: colors.accent, fontWeight: '700' }}>{journalHabitName}</Text>
+              Habit: <Text style={{ color: colors.accentText, fontWeight: '700' }}>{journalHabitName}</Text>
             </Text>
             <TextInput
               placeholder="What motivated you? How did it make you feel?"
@@ -3286,7 +3304,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs }}>
                   {[0, 25, 50, 75, 100].map(pct => (
                     <TouchableOpacity key={pct} onPress={() => setGoalProgress(pct)} style={[styles.progressBtn, { backgroundColor: goalProgress === pct ? colors.accent : colors.surfaceLight }]}>
-                      <Text style={{ color: goalProgress === pct ? '#1A1A1A' : colors.text, fontWeight: '600' }}>{pct}%</Text>
+                      <Text style={{ color: goalProgress === pct ? colors.textOnAccent : colors.text, fontWeight: '600' }}>{pct}%</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -3307,7 +3325,7 @@ export default function DashboardScreen() {
                     style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm }}
                   >
                     <View style={[{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, marginRight: Spacing.sm }, { borderColor: goalRelatedHabits.includes(habit.id) ? colors.accent : colors.border, backgroundColor: goalRelatedHabits.includes(habit.id) ? colors.accent : 'transparent' }]}>
-                      {goalRelatedHabits.includes(habit.id) && <Text style={{ color: '#1A1A1A', fontWeight: '700' }}>✓</Text>}
+                      {goalRelatedHabits.includes(habit.id) && <Text style={{ color: colors.textOnAccent, fontWeight: '700' }}>✓</Text>}
                     </View>
                     <Text style={{ color: colors.text }}>{habit.name}</Text>
                   </TouchableOpacity>
@@ -3474,7 +3492,7 @@ export default function DashboardScreen() {
                     setEditingHabitId(null);
                   }}
                 >
-                  <Text style={[styles.addHabitTriggerText, { color: colors.accent }]}>＋  New Habit</Text>
+                  <Text style={[styles.addHabitTriggerText, { color: colors.accentText }]}>＋  New Habit</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.inlineForm, { borderColor: colors.border, backgroundColor: colors.background }]}>
@@ -3623,7 +3641,7 @@ export default function DashboardScreen() {
                               setEditDateForHabit(prevDate);
                             }}
                           >
-                            <Text style={{ color: colors.accent, fontWeight: '500', fontSize: 12 }}>← Previous</Text>
+                            <Text style={{ color: colors.accentText, fontWeight: '500', fontSize: 12 }}>← Previous</Text>
                           </TouchableOpacity>
                           <Text style={{ color: colors.text, fontWeight: '600', minWidth: 90, textAlign: 'center', fontSize: 13 }}>
                             {editDateForHabit === today ? 'Today' : editDateForHabit}
@@ -3638,7 +3656,7 @@ export default function DashboardScreen() {
                               if (formattedDate <= today) setEditDateForHabit(formattedDate);
                             }}
                           >
-                            <Text style={{ color: colors.accent, fontWeight: '500', fontSize: 12 }}>Next →</Text>
+                            <Text style={{ color: colors.accentText, fontWeight: '500', fontSize: 12 }}>Next →</Text>
                           </TouchableOpacity>
                         </View>
                         <TouchableOpacity
@@ -3783,11 +3801,11 @@ export default function DashboardScreen() {
 
               {/* Month Summary */}
               <View>
-                <Text style={[styles.subsectionLabel, { color: colors.accent, marginBottom: Spacing.md }]}>30-Day Summary</Text>
+                <Text style={[styles.subsectionLabel, { color: colors.accentText, marginBottom: Spacing.md }]}>30-Day Summary</Text>
                 <View style={{ gap: Spacing.sm }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Completion Rate</Text>
-                    <Text style={{ color: colors.accent, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
+                    <Text style={{ color: colors.accentText, fontWeight: '700' }}>{monthStats.completionRate}%</Text>
                   </View>
                   <ProgressBar progress={monthStats.completionRate / 100} color={colors.success} />
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: Spacing.sm }}>
@@ -3874,7 +3892,7 @@ export default function DashboardScreen() {
                       </View>
                       <View style={{ alignItems: 'center' }}>
                         <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs }}>Best Streak</Text>
-                        <Text style={{ color: colors.accent, fontSize: FontSize.lg, fontWeight: '700' }}>
+                        <Text style={{ color: colors.accentText, fontSize: FontSize.lg, fontWeight: '700' }}>
                           {habit.bestStreak}
                         </Text>
                       </View>
@@ -4000,6 +4018,30 @@ export default function DashboardScreen() {
         habit={timelineHabit}
         visible={!!timelineHabit}
         onClose={() => setTimelineHabit(null)}
+      />
+
+      {/* ── QUICK ADD: always one tap away ─────────────────────────────── */}
+      <TouchableOpacity
+        onPress={() => setShowQuickAdd(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Add a habit"
+        style={{
+          position: 'absolute', right: Spacing.lg, bottom: Spacing.lg,
+          width: 56, height: 56, borderRadius: 28,
+          backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
+        }}
+      >
+        <Text style={{ color: colors.textOnAccent, fontSize: 28, lineHeight: 30, fontWeight: '400' }}>+</Text>
+      </TouchableOpacity>
+      <QuickAddSheet
+        visible={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onAdd={(name, type) => {
+          addHabit({ name, type });
+          feedback.success();
+          showToast(`Added: ${name}`, 'success', 2500);
+        }}
       />
     </>
   );

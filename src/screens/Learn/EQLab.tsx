@@ -74,7 +74,7 @@ export default function EQLab() {
                   {SCENARIO_EXERCISES.length} branching dialogues
                 </Text>
               </View>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>→</Text>
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
               Face realistic conflicts and see how different communication styles play out.
@@ -95,7 +95,7 @@ export default function EQLab() {
                   {GAME_EXERCISES.length} skill-building games
                 </Text>
               </View>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>→</Text>
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
               Build emotional awareness and empathy through engaging mini-games.
@@ -116,7 +116,7 @@ export default function EQLab() {
                   Interactive mini-game
                 </Text>
               </View>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>→</Text>
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
               Navigate real conversations and build emotional intelligence through interactive dialogue.
@@ -137,7 +137,7 @@ export default function EQLab() {
                   Data-driven insights
                 </Text>
               </View>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>→</Text>
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 18 }}>
               See your emotional strengths, growth areas, and progress over time.
@@ -153,7 +153,7 @@ export default function EQLab() {
     <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.lg }}>
         <TouchableOpacity onPress={() => setScreen('landing')}>
-          <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+          <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: FontSize.xl, fontWeight: FontWeight.bold }}>
           Scenario Exercises
@@ -195,7 +195,7 @@ export default function EQLab() {
     <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.lg }}>
         <TouchableOpacity onPress={() => setScreen('landing')}>
-          <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+          <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: FontSize.xl, fontWeight: FontWeight.bold }}>
           Interactive Games
@@ -304,7 +304,7 @@ export default function EQLab() {
       <View style={[s.container, { backgroundColor: colors.background }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingTop: Spacing.md, marginBottom: Spacing.lg }}>
           <TouchableOpacity onPress={() => setScreen('landing')}>
-            <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
+            <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
           </TouchableOpacity>
         </View>
         <EQPatternsInsight completions={[]} />

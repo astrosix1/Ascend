@@ -217,7 +217,7 @@ export default function ConversationMasterGame() {
                 <Text style={[s.diffTitle, { color: colors.text }]}>{title}</Text>
                 <Text style={[s.diffDesc, { color: colors.textSecondary }]}>{desc}</Text>
               </View>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>→</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -232,7 +232,7 @@ export default function ConversationMasterGame() {
       <ScrollView style={[s.screen, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={s.pagePad}>
           <TouchableOpacity onPress={() => setScreen('difficulty-select')} style={{ marginBottom: Spacing.lg }}>
-            <Text style={{ color: colors.accent, fontSize: FontSize.md }}>← Back</Text>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.md }}>← Back</Text>
           </TouchableOpacity>
           <Text style={[s.pageTitle, { color: colors.text, textTransform: 'capitalize' }]}>
             {selectedDifficulty} Scenarios
@@ -250,11 +250,11 @@ export default function ConversationMasterGame() {
                 <View style={s.tagRow}>
                   {sc.eqSkillsFocused.slice(0, 3).map(skill => (
                     <View key={skill} style={[s.tag, { backgroundColor: colors.accentLight }]}>
-                      <Text style={[s.tagText, { color: colors.accent }]}>{skill.replace(/-/g, ' ')}</Text>
+                      <Text style={[s.tagText, { color: colors.accentText }]}>{skill.replace(/-/g, ' ')}</Text>
                     </View>
                   ))}
                 </View>
-                <Text style={[s.startCta, { color: colors.accent }]}>Begin conversation →</Text>
+                <Text style={[s.startCta, { color: colors.accentText }]}>Begin conversation →</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -274,7 +274,7 @@ export default function ConversationMasterGame() {
         {/* ── Top bar ── */}
         <View style={[s.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => { setScreen('difficulty-select'); setSelectedDifficulty(null); }}>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>← Exit</Text>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>← Exit</Text>
           </TouchableOpacity>
 
           <View style={s.npcChip}>
@@ -308,7 +308,7 @@ export default function ConversationMasterGame() {
 
         {/* ── Goal banner ── */}
         <View style={[s.goalBanner, { backgroundColor: colors.accentLight }]}>
-          <Text style={[s.goalText, { color: colors.accent }]}>
+          <Text style={[s.goalText, { color: colors.accentText }]}>
             Goal: {gameState.scenario.userGoal}
           </Text>
         </View>
@@ -395,7 +395,7 @@ export default function ConversationMasterGame() {
       damaged:     { emoji: '💔', color: colors.danger,  label: 'Relationship Damaged' },
       neutral:     { emoji: '😐', color: colors.textSecondary, label: 'Relationship Unchanged' },
       improved:    { emoji: '💚', color: colors.success, label: 'Relationship Improved' },
-      strengthened:{ emoji: '💪', color: colors.accent,  label: 'Relationship Strengthened' },
+      strengthened:{ emoji: '💪', color: colors.accentText,  label: 'Relationship Strengthened' },
     };
 
     const meta = impactMeta[ending?.relationshipImpact || 'neutral'];
@@ -428,10 +428,10 @@ export default function ConversationMasterGame() {
 
           {/* EQ Score */}
           <View style={[s.card, { backgroundColor: colors.accentLight }]}>
-            <Text style={[s.cardLabel, { color: colors.accent }]}>EQ Score</Text>
+            <Text style={[s.cardLabel, { color: colors.accentText }]}>EQ Score</Text>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
-              <Text style={[s.eqBig, { color: colors.accent }]}>{avgEQ}</Text>
-              <Text style={[s.eqDenom, { color: colors.accent }]}>/10</Text>
+              <Text style={[s.eqBig, { color: colors.accentText }]}>{avgEQ}</Text>
+              <Text style={[s.eqDenom, { color: colors.accentText }]}>/10</Text>
             </View>
           </View>
 
