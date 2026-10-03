@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { Colors, ThemeColors } from '../utils/theme';
-import { getData, setData, KEYS } from '../utils/storage';
+import { getData, setData, removeData, clearAllData, KEYS } from '../utils/storage';
 import { initPushNotifications, scheduleAlarmNotifications } from '../utils/webPush';
 import { Habit, UserStats, UserSettings, PomodoroSession, CalendarEvent, RealWorldWin, JournalEntry, RelapseEntry, GoalEntry, DetoxSession, ForumPost, ReflectionResponse, Alarm, Todo } from '../utils/types';
-import { saveUserData, loadUserData, signOut, loadUserDataPartial, saveUserDataPartial } from '../utils/supabase';
+import { saveUserData, loadUserData, signOut, saveUserDataPartial } from '../utils/supabase';
 import { resolveStreakOnComplete } from '../utils/streakFreeze';
 import type { DataType, SyncStatus, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution, createSyncResult, detectConflict } from '../utils/syncEngine';
@@ -17,7 +17,12 @@ export interface AppState {
 
   // Habits
   habits: Habit[];
-  addHabit: (habit: Habit) => void;
+  // addHabit only strictly needs name+type — it fills in id/streak/bestStreak/
+  // completedDates/createdAt itself (see the implementation) — the type used
+  // to claim a full Habit was required, which didn't match reality and meant
+  // every quick-add-a-break-habit call site had to silently mislead the
+  // type checker to compile.
+  addHabit: (habit: Partial<Habit> & Pick<Habit, 'name' | 'type'>) => void;
   toggleHabit: (habitId: string, date: string) => void;
   removeHabit: (habitId: string) => void;
   updateHabit: (habitId: string, updates: Partial<Habit>) => void;
@@ -106,10 +111,18 @@ export interface AppState {
   currentUserEmail: string;
   setCurrentUser: (userId: string | null, email: string) => void;
   syncUserData: (userId: string) => Promise<void>;
+  prepareLocalDataFor: (userId: string | null) => Promise<void>;
   manualSync: (dataTypes?: DataType[]) => Promise<void>;
-  signOutUser: () => void;
-  resetAuth: () => Promise<void>;
-  resetSignal: number;
+  signOutUser: () => Promise<void>;
+  // One-shot cross-screen navigation intent: Settings sets this to jump
+  // straight to a specific Discover sub-tab (e.g. the AI Generator, which
+  // was moved out of Discover's primary tab bar so casual users aren't led
+  // to a feature that needs their own API key). DesktopNavigator switches
+  // activeScreen to 'discover' when this is set; LearnScreen reads it on
+  // mount to pick the right sub-tab, then clears it.
+  requestedDiscoverTab: 'discover' | 'generator' | 'eq' | null;
+  requestDiscoverTab: (tab: 'discover' | 'generator' | 'eq') => void;
+  clearRequestedDiscoverTab: () => void;
   isSyncing: boolean;
   lastSyncTime: string | null;
   syncStatuses: Record<DataType, SyncStatus>;
@@ -149,6 +162,50 @@ const defaultStats: UserStats = {
   monthlyCompletion: [],
 };
 
+// Every user_data column the app syncs.
+const ALL_SYNC_TYPES: DataType[] = [
+  'habits', 'stats', 'settings', 'calendar_events', 'real_world_wins',
+  'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites',
+  'detox_history', 'alarms', 'pomodoro_history', 'todos', 'goals',
+];
+
+interface SyncableState {
+  habits: Habit[];
+  stats: UserStats;
+  settings: UserSettings;
+  calendarEvents: CalendarEvent[];
+  realWorldWins: RealWorldWin[];
+  journalEntries: JournalEntry[];
+  relapseLog: RelapseEntry[];
+  reflectionResponses: ReflectionResponse[];
+  forumFavorites: string[];
+  detoxHistory: DetoxSession[];
+  alarms: Alarm[];
+  pomodoroHistory: PomodoroSession[];
+  todos: Todo[];
+  goals: GoalEntry[];
+}
+
+// State as the JSON strings the user_data columns store.
+function serializeForCloud(s: SyncableState) {
+  return {
+    habits: JSON.stringify(s.habits),
+    stats: JSON.stringify(s.stats),
+    settings: JSON.stringify(s.settings),
+    calendar_events: JSON.stringify(s.calendarEvents),
+    real_world_wins: JSON.stringify(s.realWorldWins),
+    journal_entries: JSON.stringify(s.journalEntries),
+    relapse_log: JSON.stringify(s.relapseLog),
+    reflection_responses: JSON.stringify(s.reflectionResponses),
+    forum_favorites: JSON.stringify(s.forumFavorites),
+    detox_history: JSON.stringify(s.detoxHistory),
+    alarms: JSON.stringify(s.alarms),
+    pomodoro_history: JSON.stringify(s.pomodoroHistory),
+    todos: JSON.stringify(s.todos),
+    goals: JSON.stringify(s.goals),
+  };
+}
+
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -172,8 +229,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
-  const [resetSignal, setResetSignal] = useState(0);
+  const [requestedDiscoverTab, setRequestedDiscoverTab] = useState<'discover' | 'generator' | 'eq' | null>(null);
+  const requestDiscoverTab = useCallback((tab: 'discover' | 'generator' | 'eq') => setRequestedDiscoverTab(tab), []);
+  const clearRequestedDiscoverTab = useCallback(() => setRequestedDiscoverTab(null), []);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  // The user whose cloud row we have successfully reconciled with local state
+  // this session. Nothing is uploaded until this matches currentUserId: if the
+  // first load failed (offline, expired token) the local state may be empty or
+  // stale, and uploading it would overwrite the real cloud copy.
+  const [cloudReadyUserId, setCloudReadyUserId] = useState<string | null>(null);
+  // Set while the initial sync for that user is failing; drives background retries.
+  const [syncFailedFor, setSyncFailedFor] = useState<string | null>(null);
+  // Resolves once local storage has been read into state on mount.
+  const localLoadRef = useRef<Promise<void>>(Promise.resolve());
 
   // Offline sync
   const [isOffline, setIsOfflineState] = useState(false);
@@ -227,6 +295,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     detox_history: { dataType: 'detox_history', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
     alarms: { dataType: 'alarms', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
     pomodoro_history: { dataType: 'pomodoro_history', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
+    todos: { dataType: 'todos', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
+    goals: { dataType: 'goals', synced: false, error: null, lastSyncTime: null, pendingChanges: 0, syncing: false },
   });
 
   const [syncStatuses, setSyncStatuses] = useState<Record<DataType, SyncStatus>>(initializeSyncStatuses());
@@ -245,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Load all data on mount — split into critical (blocks render) and deferred (background)
   useEffect(() => {
-    (async () => {
+    localLoadRef.current = (async () => {
       try {
         // ── Phase 1: Critical data — unblocks first render as fast as possible ──
         const [
@@ -291,7 +361,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // ── Phase 2: Deferred data — loads in background after first render ──
-      Promise.all([
+      // (awaited only so localLoadRef settles once everything is in state; the
+      // first render was already unblocked above)
+      await Promise.all([
         getData<PomodoroSession[]>(KEYS.POMODORO_HISTORY),
         getData<CalendarEvent[]>(KEYS.CALENDAR_EVENTS),
         getData<RealWorldWin[]>(KEYS.REAL_WORLD_WINS),
@@ -350,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [persist]);
 
-  const addHabit = useCallback((habit: Habit) => {
+  const addHabit = useCallback((habit: Partial<Habit> & Pick<Habit, 'name' | 'type'>) => {
     // Sanitize: ensure required fields are always present
     const safe: Habit = {
       id: habit.id || Date.now().toString(),
@@ -784,256 +856,225 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserEmail(email);
   }, []);
 
+  // Latest state, readable from timers/async callbacks without making those
+  // callbacks depend on (and be re-created by) every state change.
+  const latestRef = useRef({
+    habits, stats, settings, calendarEvents, realWorldWins, journalEntries,
+    relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms,
+    pomodoroHistory, todos, goals,
+  });
+  latestRef.current = {
+    habits, stats, settings, calendarEvents, realWorldWins, journalEntries,
+    relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms,
+    pomodoroHistory, todos, goals,
+  };
+
+  // Empty every in-memory collection (used when local data is wiped).
+  const resetInMemoryState = useCallback(() => {
+    setHabits([]);
+    setStats(defaultStats);
+    // Keep the device's theme; everything else goes back to defaults.
+    setSettings(s => ({ ...defaultSettings, theme: s.theme }));
+    setPomodoroHistory([]);
+    setCalendarEvents([]);
+    setRealWorldWins([]);
+    setJournalEntries([]);
+    setRelapseLog([]);
+    setGoals([]);
+    setTodos([]);
+    setDetoxHistory([]);
+    setForumFavorites([]);
+    setReflectionResponses([]);
+    setAlarmsState([]);
+    scheduleAlarmNotifications([]);
+    setMilestonesCrossed([]);
+    dirtyStateRef.current.clear();
+    setLastSyncTime(null);
+  }, []);
+
+  // Account-switch guard: local data is tagged with the account it belongs to.
+  // If a different account is signing in on this device (shared computer,
+  // signed out elsewhere), drop the previous person's data rather than letting
+  // it be shown to — or uploaded into — the new account. Untagged data predates
+  // tagging and is adopted by whoever signs in. Pass null for a guest: data
+  // tagged to an account must not be shown to a signed-out visitor either.
+  // Storage-only (no network), so the app calls it before rendering anything.
+  const prepareLocalDataFor = useCallback(async (userId: string | null) => {
+    // Let the initial read of local storage finish so it can't race the wipe.
+    await localLoadRef.current;
+    const owner = await getData<string>(KEYS.DATA_OWNER);
+    if (owner && owner !== userId) {
+      console.warn('[Sync] Local data belongs to a different account — clearing it');
+      if (!(await clearAllData())) throw new Error('Could not clear previous account data');
+      await removeData(KEYS.DATA_OWNER);
+      resetInMemoryState();
+    }
+  }, [resetInMemoryState]);
+
   const syncUserData = useCallback(async (userId: string) => {
     setIsSyncing(true);
     try {
+      await prepareLocalDataFor(userId);
+
+      // Throws on any failure; null strictly means "this account has no cloud
+      // row yet", the only case where seeding the cloud from local is safe.
       const remote = await loadUserData(userId);
 
       if (remote) {
         // Remote data exists — load it into state (remote wins on fresh login)
-        const safeJsonParse = (jsonStr: string, fallback: any = null) => {
+        const safeJsonParse = (jsonStr: string): any => {
           try {
             return JSON.parse(jsonStr);
           } catch (e) {
             console.error('[Sync] JSON parse error:', e);
-            return fallback;
+            return null;
           }
         };
 
-        if (remote.habits) {
-          const d = safeJsonParse(remote.habits, []);
-          if (d && d.length >= 0) {
-            setHabits(d);
-            await persist(KEYS.HABITS, d);
+        // A column that is missing or unparsable leaves local state untouched.
+        const applyArray = async <T,>(raw: string | null | undefined, key: string, set: (v: T[]) => void) => {
+          if (!raw) return;
+          const d = safeJsonParse(raw);
+          if (Array.isArray(d)) {
+            set(d);
+            await persist(key, d);
           }
-        }
-        if (remote.stats) {
-          const d = safeJsonParse(remote.stats, defaultStats);
-          if (d) {
-            setStats(d);
-            await persist(KEYS.STATS, d);
+        };
+        const applyObject = async <T extends object>(raw: string | null | undefined, key: string, set: (v: T) => void) => {
+          if (!raw) return;
+          const d = safeJsonParse(raw);
+          if (d && typeof d === 'object' && !Array.isArray(d)) {
+            set(d);
+            await persist(key, d);
           }
-        }
-        if (remote.settings) {
-          const d = safeJsonParse(remote.settings, defaultSettings);
-          if (d) {
-            setSettings(d);
-            setTheme(d.theme || 'dark');
-            await persist(KEYS.SETTINGS, d);
-          }
-        }
-        if (remote.calendar_events) {
-          const d = safeJsonParse(remote.calendar_events, []);
-          if (d && d.length >= 0) {
-            setCalendarEvents(d);
-            await persist(KEYS.CALENDAR_EVENTS, d);
-          }
-        }
-        if (remote.real_world_wins) {
-          const d = safeJsonParse(remote.real_world_wins, []);
-          if (d && d.length >= 0) {
-            setRealWorldWins(d);
-            await persist(KEYS.REAL_WORLD_WINS, d);
-          }
-        }
-        if (remote.journal_entries) {
-          const d = safeJsonParse(remote.journal_entries, []);
-          if (d && d.length >= 0) {
-            setJournalEntries(d);
-            await persist(KEYS.JOURNAL_ENTRIES, d);
-          }
-        }
-        if (remote.relapse_log) {
-          const d = safeJsonParse(remote.relapse_log, []);
-          if (d && d.length >= 0) {
-            setRelapseLog(d);
-            await persist(KEYS.RELAPSE_LOG, d);
-          }
-        }
-        if (remote.reflection_responses) {
-          const d = safeJsonParse(remote.reflection_responses, []);
-          if (d && d.length >= 0) {
-            setReflectionResponses(d);
-            await persist(KEYS.REFLECTION_RESPONSES, d);
-          }
-        }
-        if (remote.forum_favorites) {
-          const d = safeJsonParse(remote.forum_favorites, []);
-          if (d && Array.isArray(d)) {
-            setForumFavorites(d);
-            await persist(KEYS.FORUM_FAVORITES, d);
-          }
-        }
-        if (remote.detox_history) {
-          const d = safeJsonParse(remote.detox_history, []);
-          if (d && Array.isArray(d)) {
-            setDetoxHistory(d);
-            await persist(KEYS.DETOX_HISTORY, d);
-          }
-        }
-        if (remote.alarms) {
-          const d = safeJsonParse(remote.alarms, []);
-          if (d && Array.isArray(d)) {
-            setAlarmsState(d);
-            await persist(KEYS.ALARMS, d);
-          }
-        }
-        if (remote.pomodoro_history) {
-          const d = safeJsonParse(remote.pomodoro_history, []);
-          if (d && Array.isArray(d)) {
-            setPomodoroHistory(d);
-            await persist(KEYS.POMODORO_HISTORY, d);
-          }
-        }
-        if (remote.todos) {
-          const d = safeJsonParse(remote.todos, []);
-          if (d && Array.isArray(d)) {
-            setTodos(d);
-            await persist(KEYS.TODOS, d);
-          }
-        }
-        if (remote.goals) {
-          const d = safeJsonParse(remote.goals, []);
-          if (d && Array.isArray(d)) {
-            setGoals(d);
-            await persist(KEYS.GOALS, d);
-          }
-        }
+        };
+
+        await applyArray<Habit>(remote.habits, KEYS.HABITS, setHabits);
+        await applyObject<UserStats>(remote.stats, KEYS.STATS, setStats);
+        await applyObject<UserSettings>(remote.settings, KEYS.SETTINGS, d => {
+          setSettings(d);
+          setTheme(d.theme || 'dark');
+        });
+        await applyArray<CalendarEvent>(remote.calendar_events, KEYS.CALENDAR_EVENTS, setCalendarEvents);
+        await applyArray<RealWorldWin>(remote.real_world_wins, KEYS.REAL_WORLD_WINS, setRealWorldWins);
+        await applyArray<JournalEntry>(remote.journal_entries, KEYS.JOURNAL_ENTRIES, setJournalEntries);
+        await applyArray<RelapseEntry>(remote.relapse_log, KEYS.RELAPSE_LOG, setRelapseLog);
+        await applyArray<ReflectionResponse>(remote.reflection_responses, KEYS.REFLECTION_RESPONSES, setReflectionResponses);
+        await applyArray<string>(remote.forum_favorites, KEYS.FORUM_FAVORITES, setForumFavorites);
+        await applyArray<DetoxSession>(remote.detox_history, KEYS.DETOX_HISTORY, setDetoxHistory);
+        await applyArray<Alarm>(remote.alarms, KEYS.ALARMS, setAlarmsState);
+        await applyArray<PomodoroSession>(remote.pomodoro_history, KEYS.POMODORO_HISTORY, setPomodoroHistory);
+        await applyArray<Todo>(remote.todos, KEYS.TODOS, setTodos);
+        await applyArray<GoalEntry>(remote.goals, KEYS.GOALS, setGoals);
       } else {
-        // No remote data yet — push local data to cloud.
-        // NOTE: 'todos' and 'goals' are intentionally NOT sent here — they are
-        // not columns in the user_data table yet (see manualSync below), and
-        // including them makes Supabase reject the whole upsert. They still
-        // persist locally via AsyncStorage; add them back once the DB schema
-        // has been migrated to include those columns.
-        const [localHabits, localStats, localSettings, localCalendar, localWins, localJournal, localRelapse, localReflections] =
-          await Promise.all([
-            getData<Habit[]>(KEYS.HABITS),
-            getData<UserStats>(KEYS.STATS),
-            getData<UserSettings>(KEYS.SETTINGS),
-            getData<CalendarEvent[]>(KEYS.CALENDAR_EVENTS),
-            getData<RealWorldWin[]>(KEYS.REAL_WORLD_WINS),
-            getData<JournalEntry[]>(KEYS.JOURNAL_ENTRIES),
-            getData<RelapseEntry[]>(KEYS.RELAPSE_LOG),
-            getData<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES),
-          ]);
+        // Confirmed new account (no cloud row) — seed the cloud from whatever
+        // is stored locally. Read from storage, not state, which may be stale.
+        const readLocal = async <T,>(key: string, fallback: T): Promise<T> => (await getData<T>(key)) ?? fallback;
+        const [
+          habits_, stats_, settings_, calendar_, wins_, journal_, relapse_, reflections_,
+          favorites_, detox_, alarms_, pomodoro_, todos_, goals_,
+        ] = await Promise.all([
+          readLocal<Habit[]>(KEYS.HABITS, []),
+          readLocal<UserStats | Record<string, never>>(KEYS.STATS, {}),
+          readLocal<UserSettings | Record<string, never>>(KEYS.SETTINGS, {}),
+          readLocal<CalendarEvent[]>(KEYS.CALENDAR_EVENTS, []),
+          readLocal<RealWorldWin[]>(KEYS.REAL_WORLD_WINS, []),
+          readLocal<JournalEntry[]>(KEYS.JOURNAL_ENTRIES, []),
+          readLocal<RelapseEntry[]>(KEYS.RELAPSE_LOG, []),
+          readLocal<ReflectionResponse[]>(KEYS.REFLECTION_RESPONSES, []),
+          readLocal<string[]>(KEYS.FORUM_FAVORITES, []),
+          readLocal<DetoxSession[]>(KEYS.DETOX_HISTORY, []),
+          readLocal<Alarm[]>(KEYS.ALARMS, []),
+          readLocal<PomodoroSession[]>(KEYS.POMODORO_HISTORY, []),
+          readLocal<Todo[]>(KEYS.TODOS, []),
+          readLocal<GoalEntry[]>(KEYS.GOALS, []),
+        ]);
 
         await saveUserData(userId, {
-          habits: JSON.stringify(localHabits || []),
-          stats: JSON.stringify(localStats || {}),
-          settings: JSON.stringify(localSettings || {}),
-          calendar_events: JSON.stringify(localCalendar || []),
-          real_world_wins: JSON.stringify(localWins || []),
-          journal_entries: JSON.stringify(localJournal || []),
-          relapse_log: JSON.stringify(localRelapse || []),
-          reflection_responses: JSON.stringify(localReflections || []),
+          habits: JSON.stringify(habits_),
+          stats: JSON.stringify(stats_),
+          settings: JSON.stringify(settings_),
+          calendar_events: JSON.stringify(calendar_),
+          real_world_wins: JSON.stringify(wins_),
+          journal_entries: JSON.stringify(journal_),
+          relapse_log: JSON.stringify(relapse_),
+          reflection_responses: JSON.stringify(reflections_),
+          forum_favorites: JSON.stringify(favorites_),
+          detox_history: JSON.stringify(detox_),
+          alarms: JSON.stringify(alarms_),
+          pomodoro_history: JSON.stringify(pomodoro_),
+          todos: JSON.stringify(todos_),
+          goals: JSON.stringify(goals_),
         });
       }
+
+      // Reconciled: tag local data with its owner and allow uploads.
+      await setData(KEYS.DATA_OWNER, userId);
+      setCloudReadyUserId(userId);
+      setSyncFailedFor(null);
+      setSyncError(null);
+      setLastSyncTime(new Date().toISOString());
     } catch (e) {
       console.error('[Sync] Sync error:', e);
+      setSyncFailedFor(userId);
       setSyncError('Failed to sync cloud data. Check your connection.');
       throw e; // Re-throw so caller knows sync failed
     } finally {
       setIsSyncing(false);
     }
-  }, [persist]);
+  }, [persist, prepareLocalDataFor]);
 
-  // Manual sync trigger: sync specific datatypes or all if none specified
+  // If the initial sync failed, keep retrying in the background. Uploads stay
+  // blocked until it succeeds, so retrying is what gets the user back to a
+  // normally-syncing state once the network/session recovers.
+  useEffect(() => {
+    if (!currentUserId || syncFailedFor !== currentUserId || isSyncing) return;
+    const timer = setTimeout(() => {
+      syncUserData(currentUserId).catch(() => { /* logged + re-scheduled via syncFailedFor */ });
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [currentUserId, syncFailedFor, isSyncing, syncUserData]);
+
+  const cloudReady = !!currentUserId && cloudReadyUserId === currentUserId;
+
+  // Manual sync trigger: push specific datatypes (or all) to the cloud.
   const manualSync = useCallback(async (dataTypes?: DataType[]) => {
     if (!currentUserId) {
       console.warn('[Sync] No user ID - cannot sync');
       return;
     }
 
-    // 'todos' and 'goals' are NOT columns in user_data — including them causes
-    // loadUserDataPartial to build a SELECT for non-existent columns, which
-    // PostgREST rejects with a 400. Remove them here; add back only when the
-    // DB schema has been migrated to include those columns.
-    const toSync = dataTypes || (['habits', 'stats', 'settings', 'calendar_events', 'real_world_wins', 'journal_entries', 'relapse_log', 'reflection_responses', 'forum_favorites', 'detox_history', 'alarms', 'pomodoro_history'] as DataType[]);
+    // Until the cloud copy has been loaded once, pushing could overwrite it
+    // with empty/stale local state — redo the (read-first) initial sync instead.
+    if (!cloudReady) {
+      await syncUserData(currentUserId).catch(() => { /* surfaced via syncError */ });
+      return;
+    }
+
+    const toSync = dataTypes || ALL_SYNC_TYPES;
 
     try {
       setIsSyncing(true);
 
-      // Load remote data for these types
-      const remote = await loadUserDataPartial(currentUserId, toSync);
+      const everything: Partial<Record<DataType, string>> = serializeForCloud(latestRef.current);
+      const now = new Date().toISOString();
+      const updates: Partial<Record<DataType, string>> = {};
+      const metadata = {} as Record<DataType, SyncMetadata>;
 
-      if (remote) {
-
-        // Build update payload from current in-memory state.
-        // Never save empty strings — that would silently wipe cloud data.
-        const stateByDataType: Partial<Record<DataType, string>> = {
-          habits: JSON.stringify(habits),
-          stats: JSON.stringify(stats),
-          settings: JSON.stringify(settings),
-          calendar_events: JSON.stringify(calendarEvents),
-          real_world_wins: JSON.stringify(realWorldWins),
-          journal_entries: JSON.stringify(journalEntries),
-          relapse_log: JSON.stringify(relapseLog),
-          reflection_responses: JSON.stringify(reflectionResponses),
-          forum_favorites: JSON.stringify(forumFavorites),
-          detox_history: JSON.stringify(detoxHistory),
-          alarms: JSON.stringify(alarms),
-          pomodoro_history: JSON.stringify(pomodoroHistory),
+      toSync.forEach(dataType => {
+        const value = everything[dataType];
+        if (value !== undefined) updates[dataType] = value;
+        metadata[dataType] = {
+          dataType,
+          lastSyncTime: now,
+          lastModifiedLocal: now,
+          conflictDetected: false,
         };
-        const updates: Partial<Record<DataType, string>> = {};
-        const metadata: Record<DataType, SyncMetadata> = {};
+      });
 
-        toSync.forEach(dataType => {
-          const value = stateByDataType[dataType];
-          if (value !== undefined) updates[dataType] = value;
-          metadata[dataType] = {
-            dataType,
-            lastSyncTime: new Date().toISOString(),
-            lastModifiedLocal: new Date().toISOString(),
-            conflictDetected: false,
-          };
-        });
-
-        // SECURITY FIX #2: Add error handling to sync promise chain
-        // Prevent silent failures and unhandled promise rejections
-        await saveUserDataPartial(currentUserId, updates, metadata).catch(err => {
-          console.error('[Sync] Failed to save merged data:', err);
-          throw err; // Re-throw so catch block below handles it
-        });
-        setLastSyncTime(new Date().toISOString());
-        setSyncError(null);
-      } else {
-        // No remote data - push local
-        const metadata: Record<DataType, SyncMetadata> = {};
-        const updates: Partial<Record<DataType, string>> = {
-          habits: JSON.stringify(habits),
-          stats: JSON.stringify(stats),
-          settings: JSON.stringify(settings),
-          calendar_events: JSON.stringify(calendarEvents),
-          real_world_wins: JSON.stringify(realWorldWins),
-          journal_entries: JSON.stringify(journalEntries),
-          relapse_log: JSON.stringify(relapseLog),
-          reflection_responses: JSON.stringify(reflectionResponses),
-          forum_favorites: JSON.stringify(forumFavorites),
-          detox_history: JSON.stringify(detoxHistory),
-          alarms: JSON.stringify(alarms),
-          pomodoro_history: JSON.stringify(pomodoroHistory),
-        };
-
-        toSync.forEach(dataType => {
-          metadata[dataType] = {
-            dataType,
-            lastSyncTime: new Date().toISOString(),
-            lastModifiedLocal: new Date().toISOString(),
-            conflictDetected: false,
-          };
-        });
-
-        // SECURITY FIX #2: Add error handling to sync promise chain
-        // Prevent silent failures and unhandled promise rejections
-        await saveUserDataPartial(currentUserId, updates, metadata).catch(err => {
-          console.error('[Sync] Failed to push local data:', err);
-          throw err; // Re-throw so catch block below handles it
-        });
-        setLastSyncTime(new Date().toISOString());
-        setSyncError(null);
-      }
-
+      await saveUserDataPartial(currentUserId, updates, metadata);
+      setLastSyncTime(new Date().toISOString());
+      setSyncError(null);
       dirtyStateRef.current.clear();
     } catch (error) {
       console.error('[Sync] Manual sync failed:', error);
@@ -1041,65 +1082,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [
-    currentUserId,
-    habits,
-    stats,
-    settings,
-    calendarEvents,
-    realWorldWins,
-    journalEntries,
-    relapseLog,
-    reflectionResponses,
-    forumFavorites,
-    detoxHistory,
-    alarms,
-    pomodoroHistory,
-  ]);
+  }, [currentUserId, cloudReady, syncUserData]);
 
-  // Push to cloud whenever key data changes (debounced 2s).
-  // Only uploads types flagged in dirtyStateRef to avoid full-blob uploads on
-  // every keystroke. Falls back to full save if dirtyStateRef is empty (e.g.
-  // first run or after a full sync that cleared it).
+  // Push to cloud whenever key data changes (debounced 2s). Only runs once the
+  // initial sync has succeeded for this user (see cloudReadyUserId).
   useEffect(() => {
-    if (!currentUserId || isSyncing || isLoading) return;
+    if (!currentUserId || !cloudReady || isSyncing || isLoading) return;
     const timer = setTimeout(() => {
-      const dirty = dirtyStateRef.current;
-      const allTypes: DataType[] = ['habits','stats','settings','calendar_events','real_world_wins','journal_entries','relapse_log','reflection_responses','forum_favorites','detox_history','alarms','pomodoro_history'];
-      const typesToSave = dirty.size > 0 ? allTypes.filter(t => dirty.has(t)) : allTypes;
-
-      const stateMap: Partial<Record<DataType, string>> = {
-        habits: JSON.stringify(habits),
-        stats: JSON.stringify(stats),
-        settings: JSON.stringify(settings),
-        calendar_events: JSON.stringify(calendarEvents),
-        real_world_wins: JSON.stringify(realWorldWins),
-        journal_entries: JSON.stringify(journalEntries),
-        relapse_log: JSON.stringify(relapseLog),
-        reflection_responses: JSON.stringify(reflectionResponses),
-        forum_favorites: JSON.stringify(forumFavorites),
-        detox_history: JSON.stringify(detoxHistory),
-        alarms: JSON.stringify(alarms),
-        pomodoro_history: JSON.stringify(pomodoroHistory),
-      };
-
-      const payload: Partial<Record<DataType, string>> = {};
-      typesToSave.forEach(t => { if (stateMap[t] !== undefined) payload[t] = stateMap[t]!; });
-
-      saveUserData(currentUserId, {
-        habits: JSON.stringify(habits),
-        stats: JSON.stringify(stats),
-        settings: JSON.stringify(settings),
-        calendar_events: JSON.stringify(calendarEvents),
-        real_world_wins: JSON.stringify(realWorldWins),
-        journal_entries: JSON.stringify(journalEntries),
-        relapse_log: JSON.stringify(relapseLog),
-        reflection_responses: JSON.stringify(reflectionResponses),
-        forum_favorites: JSON.stringify(forumFavorites),
-        detox_history: JSON.stringify(detoxHistory),
-        alarms: JSON.stringify(alarms),
-        pomodoro_history: JSON.stringify(pomodoroHistory),
-      }).then(() => {
+      saveUserData(currentUserId, serializeForCloud(latestRef.current)).then(() => {
         dirtyStateRef.current.clear();
         setSyncError(null);
         setLastSyncTime(new Date().toISOString());
@@ -1109,35 +1099,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [currentUserId, isSyncing, isLoading, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory]);
+  }, [currentUserId, cloudReady, isSyncing, isLoading, habits, stats, settings, calendarEvents, realWorldWins, journalEntries, relapseLog, reflectionResponses, forumFavorites, detoxHistory, alarms, pomodoroHistory, todos, goals]);
 
   const signOutUser = useCallback(async () => {
-    // Clear Supabase session (if authenticated). Local state is cleared
-    // unconditionally below regardless of outcome — guest mode has no
-    // session to sign out of, and a real network/API failure here shouldn't
-    // trap the user in a signed-in-looking state, but it's still logged so a
-    // genuine failure isn't invisible.
+    const userId = currentUserId;
+
+    // Local data may only be wiped once it is confirmed to be in the cloud —
+    // otherwise signing out while offline would silently destroy the user's
+    // latest changes. If it can't be confirmed, keep it: it stays tagged with
+    // its owner, so a different account signing in later still won't see it.
+    let safeToClear = !!userId;
+    if (userId) {
+      if (cloudReady) {
+        try {
+          await saveUserData(userId, serializeForCloud(latestRef.current));
+        } catch (e) {
+          safeToClear = false;
+          console.warn('[Auth] Could not save before sign-out; keeping local data:', e);
+        }
+      } else {
+        safeToClear = false;
+      }
+    }
+
     try {
       await signOut();
     } catch (e) {
       console.warn('[Auth] signOut failed (continuing with local sign-out):', e);
     }
-    // Clear local context state
-    setCurrentUserId(null);
-    setCurrentUserEmail('');
-  }, []);
 
-  const resetAuth = useCallback(async () => {
-    // Complete reset: clear Supabase session and local context
-    try {
-      await signOut();
-    } catch (e) {
-      console.warn('[Auth] signOut failed during reset (continuing with local reset):', e);
-    }
+    // Order matters: drop the user id first so the autosave effect can't fire
+    // against the emptied state below.
     setCurrentUserId(null);
     setCurrentUserEmail('');
-    setResetSignal(prev => prev + 1); // Signal that a reset occurred
-  }, []);
+    setCloudReadyUserId(null);
+    setSyncFailedFor(null);
+
+    if (safeToClear) {
+      await clearAllData();
+      await removeData(KEYS.DATA_OWNER);
+      resetInMemoryState();
+    }
+  }, [currentUserId, cloudReady, resetInMemoryState]);
 
   const setAlarms = useCallback((updated: Alarm[]) => {
     setAlarmsState(updated);
@@ -1321,10 +1324,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     currentUserEmail,
     setCurrentUser,
     syncUserData,
+    prepareLocalDataFor,
     manualSync,
     signOutUser,
-    resetAuth,
-    resetSignal,
+    requestedDiscoverTab,
+    requestDiscoverTab,
+    clearRequestedDiscoverTab,
     isSyncing,
     lastSyncTime,
     syncStatuses,
@@ -1356,7 +1361,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     forumFavorites, toggleForumFavorite,
     reflectionResponses, addReflectionResponse,
     currentUserId, currentUserEmail, setCurrentUser,
-    syncUserData, manualSync, signOutUser, resetAuth, resetSignal,
+    syncUserData, prepareLocalDataFor, manualSync, signOutUser,
+    requestedDiscoverTab, requestDiscoverTab, clearRequestedDiscoverTab,
     isSyncing, lastSyncTime, syncStatuses, isLoading,
     milestonesCrossed, milestoneTrigger, isOffline,
     syncQueue, triggerSync,

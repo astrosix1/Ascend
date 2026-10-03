@@ -20,6 +20,8 @@ module.exports = {
     '/node_modules/',
     '/web-build/',
     '/.expo/',
+    // Agent worktrees hold stale full copies of the repo (incl. old tests).
+    '/.claude/',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

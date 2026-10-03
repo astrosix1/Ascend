@@ -90,7 +90,11 @@ export async function migrateGuestDataToCloud(
         };
       }
     } catch (e) {
-      // No remote data exists yet (first sign-in) - that's fine
+      // loadUserDataPartial returns null for "no row yet" and THROWS on real
+      // failures. Swallowing a failure here would merge against an empty remote
+      // and overwrite the user's real cloud data with guest-only data, so abort
+      // the migration instead (the caller shows a retry).
+      throw e;
     }
 
     // Step 3: Merge local (guest) data with remote (local-wins strategy for guest data)
