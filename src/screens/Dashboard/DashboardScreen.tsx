@@ -19,6 +19,7 @@ import Toast, { ToastMessage } from '../../components/Toast';
 import { feedback } from '../../utils/feedback';
 import QuickAddSheet from '../../components/QuickAddSheet';
 import StartHere from '../../components/StartHere';
+import NextAction from '../../components/NextAction';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -276,7 +277,8 @@ export default function DashboardScreen() {
     action?: { label: string; onPress: () => void },
   ) => {
     const id = Date.now().toString() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, duration, actionLabel: action?.label, onAction: action?.onPress }]);
+    // Keep at most 2 on screen so a burst of feedback never buries the content
+    setToasts(prev => [...prev, { id, message, type, duration, actionLabel: action?.label, onAction: action?.onPress }].slice(-2));
   };
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
@@ -1153,7 +1155,7 @@ export default function DashboardScreen() {
                 {/* Mini Level + XP in sidebar header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>Lv.{stats.level}</Text>
+                    <Text style={{ color: colors.textOnAccent, fontSize: FontSize.xs, fontWeight: '800' }}>Lv.{stats.level}</Text>
                   </View>
                   <View style={{ flex: 1, height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
                     <View style={{ height: 3, width: `${stats.xp % 100}%` as any, backgroundColor: colors.accent, borderRadius: 2 }} />
@@ -1165,7 +1167,7 @@ export default function DashboardScreen() {
             {sidebarCollapsed && (
               <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, marginBottom: 2 }}>
                 <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2 }}>
-                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>{stats.level}</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: FontSize.xs, fontWeight: '800' }}>{stats.level}</Text>
                 </View>
               </View>
             )}
@@ -1259,8 +1261,8 @@ export default function DashboardScreen() {
                 paddingHorizontal: 12, paddingVertical: 5,
                 alignItems: 'center', flexDirection: 'row', gap: 5,
               }}>
-                <Text style={{ color: '#000', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Lvl</Text>
-                <Text style={{ color: '#000', fontSize: 18, fontWeight: '900' }}>{stats.level}</Text>
+                <Text style={{ color: colors.textOnAccent, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Lvl</Text>
+                <Text style={{ color: colors.textOnAccent, fontSize: 18, fontWeight: '900' }}>{stats.level}</Text>
               </View>
               {/* XP bar */}
               <View style={{ flex: 1 }}>
@@ -1297,6 +1299,7 @@ export default function DashboardScreen() {
 
           {/* Habit list — scrollable, split into Build + Break sections */}
           <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
+            <NextAction habits={habits} today={today} onComplete={(id) => handleToggleHabit(id, today)} />
             {habits.length === 0 && (
               <StartHere
                 onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
@@ -1425,8 +1428,8 @@ export default function DashboardScreen() {
                   shadowColor: colors.accent, shadowOpacity: 0.3, shadowRadius: 10,
                   elevation: 5,
                 }}>
-                  <Text style={{ color: '#000', fontSize: 8, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
-                  <Text style={{ color: '#000', fontSize: 26, fontWeight: '900', lineHeight: 30 }}>{stats.level}</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: 8, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: 26, fontWeight: '900', lineHeight: 30 }}>{stats.level}</Text>
                 </View>
 
                 {/* XP + title */}
@@ -1713,7 +1716,7 @@ export default function DashboardScreen() {
                       color: colors.success, onToggle: () => setWinsExpanded(!winsExpanded), expanded: winsExpanded,
                       action: winsExpanded ? (
                         <TouchableOpacity onPress={() => setShowAddWin(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
-                          <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                          <Text style={{ color: colors.textOnAccent, fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                         </TouchableOpacity>
                       ) : undefined,
                     })}
@@ -1771,7 +1774,7 @@ export default function DashboardScreen() {
                     color: colors.warning, onToggle: () => setGoalsExpanded(!goalsExpanded), expanded: goalsExpanded,
                     action: goalsExpanded ? (
                       <TouchableOpacity onPress={() => { setEditingGoalId(null); setGoalTitle(''); setGoalDescription(''); setGoalTargetDate(''); setGoalProgress(0); setGoalRelatedHabits([]); setGoalNotes(''); setShowAddGoalModal(true); }} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
-                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                        <Text style={{ color: colors.textOnAccent, fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                       </TouchableOpacity>
                     ) : undefined,
                   })}
@@ -2058,7 +2061,7 @@ export default function DashboardScreen() {
                     alignItems: 'center', justifyContent: 'center',
                     paddingHorizontal: 3,
                   }}>
-                    <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800' }}>{tab.badge}</Text>
+                    <Text style={{ color: colors.background, fontSize: FontSize.xs, fontWeight: '800' }}>{tab.badge}</Text>
                   </View>
                 )}
               </View>
@@ -2111,8 +2114,8 @@ export default function DashboardScreen() {
                   alignItems: 'center',
                   minWidth: 64,
                 }}>
-                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>Level</Text>
-                  <Text style={{ color: '#000', fontSize: 24, fontWeight: '900', lineHeight: 28 }}>{stats.level}</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>Level</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: 24, fontWeight: '900', lineHeight: 28 }}>{stats.level}</Text>
                 </View>
               </View>
 
@@ -2166,6 +2169,7 @@ export default function DashboardScreen() {
               </View>
             )}
 
+            <NextAction habits={habits} today={today} onComplete={(id) => handleToggleHabit(id, today)} />
             {habits.length === 0 && (
               <StartHere
                 onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
@@ -2199,7 +2203,7 @@ export default function DashboardScreen() {
                     marginBottom: Spacing.md,
                     shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8,
                   }}>
-                    <Text style={{ fontSize: 42, color: '#000' }}>✓</Text>
+                    <Text style={{ fontSize: 42, color: colors.textOnAccent }}>✓</Text>
                   </View>
 
                   {/* Title + phrase */}
@@ -2433,8 +2437,8 @@ export default function DashboardScreen() {
                   shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 12,
                   elevation: 6,
                 }}>
-                  <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
-                  <Text style={{ color: '#000', fontSize: 28, fontWeight: '900', lineHeight: 32 }}>{stats.level}</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: FontSize.xs, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>LVL</Text>
+                  <Text style={{ color: colors.textOnAccent, fontSize: 28, fontWeight: '900', lineHeight: 32 }}>{stats.level}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '800', marginBottom: 2 }}>
@@ -2768,7 +2772,7 @@ export default function DashboardScreen() {
                     </Text>
                     {st.badge > 0 && !isActive && (
                       <View style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2 }}>
-                        <Text style={{ color: '#000', fontSize: FontSize.xs, fontWeight: '700' }}>{st.badge}</Text>
+                        <Text style={{ color: colors.background, fontSize: FontSize.xs, fontWeight: '700' }}>{st.badge}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -2804,7 +2808,7 @@ export default function DashboardScreen() {
                     }}
                     style={{ backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: Spacing.sm, justifyContent: 'center', minWidth: 36, alignItems: 'center' }}
                   >
-                    <Text style={{ color: '#000', fontSize: FontSize.sm, fontWeight: '800' }}>+</Text>
+                    <Text style={{ color: colors.textOnAccent, fontSize: FontSize.sm, fontWeight: '800' }}>+</Text>
                   </TouchableOpacity>
                 </View>
                 {!todos || todos.length === 0 ? (
@@ -2819,7 +2823,7 @@ export default function DashboardScreen() {
                         onPress={() => toggleTodo && toggleTodo(todo.id)}
                         style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.accent, backgroundColor: todo.completed ? colors.accent : 'transparent', marginRight: Spacing.sm, alignItems: 'center', justifyContent: 'center' }}
                       >
-                        {todo.completed && <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>✓</Text>}
+                        {todo.completed && <Text style={{ color: colors.textOnAccent, fontSize: 11, fontWeight: '800' }}>✓</Text>}
                       </TouchableOpacity>
                       <Text style={{ flex: 1, color: todo.completed ? colors.textSecondary : colors.text, fontSize: FontSize.sm, textDecorationLine: todo.completed ? 'line-through' : 'none' }}>{todo.title}</Text>
                       <Text style={{ color: colors.accentText, fontWeight: '700', marginRight: Spacing.sm, fontSize: 10 }}>+{todo.xpReward}xp</Text>
@@ -2844,7 +2848,7 @@ export default function DashboardScreen() {
                     expanded: winsExpanded,
                     action: winsExpanded ? (
                       <TouchableOpacity onPress={() => setShowAddWin(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
-                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                        <Text style={{ color: colors.textOnAccent, fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                       </TouchableOpacity>
                     ) : undefined,
                   })}
@@ -2876,7 +2880,7 @@ export default function DashboardScreen() {
                     expanded: goalsExpanded,
                     action: goalsExpanded ? (
                       <TouchableOpacity onPress={() => setShowAddGoalModal(true)} style={{ backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginRight: 4 }}>
-                        <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>+ Add</Text>
+                        <Text style={{ color: colors.textOnAccent, fontSize: 10, fontWeight: '800' }}>+ Add</Text>
                       </TouchableOpacity>
                     ) : undefined,
                   })}
@@ -3066,7 +3070,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowLevelUp(false)}
                 style={{ backgroundColor: colors.accent, borderRadius: 14, paddingHorizontal: 32, paddingVertical: 12 }}
               >
-                <Text style={{ color: '#000', fontWeight: '800', fontSize: 15 }}>Let's go! 🚀</Text>
+                <Text style={{ color: colors.textOnAccent, fontWeight: '800', fontSize: 15 }}>Let's go! 🚀</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
