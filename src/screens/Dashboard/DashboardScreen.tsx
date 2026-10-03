@@ -18,6 +18,8 @@ import { checkStreakCertificate, Certificate } from '../../utils/certificateGene
 import Toast, { ToastMessage } from '../../components/Toast';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
+import { usePremium } from '../../contexts/PremiumContext';
+import { buildPremiumCheckoutUrl } from '../../utils/env';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
@@ -141,6 +143,7 @@ export default function DashboardScreen() {
     milestonesCrossed,
     isLoading,
   } = useApp();
+  const { isPremium } = usePremium();
 
   const today = getToday();
   const now = new Date();
@@ -1303,6 +1306,7 @@ export default function DashboardScreen() {
                 value={quickAddBuildText}
                 onChangeText={setQuickAddBuildText}
                 onSubmitEditing={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
+                onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter' && quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
                 style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="done"
@@ -1336,6 +1340,7 @@ export default function DashboardScreen() {
                 value={quickAddBreakText}
                 onChangeText={setQuickAddBreakText}
                 onSubmitEditing={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
+                onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter' && quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
                 style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="done"
@@ -2290,6 +2295,7 @@ export default function DashboardScreen() {
                 value={quickAddBuildText}
                 onChangeText={setQuickAddBuildText}
                 onSubmitEditing={() => { if (quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
+                onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter' && quickAddBuildText.trim()) { const name = quickAddBuildText.trim(); addHabit({ id: Date.now().toString(), name, type: 'good', streak: 0, bestStreak: 0, completedDates: [], createdAt: new Date().toISOString() }); setQuickAddBuildText(''); } }}
                 style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="done"
@@ -2340,6 +2346,7 @@ export default function DashboardScreen() {
                 value={quickAddBreakText}
                 onChangeText={setQuickAddBreakText}
                 onSubmitEditing={() => { if (quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
+                onKeyPress={(e) => { if (e.nativeEvent.key === 'Enter' && quickAddBreakText.trim()) { addHabit({ name: quickAddBreakText.trim(), type: 'bad' }); setQuickAddBreakText(''); } }}
                 style={{ flex: 1, fontSize: FontSize.sm, color: colors.text, paddingVertical: Spacing.xs }}
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="done"
@@ -3712,6 +3719,25 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
+            {!isPremium ? (
+              <View style={{ alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.md }}>
+                <Text style={{ fontSize: 36 }}>🔒</Text>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md, textAlign: 'center' }}>
+                  Advanced insights are a Premium feature
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' }}>
+                  See your top and struggling habits, 30-day trends and per-category breakdowns. Your Weekly Insights stay free.
+                </Text>
+                <Button
+                  title="Go Premium"
+                  onPress={() => {
+                    if (typeof window !== 'undefined') {
+                      window.open(buildPremiumCheckoutUrl(), '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                />
+              </View>
+            ) : (
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {/* Best Habits */}
               <View style={{ marginBottom: Spacing.lg }}>
@@ -3795,6 +3821,7 @@ export default function DashboardScreen() {
                 </View>
               )}
             </ScrollView>
+            )}
           </View>
         </View>
       </Modal>

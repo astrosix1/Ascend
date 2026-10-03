@@ -1,85 +1,70 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../utils/runtimeConfig';
+import { ASIX_PROJECT_SLUG } from '../utils/env';
+import { isPremiumSubscription, SubscriptionRow } from '../utils/entitlements';
 
-interface Subscription {
-  id: string;
-  user_id: string;
-  project_id: string;
-  plan: string;
-  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid';
-  stripe_subscription_id: string | null;
-}
-
+/**
+ * Premium entitlement for the signed-in user. Guests are free (no lookup).
+ * Fails closed: any error while looking the subscription up means FREE.
+ *
+ * NOTE: this is a client-side check, fine for hiding UI but bypassable. Anything
+ * with real cost or value must also be verified server-side.
+ */
 export function useSubscription(userId: string | null | undefined) {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [loading, setLoading] = useState(!!userId);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
       setSubscription(null);
+      setError(null);
       setLoading(false);
       return;
     }
 
-    const fetchSubscription = async () => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        setError(null);
-
         const supabase = getSupabaseClient();
-        if (!supabase) {
-          console.warn('[Subscription] Supabase not configured');
-          throw new Error('Supabase not configured');
-        }
+        if (!supabase) throw new Error('Supabase not configured');
 
-        // First, get the ascend project ID
-        const { data: ascendProject, error: projectError } = await supabase
+        const { data: project, error: projectError } = await supabase
           .from('projects')
           .select('id')
-          .eq('slug', 'ascend')
+          .eq('slug', ASIX_PROJECT_SLUG)
           .single();
+        if (projectError) throw projectError;
 
-        if (projectError) {
-          console.error('[Subscription] Failed to find ascend project:', projectError);
-          throw new Error('Failed to find ascend project');
-        }
-
-        // Check for "ascend" app subscription
-        const { data: ascendSub, error: subscriptionError } = await supabase
+        const { data: sub, error: subError } = await supabase
           .from('subscriptions')
           .select('*')
           .eq('user_id', userId)
-          .eq('project_id', ascendProject.id)
+          .eq('project_id', project.id)
           .maybeSingle();
+        if (subError && subError.code !== 'PGRST116') throw subError;
 
-        if (subscriptionError && subscriptionError.code !== 'PGRST116') {
-          console.error('[Subscription] Error fetching subscription:', subscriptionError);
-          throw subscriptionError;
-        }
-
-        setSubscription(ascendSub);
+        if (!cancelled) setSubscription(sub);
       } catch (err) {
-        // Fail closed: subscription query errors deny access.
-        // We previously failed open here to work around a PGRST200 join error —
-        // that bug is fixed (two-query approach in the API route). Failing open
-        // is a security risk: any transient DB error silently elevates every
-        // authenticated user to a paid subscriber.
-        console.error('[Subscription] Query error (failing closed):', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        setSubscription(null);
+        console.error('[Subscription] Lookup failed (treating as free):', err);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+          setSubscription(null);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    fetchSubscription();
+    return () => { cancelled = true; };
   }, [userId]);
 
   return {
     subscription,
     loading,
     error,
-    hasAccess: subscription?.status === 'active' || subscription?.status === 'trialing',
+    isPremium: isPremiumSubscription(subscription),
   };
 }
