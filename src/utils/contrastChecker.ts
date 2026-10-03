@@ -122,7 +122,7 @@ export function generateContrastReport(): string {
   } else {
     report += `⚠️  ${failures.length} color combinations fail WCAG AA:\n\n`;
     failures.forEach(([name, result]) => {
-      report += `  ❌ ${name}: ${result.ratio}:1 (needs ${result.isLargeText ? 3 : 4.5}:1)\n`;
+      report += `  ❌ ${name}: ${result.ratio}:1 (needs 4.5:1)\n`;
     });
   }
 

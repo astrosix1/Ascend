@@ -74,6 +74,9 @@ export default function Button({ title, onPress, variant = 'primary', size = 'me
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
       onPressIn={() => setIsPressed(true)}
       onPressOut={() => setIsPressed(false)}
       onFocus={() => setIsFocused(true)}

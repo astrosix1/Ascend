@@ -1,4 +1,9 @@
-import { AppContextType } from '../types/app';
+// This previously imported from a non-existent '../types/app' module — every
+// call site worked around it with `as any` (see App.tsx) since the broken
+// import meant nothing here was ever actually type-checked. AppState (the
+// real context shape, exported by AppContext.tsx) is the type that was
+// actually meant here.
+import type { AppState as AppContextType } from '../contexts/AppContext';
 import { loadUserDataPartial, saveUserDataPartial } from './supabase';
 
 export interface MigrationState {
@@ -85,7 +90,11 @@ export async function migrateGuestDataToCloud(
         };
       }
     } catch (e) {
-      // No remote data exists yet (first sign-in) - that's fine
+      // loadUserDataPartial returns null for "no row yet" and THROWS on real
+      // failures. Swallowing a failure here would merge against an empty remote
+      // and overwrite the user's real cloud data with guest-only data, so abort
+      // the migration instead (the caller shows a retry).
+      throw e;
     }
 
     // Step 3: Merge local (guest) data with remote (local-wins strategy for guest data)

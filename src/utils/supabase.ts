@@ -1,6 +1,7 @@
 import { getSupabaseClient, isSupabaseReady } from './runtimeConfig';
 import type { DataType, SyncMetadata } from '../types/sync';
 import { syncWithRetry, mergeDataWithConflictResolution } from './syncEngine';
+import { ASIX_BASE_URL } from './env';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,15 +39,15 @@ export interface DBUserData {
   detox_history?: string;       // JSON array
   alarms?: string;              // JSON array
   pomodoro_history?: string;    // JSON array
-  // NOT YET migrated into the user_data table — do not include these keys
-  // when calling saveUserData/upsert, PostgREST will reject unknown columns.
-  // Declared here (optional, read-only in practice) so `remote.todos` /
-  // `remote.goals` type-check on the read path; they'll always be undefined
-  // until the migration lands.
-  todos?: string;
-  goals?: string;
+  // Added by supabase/migrations/20261002000000_add_todos_goals_to_user_data.sql.
+  // The migration must be applied before the client writes these keys, or
+  // PostgREST rejects the whole upsert (unknown column).
+  todos?: string;         // JSON array
+  goals?: string;         // JSON array
   // Sync metadata columns (per-datatype last sync timestamps)
   last_sync_time?: string | null;
+  last_todos_sync?: string | null;
+  last_goals_sync?: string | null;
   last_habit_sync?: string | null;
   last_stats_sync?: string | null;
   last_settings_sync?: string | null;
@@ -316,6 +317,38 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
 
 // ─── User Cloud Sync ──────────────────────────────────────────────────────────
 
+// Columns added after the original schema. If the client is deployed before
+// the migration has been applied, PostgREST rejects the entire upsert with an
+// "unknown column" error — which would stop ALL sync, not just these two types.
+// So on that specific error we retry without them (they stay local until the
+// migration lands) instead of failing everything.
+const LATE_COLUMNS = ['todos', 'goals', 'last_todos_sync', 'last_goals_sync'];
+
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  return !!error && (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    /could not find the '?\w+'? column/i.test(error.message || '')
+  );
+}
+
+function withoutLateColumns<T extends Record<string, unknown>>(row: T): Partial<T> {
+  const copy: Record<string, unknown> = { ...row };
+  LATE_COLUMNS.forEach(c => delete copy[c]);
+  return copy as Partial<T>;
+}
+
+async function upsertUserRow(row: Record<string, unknown>) {
+  const sb = getSupabaseClient();
+  if (!sb) return { error: null };
+  const result = await sb.from('user_data').upsert(row, { onConflict: 'user_id' });
+  if (isMissingColumnError(result.error) && LATE_COLUMNS.some(c => c in row)) {
+    console.warn('[DB] user_data is missing the todos/goals columns — run the 20261002000000 migration. Syncing everything else.');
+    return sb.from('user_data').upsert(withoutLateColumns(row), { onConflict: 'user_id' });
+  }
+  return result;
+}
+
 export async function saveUserData(userId: string, payload: Omit<DBUserData, 'user_id' | 'updated_at'>): Promise<void> {
   const sb = getSupabaseClient();
   if (!sb) {
@@ -323,14 +356,11 @@ export async function saveUserData(userId: string, payload: Omit<DBUserData, 'us
     return;
   }
   try {
-    const { error } = await sb.from('user_data').upsert(
-      {
-        user_id: userId,
-        ...payload,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
+    const { error } = await upsertUserRow({
+      user_id: userId,
+      ...payload,
+      updated_at: new Date().toISOString(),
+    });
     if (error) {
       console.error('[DB] Failed to save user data:', error);
       // Check if it's an RLS policy error
@@ -345,36 +375,46 @@ export async function saveUserData(userId: string, payload: Omit<DBUserData, 'us
   }
 }
 
+/**
+ * Load the user's cloud row.
+ *
+ * Returns `null` ONLY when the request succeeded and the user has no row yet
+ * (a brand-new account). Every failure — network error, expired token, RLS or
+ * schema error — THROWS. Callers use `null` to decide "safe to seed the cloud
+ * from local data", so conflating the two would let a transient error on a
+ * fresh device overwrite real cloud data with empty local state.
+ */
 export async function loadUserData(userId: string): Promise<DBUserData | null> {
   const sb = getSupabaseClient();
-  if (!sb) {
-    console.warn('[DB] Supabase not configured - cannot load data');
-    return null;
+  if (!sb) throw new Error('Supabase not configured - cannot load data');
+
+  // maybeSingle() yields { data: null, error: null } for zero rows, so a real
+  // error is never mistaken for "no row".
+  const { data, error } = await sb.from('user_data').select('*').eq('user_id', userId).maybeSingle();
+  if (error) {
+    console.error('[DB] Failed to load user data:', error);
+    throw error;
   }
-  try {
-    const { data, error } = await sb.from('user_data').select('*').eq('user_id', userId).single();
-    if (error) {
-      // 406 means no rows found, which is expected for new users
-      if (error.code !== '406') {
-        console.error('[DB] Failed to load user data:', error);
-      }
-      return null;
-    }
-    if (data) {
-      return data;
-    }
-    return null;
-  } catch (err: any) {
-    console.error('[DB] Load user data error:', err.message || err);
-    return null;
-  }
+  return data ?? null;
+}
+
+/**
+ * Name of the per-datatype "last synced" column. Most follow
+ * `last_<dataType>_sync`, but habits predates that convention and uses
+ * `last_habit_sync`.
+ */
+export function syncColumnFor(dataType: DataType): string {
+  return dataType === 'habits' ? 'last_habit_sync' : `last_${dataType}_sync`;
 }
 
 // ─── Enhanced Cloud Sync (Selective/Incremental) ──────────────────────────────
 
 /**
  * Load user data for specific data types only (selective sync)
- * Optionally filters by modification time for incremental sync
+ * Optionally filters by modification time for incremental sync.
+ *
+ * Same contract as loadUserData: `null` means "no matching row", any failure
+ * throws.
  */
 export async function loadUserDataPartial(
   userId: string,
@@ -382,45 +422,31 @@ export async function loadUserDataPartial(
   sinceTimestamp?: string
 ): Promise<Partial<DBUserData> | null> {
   const sb = getSupabaseClient();
-  if (!sb) {
-    console.warn('[DB] Supabase not configured - cannot load data');
-    return null;
+  if (!sb) throw new Error('Supabase not configured - cannot load data');
+
+  const columns = [
+    'user_id',
+    'updated_at',
+    ...dataTypes,
+    // Include corresponding sync timestamp columns
+    ...dataTypes.map(syncColumnFor),
+    'conflict_markers',
+  ];
+
+  let query = sb.from('user_data').select(columns.join(',')).eq('user_id', userId);
+
+  // Optional: filter by update time for incremental sync
+  if (sinceTimestamp) {
+    query = query.gt('updated_at', sinceTimestamp);
   }
 
-  try {
-    const columns = [
-      'user_id',
-      'updated_at',
-      ...dataTypes,
-      // Include corresponding sync timestamp columns
-      ...dataTypes.map(dt => `last_${dt}_sync`),
-      'conflict_markers',
-    ];
+  const { data, error } = await query.maybeSingle();
 
-    let query = sb.from('user_data').select(columns.join(',')).eq('user_id', userId).single();
-
-    // Optional: filter by update time for incremental sync
-    if (sinceTimestamp) {
-      query = query.gt('updated_at', sinceTimestamp);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      if (error.code !== '406') {
-        console.error('[DB] Failed to load partial user data:', error);
-      }
-      return null;
-    }
-
-    if (data) {
-      return data;
-    }
-    return null;
-  } catch (err: any) {
-    console.error('[DB] Load partial user data error:', err.message || err);
-    return null;
+  if (error) {
+    console.error('[DB] Failed to load partial user data:', error);
+    throw error;
   }
+  return (data as Partial<DBUserData> | null) ?? null;
 }
 
 /**
@@ -453,11 +479,11 @@ export async function saveUserDataPartial(
 
     // Add per-datatype sync timestamps
     Object.entries(syncMetadata).forEach(([dataType, metadata]) => {
-      updateData[`last_${dataType}_sync`] = metadata.lastSyncTime;
+      updateData[syncColumnFor(dataType as DataType)] = metadata.lastSyncTime;
     });
 
     // Try upsert first
-    const { error } = await sb.from('user_data').upsert(updateData, { onConflict: 'user_id' });
+    const { error } = await upsertUserRow(updateData);
 
     if (error) {
       // If upsert fails with constraint violation, fall back to explicit update
@@ -629,7 +655,7 @@ export async function signIn(email: string, password: string) {
   if (result.data?.session && typeof window !== 'undefined') {
     try {
       const { access_token, refresh_token } = result.data.session;
-      await fetch('https://asix.live/api/auth/set-session', {
+      await fetch(`${ASIX_BASE_URL}/api/auth/set-session`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -712,8 +738,12 @@ create table if not exists user_data (
   detox_history     text default '[]',
   alarms            text default '[]',
   pomodoro_history  text default '[]',
+  todos             text default '[]',
+  goals             text default '[]',
   -- Sync metadata columns (per-datatype last sync timestamps)
   last_sync_time    timestamptz,
+  last_todos_sync   timestamptz,
+  last_goals_sync   timestamptz,
   last_habit_sync   timestamptz,
   last_stats_sync   timestamptz,
   last_settings_sync timestamptz,
@@ -737,16 +767,23 @@ alter table forum_comments enable row level security;
 alter table user_data      enable row level security;
 
 create policy "Public read posts"    on forum_posts    for select using (true);
-create policy "Public insert posts"  on forum_posts    for insert with check (true);
+create policy "Insert own posts"     on forum_posts    for insert with check (auth.uid() = user_id);
 create policy "Update own posts"     on forum_posts    for update using (auth.uid() = user_id);
 create policy "Delete own posts"     on forum_posts    for delete using (auth.uid() = user_id);
 create policy "Public read comments" on forum_comments for select using (true);
-create policy "Public insert comments" on forum_comments for insert with check (true);
+create policy "Insert own comments"  on forum_comments for insert with check (auth.uid() = user_id);
 create policy "Update own comments"  on forum_comments for update using (auth.uid() = user_id);
 create policy "Delete own comments"  on forum_comments for delete using (auth.uid() = user_id);
 create policy "Own data only select" on user_data for select using (auth.uid() = user_id);
 create policy "Own data only upsert" on user_data for insert with check (auth.uid() = user_id);
 create policy "Own data only update" on user_data for update using (auth.uid() = user_id);
+
+-- NOTE: insert policies require auth.uid() = user_id, NOT `with check (true)`.
+-- The client already derives user_id server-side from the authenticated
+-- session (see createPost/createComment below), so this doesn't change
+-- legitimate behavior — it only blocks spoofed/anonymous inserts made
+-- directly against the REST API. See supabase/migrations/ for the tracked,
+-- idempotent migration that applies this to an existing database.
 
 ──────────────────────────────────────────────────────────────────────────────
 */

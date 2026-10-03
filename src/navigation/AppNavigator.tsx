@@ -7,6 +7,7 @@ import { useScreenWidth, BREAKPOINTS } from '../utils/responsive';
 import DesktopSidebar from '../components/DesktopSidebar';
 import TopHeader from '../components/TopHeader';
 import { OfflineIndicator } from '../components/OfflineIndicator';
+import { buildSignInUrl } from '../utils/env';
 
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
 import ClockScreen from '../screens/Clock/ClockScreen';
@@ -38,7 +39,10 @@ function playBeepSequence() {
     playNote(now,        880,  0.18);
     playNote(now + 0.22, 1046, 0.18);
     playNote(now + 0.44, 1318, 0.35);
-  } catch (_) {}
+  } catch (e) {
+    // Non-critical (visual notification still shows) — just logged for debugging.
+    console.warn('[Notification] Failed to play beep sequence:', e);
+  }
 }
 
 // ─── Manage browser tab title ──────────────────────────────────────────────────
@@ -90,7 +94,10 @@ function fireSystemNotification(title: string, body: string) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body, icon: '/favicon.ico' });
     }
-  } catch (_) {}
+  } catch (e) {
+    // Non-critical (in-app toast still shows) — just logged for debugging.
+    console.warn('[Notification] Failed to fire system notification:', e);
+  }
 }
 
 // ─── Notification overlay ─────────────────────────────────────────────────────
@@ -200,20 +207,30 @@ function TimerNotificationOverlay() {
   );
 }
 
-// ─── Guest nudge banner ───────────────────────────────────────────────────────
+// ─── Guest banner ─────────────────────────────────────────────────────────────
+// Normal document flow (NOT position:absolute) so it never overlays screen
+// content or eats clicks. Guests can use everything; signing in just adds
+// cloud sync across devices.
 function GuestBanner() {
   const { colors, currentUserId } = useApp();
   const [dismissed, setDismissed] = useState(false);
   if (currentUserId || dismissed) return null;
   return (
     <View style={{
-      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 8888,
       backgroundColor: colors.accent, flexDirection: 'row',
       alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10,
     }}>
       <Text style={{ color: '#fff', fontSize: 14 }}>☁️</Text>
       <Text style={{ color: '#fff', fontSize: 13, flex: 1, fontWeight: '500' }}>
-        You're in guest mode — your data won't be saved if you clear the browser.
+        You're using Ascend as a guest — your data stays on this device.{' '}
+        <Text
+          style={{ textDecorationLine: 'underline', fontWeight: '700' }}
+          onPress={() => {
+            if (typeof window !== 'undefined') window.location.href = buildSignInUrl();
+          }}
+        >
+          Sign in to sync across devices
+        </Text>
       </Text>
       <TouchableOpacity onPress={() => setDismissed(true)}>
         <Text style={{ color: '#fff', fontSize: 18 }}>✕</Text>
@@ -270,6 +287,7 @@ function MobileNavigator() {
 
   return (
     <View style={{ flex: 1 }}>
+    <GuestBanner />
     <OfflineIndicator theme={theme} />
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -291,7 +309,6 @@ function MobileNavigator() {
       <Tab.Screen name="Community" component={CommunityScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
-    <GuestBanner />
     <SyncErrorToast />
     <TimerNotificationOverlay />
     </View>
@@ -299,21 +316,21 @@ function MobileNavigator() {
 }
 
 function DesktopNavigator() {
-  const { colors, toggleTheme, theme, currentUserId } = useApp();
+  const { colors, toggleTheme, theme, requestedDiscoverTab } = useApp();
   const [activeScreen, setActiveScreen] = useState('dashboard');
   useDocumentTitle();
   useNotificationPermission();
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // SECURITY FIX #1: Auth guards on protected routes (Dashboard, Settings)
-  // Prevent unauthenticated users from accessing private screens
-  // TEMPORARILY DISABLED FOR DEVELOPMENT - RE-ENABLE AFTER TESTING
-  // ──────────────────────────────────────────────────────────────────────────────
-  // useEffect(() => {
-  //   if (!currentUserId && (activeScreen === 'dashboard' || activeScreen === 'settings')) {
-  //     setActiveScreen('community'); // Redirect to public screen
-  //   }
-  // }, [currentUserId, activeScreen]);
+  // Settings' "AI Generator" link (moved out of Discover's primary tab bar)
+  // sets requestedDiscoverTab to jump here — LearnScreen itself reads which
+  // sub-tab to land on and clears the signal once it has.
+  useEffect(() => {
+    if (requestedDiscoverTab) setActiveScreen('discover');
+  }, [requestedDiscoverTab]);
+
+  // Every visitor is signed in (App.tsx redirects everyone else to login), so
+  // all screens are reachable.
+  const navigateTo = (screen: string) => setActiveScreen(screen);
 
   // ── Global keyboard shortcuts: Cmd/Ctrl + 1-5 for screen navigation ──────────
   useEffect(() => {
@@ -325,7 +342,7 @@ function DesktopNavigator() {
       const active = document.activeElement;
       if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
 
-      const screenMap: Record<string, string> = {
+      const keyScreenMap: Record<string, string> = {
         '1': 'dashboard',
         '2': 'clock',
         '3': 'discover',
@@ -333,24 +350,21 @@ function DesktopNavigator() {
         '5': 'settings',
       };
 
-      if (e.key in screenMap) {
+      if (e.key in keyScreenMap) {
         e.preventDefault();
-        // SECURITY: Also check auth before allowing navigation to protected screens
-        if (!currentUserId && (screenMap[e.key] === 'dashboard' || screenMap[e.key] === 'settings')) {
-          return;
-        }
-        setActiveScreen(screenMap[e.key]);
+        navigateTo(keyScreenMap[e.key]);
       }
     };
 
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [currentUserId]);
+  }, []);
 
   const ScreenComponent = screenMap[activeScreen] || DashboardScreen;
 
   return (
     <View style={{ flex: 1, flexDirection: 'column', backgroundColor: colors.background }}>
+      <GuestBanner />
       {/* Offline Indicator */}
       <OfflineIndicator theme={theme} />
 
@@ -361,14 +375,13 @@ function DesktopNavigator() {
       <View style={{ flex: 1, flexDirection: 'row' }}>
         <DesktopSidebar
           activeScreen={activeScreen}
-          onNavigate={setActiveScreen}
+          onNavigate={navigateTo}
         />
         <View style={{ flex: 1 }}>
           <ScreenComponent />
         </View>
       </View>
 
-      <GuestBanner />
       <SyncErrorToast />
       <TimerNotificationOverlay />
     </View>

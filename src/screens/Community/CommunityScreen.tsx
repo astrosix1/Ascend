@@ -19,6 +19,7 @@ import {
 import { isSupabaseReady } from '../../utils/runtimeConfig';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
 import { containsProfanity, getProfanityWarning } from '../../utils/profanityFilter';
+import { sanitizeUserText } from '../../utils/sanitize';
 
 type CommunityTab = 'events' | 'forums' | 'partners';
 
@@ -341,7 +342,13 @@ export default function CommunityScreen() {
     try {
       const comments = await fetchComments(post.id);
       setPostComments(comments);
-    } catch { /* ignore */ } finally {
+    } catch (e) {
+      // Previously fully silent — a failed fetch left the UI showing an
+      // empty comment list with no indication anything went wrong. Still not
+      // surfaced to the user (a dedicated error state for this is a larger
+      // change), but at least visible for debugging now.
+      console.warn('[Community] Failed to load comments for post', post.id, e);
+    } finally {
       setCommentsLoading(false);
     }
   };
@@ -352,17 +359,23 @@ export default function CommunityScreen() {
       return;
     }
     if (!selectedPost || !newComment.trim()) return;
+    const trimmedComment = newComment.trim();
+    if (containsProfanity(trimmedComment)) {
+      Alert.alert('Language Policy', `${getProfanityWarning()} This comment cannot be submitted.`);
+      return;
+    }
     setCommentPosting(true);
     try {
       const comment = await createComment({
         post_id: selectedPost.id,
-        body: newComment.trim(),
+        body: sanitizeUserText(trimmedComment),
         author_name: 'Anonymous',
       });
       setPostComments(prev => [...prev, comment]);
       setNewComment('');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not post comment. Please try again.');
+      console.error('[Community] Comment submit error:', err);
+      Alert.alert('Error', 'Could not post comment. Please try again.');
     } finally {
       setCommentPosting(false);
     }
@@ -384,8 +397,8 @@ export default function CommunityScreen() {
     setPostSubmitting(true);
     try {
       const newPost = await createPost({
-        title: newPostTitle.trim(),
-        body: newPostBody.trim(),
+        title: sanitizeUserText(newPostTitle.trim()),
+        body: sanitizeUserText(newPostBody.trim()),
         author_name: 'Anonymous',
         category: newPostCategory,
         tags: newPostTags.split(',').map(t => t.trim()).filter(Boolean),
@@ -397,7 +410,7 @@ export default function CommunityScreen() {
       setTimeout(() => loadPosts(), 500);
     } catch (err: any) {
       console.error('Submit error:', err);
-      Alert.alert('Error', err.message || 'Could not submit post. Please try again.');
+      Alert.alert('Error', 'Could not submit post. Please try again.');
     } finally {
       setPostSubmitting(false);
     }
@@ -424,7 +437,8 @@ export default function CommunityScreen() {
                 Alert.alert('Error', result.error || 'Failed to delete post.');
               }
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete post.');
+              console.error('[Community] Delete post error:', err);
+              Alert.alert('Error', 'Failed to delete post.');
             }
           },
         },
@@ -449,7 +463,8 @@ export default function CommunityScreen() {
         loadPosts();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update post.');
+      console.error('[Community] Update post error:', err);
+      Alert.alert('Error', 'Failed to update post.');
     }
   };
 
@@ -472,7 +487,8 @@ export default function CommunityScreen() {
                 Alert.alert('Error', result.error || 'Failed to delete comment.');
               }
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete comment.');
+              console.error('[Community] Delete comment error:', err);
+              Alert.alert('Error', 'Failed to delete comment.');
             }
           },
         },
@@ -491,7 +507,8 @@ export default function CommunityScreen() {
       setEditingCommentId(null);
       Alert.alert('Success', 'Your comment has been updated.');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update comment.');
+      console.error('[Community] Update comment error:', err);
+      Alert.alert('Error', 'Failed to update comment.');
     }
   };
 

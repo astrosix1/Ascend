@@ -73,7 +73,7 @@ export async function syncWithRetry<T>(
  * Generic merge function for arrays (habits, journal entries, etc)
  * Deduplicates by ID and keeps newer entries
  */
-function mergeArrays<T extends { id?: string; createdAt?: string; updatedAt?: string }>(
+export function mergeArrays<T extends { id?: string; createdAt?: string; updatedAt?: string }>(
   local: T[],
   remote: T[],
   localLastSync: string | null,
@@ -130,7 +130,7 @@ function mergeArrays<T extends { id?: string; createdAt?: string; updatedAt?: st
  * Generic merge function for objects (stats, settings, etc)
  * Merges properties, newer timestamp wins per field
  */
-function mergeObjects<T extends Record<string, any>>(
+export function mergeObjects<T extends Record<string, any>>(
   local: T,
   remote: T,
   localLastSync: string | null,
@@ -290,24 +290,22 @@ export function validateSyncData<T>(data: T | null, dataType: DataType): { valid
     return { valid: true };
   }
 
-  if (Array.isArray(data)) {
-    // Array types should be arrays
-    if (!DATA_TYPE_CATEGORIES.MEDIUM_APPEND_ONLY.includes(dataType) &&
-        !DATA_TYPE_CATEGORIES.LARGE_PAGINATED.includes(dataType) &&
-        dataType !== 'calendar_events' &&
-        dataType !== 'real_world_wins' &&
-        dataType !== 'alarms') {
+  // Only 'stats' and 'settings' are object-shaped; every other data type
+  // (habits, calendar_events, journal_entries, pomodoro_history, etc.) is an
+  // array of entries.
+  const isObjectType = dataType === 'stats' || dataType === 'settings';
+
+  if (isObjectType) {
+    if (Array.isArray(data)) {
       return { valid: false, error: `${dataType} should not be an array` };
     }
     return { valid: true };
-  } else if (typeof data === 'object') {
-    // Object types
-    if (dataType === 'stats' || dataType === 'settings') {
-      return { valid: true };
-    }
   }
 
-  return { valid: true }; // Default: assume valid
+  if (!Array.isArray(data)) {
+    return { valid: false, error: `${dataType} should be an array` };
+  }
+  return { valid: true };
 }
 
 /**

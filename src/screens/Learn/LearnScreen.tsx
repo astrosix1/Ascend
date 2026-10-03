@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Modal, FlatList, Alert, ActivityIndicator
@@ -16,11 +16,21 @@ import { getData, setData, KEYS } from '../../utils/storage';
 import EQLab from './EQLab';
 
 export default function LearnScreen() {
-  const { colors, addHabit, habits, addGoal } = useApp();
+  const { colors, addHabit, habits, addGoal, requestedDiscoverTab, clearRequestedDiscoverTab } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   // Learn tab state
   const [learnTab, setLearnTab] = useState<'discover' | 'generator' | 'eq'>('discover');
+
+  // AI Generator was moved out of the primary tab bar below (casual users
+  // were landing on a feature that's inert without their own API key) — this
+  // picks up Settings' "jump to it" request instead.
+  useEffect(() => {
+    if (requestedDiscoverTab) {
+      setLearnTab(requestedDiscoverTab);
+      clearRequestedDiscoverTab();
+    }
+  }, [requestedDiscoverTab, clearRequestedDiscoverTab]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'all' | 'good' | 'bad'>('all');
@@ -507,9 +517,12 @@ export default function LearnScreen() {
             <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <Text style={{ fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.5 }}>Discover</Text>
             </View>
+            {/* AI Generator intentionally isn't listed here — it needs the
+                user's own API key to do anything, so it's reachable only via
+                Settings → Advanced rather than presented as an equal option
+                next to features that work immediately. */}
             {([
               { key: 'discover' as const, label: 'Habit Library', icon: '🔍', sub: 'Learn · Decide · Act' },
-              { key: 'generator' as const, label: 'AI Generator', icon: '✨', sub: 'Powered by Claude' },
               { key: 'eq' as const, label: 'EQ Lab', icon: '💭', sub: 'Emotional Intelligence' },
             ]).map(cat => {
               const isActive = learnTab === cat.key;
@@ -554,9 +567,9 @@ export default function LearnScreen() {
         <>
           {/* Tab Bar */}
           <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            {/* AI Generator isn't listed here either — see the desktop sidebar comment above. */}
             {([
               { key: 'discover',  label: '🔍 Discover' },
-              { key: 'generator', label: '✨ Generator' },
               { key: 'eq', label: '💭 EQ Lab' },
             ] as const).map(({ key, label }) => (
               <TouchableOpacity

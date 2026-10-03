@@ -142,42 +142,23 @@ Reusable minimalist sync status badge:
 
 ---
 
-## ⏳ PHASE 4: Data Migration (PENDING)
+## ✅ PHASE 4: Data Migration (SUPERSEDED — guest mode removed)
 
-### Planned Implementation
+Guest mode no longer exists: every user signs in (via asix.live) before using
+the app, so there is no signed-out data to migrate and `migration.ts` was
+deleted. What replaced it:
 
-#### **`src/utils/migration.ts`** (NEW - ~150 LOC)
-Guest mode → Cloud migration utilities:
-- `migrateGuestDataToCloud(userId)`: Main migration function
-- `backupLocalDataBeforeMigration()`: Create backup snapshot
-- `mergeGuestDataWithExistingCloud(local, remote)`: Conflict resolution during migration
-- `rollbackIfMigrationFails()`: Recovery mechanism
-
-#### **`src/App.tsx`** (Enhanced - ~20 LOC)
-Add migration trigger in auth flow:
-```typescript
-if (user && !migrationComplete) {
-  setMigrationProgress({ inProgress: true });
-  await migrateGuestDataToCloud(user.id);
-  setMigrationProgress({ inProgress: false });
-}
-```
-
-### What It Does
-
-- Detects first login after having guest-mode data
-- Backs up all local data before migration
-- Merges guest data with any existing cloud data
-- Handles conflicts (local-wins for guest migration)
-- Provides recovery path if migration fails
-- Shows "Setting up cloud..." UI during migration
-
-### Estimated Effort
-
-- Migration logic: 1 hour
-- App.tsx integration: 30 minutes
-- Testing: 1 hour
-- **Total Phase 4**: ~2.5 hours
+- `loadUserData` returns `null` only for "this account has no cloud row yet";
+  any error throws. Uploads stay blocked until the first successful sync of the
+  session (`cloudReadyUserId` in AppContext), so a failed load can never
+  overwrite cloud data with empty local state. Failed initial syncs retry every 15s.
+- Local data is tagged with its owner (`ascend_data_owner`). If a different
+  account signs in on the same device, the previous account's local data is
+  cleared before anything is shown or uploaded.
+- `signOutUser` clears local data once it is confirmed saved to the cloud.
+- `todos` and `goals` sync via `supabase/migrations/20261002000000_add_todos_goals_to_user_data.sql`
+  (apply it before/alongside deploying; the client falls back to skipping those
+  two columns if it hasn't been applied yet).
 
 ---
 

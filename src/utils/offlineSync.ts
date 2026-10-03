@@ -16,7 +16,8 @@ export async function getSyncQueue(): Promise<SyncQueueItem[]> {
   try {
     const data = await getData(SYNC_QUEUE_KEY);
     return data ? JSON.parse(data) : [];
-  } catch (_) {
+  } catch (e) {
+    console.warn('Failed to read sync queue:', e);
     return [];
   }
 }
@@ -63,14 +64,17 @@ export async function incrementAttempts(itemId: string): Promise<void> {
 export async function setOfflineState(isOffline: boolean): Promise<void> {
   try {
     await setData(OFFLINE_STATE_KEY, JSON.stringify({ isOffline, timestamp: Date.now() }));
-  } catch (_) {}
+  } catch (e) {
+    console.warn('Failed to persist offline state:', e);
+  }
 }
 
 export async function getOfflineState(): Promise<{ isOffline: boolean; timestamp: number }> {
   try {
     const data = await getData(OFFLINE_STATE_KEY);
     return data ? JSON.parse(data) : { isOffline: false, timestamp: 0 };
-  } catch (_) {
+  } catch (e) {
+    console.warn('Failed to read offline state:', e);
     return { isOffline: false, timestamp: 0 };
   }
 }

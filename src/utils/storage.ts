@@ -21,6 +21,10 @@ const KEYS = {
   USERNAME_LAST_CHANGED: 'ascend_username_last_changed',
   ACCOUNTABILITY_PARTNER: 'ascend_accountability_partner',
   MILESTONES_CROSSED: 'ascend_milestones_crossed',
+  EQ_HISTORY: 'ascend_eq_history',
+  // Which account the local data above belongs to (user id). Lets us detect an
+  // account switch on a shared device and avoid mixing two people's data.
+  DATA_OWNER: 'ascend_data_owner',
   // Runtime API config (stored so users set once, not per build)
   SUPABASE_URL: 'ascend_supabase_url',
   SUPABASE_ANON_KEY: 'ascend_supabase_anon_key',
@@ -58,34 +62,45 @@ export async function removeData(key: string): Promise<void> {
   }
 }
 
-export async function clearAllData(): Promise<void> {
-  try {
-    // Clear all user data keys (keep API config and auth session for now)
-    const userDataKeys = [
-      KEYS.HABITS,
-      KEYS.SETTINGS,
-      KEYS.STATS,
-      KEYS.POMODORO_HISTORY,
-      KEYS.ALARMS,
-      KEYS.EVENTS,
-      KEYS.FORUM_POSTS,
-      KEYS.FORUM_FAVORITES,
-      KEYS.REAL_WORLD_WINS,
-      KEYS.JOURNAL_ENTRIES,
-      KEYS.CALENDAR_EVENTS,
-      KEYS.DETOX_HISTORY,
-      KEYS.RELAPSE_LOG,
-      KEYS.TODOS,
-      KEYS.REFLECTION_RESPONSES,
-      KEYS.WEEKLY_COMPLETION,
-      KEYS.USERNAME_LAST_CHANGED,
-      KEYS.ACCOUNTABILITY_PARTNER,
-    ];
+/** Every key holding a person's own data (everything except app/runtime config). */
+export const USER_DATA_KEYS: string[] = [
+  KEYS.HABITS,
+  KEYS.SETTINGS,
+  KEYS.STATS,
+  KEYS.POMODORO_HISTORY,
+  KEYS.ALARMS,
+  KEYS.EVENTS,
+  KEYS.FORUM_POSTS,
+  KEYS.FORUM_FAVORITES,
+  KEYS.REAL_WORLD_WINS,
+  KEYS.JOURNAL_ENTRIES,
+  KEYS.CALENDAR_EVENTS,
+  KEYS.DETOX_HISTORY,
+  KEYS.RELAPSE_LOG,
+  KEYS.GOALS,
+  KEYS.TODOS,
+  KEYS.REFLECTION_RESPONSES,
+  KEYS.WEEKLY_COMPLETION,
+  KEYS.USERNAME_LAST_CHANGED,
+  KEYS.ACCOUNTABILITY_PARTNER,
+  KEYS.MILESTONES_CROSSED,
+  KEYS.EQ_HISTORY,
+  // Personal API key the user pasted in — shouldn't outlive their session.
+  KEYS.ANTHROPIC_KEY,
+];
 
-    await Promise.all(userDataKeys.map(key => AsyncStorage.removeItem(key)));
+/**
+ * Remove all of the signed-in person's local data (called on sign-out and on
+ * account switch). Keeps runtime config and the Supabase auth session.
+ * Returns true when every key was removed.
+ */
+export async function clearAllData(): Promise<boolean> {
+  try {
+    await Promise.all(USER_DATA_KEYS.map(key => AsyncStorage.removeItem(key)));
+    return true;
   } catch (err: any) {
     console.error('[Storage] Failed to clear all data:', err.message || err);
-    // Still fail silently for offline resilience
+    return false;
   }
 }
 

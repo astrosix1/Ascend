@@ -4,6 +4,7 @@
  */
 
 import { getSupabaseClient } from './runtimeConfig';
+import { ASIX_BASE_URL } from './env';
 
 const REDIRECT_FLAG = 'ascend_redirecting_to_auth';
 const REDIRECT_TIMEOUT = 5000; // 5 seconds
@@ -46,8 +47,8 @@ export async function getUserSession() {
  */
 export function buildLoginRedirectUrl(returnTo?: string): string {
   const params = new URLSearchParams();
-  params.set('redirect', returnTo || 'https://asix.live/projects/ascend');
-  return `https://asix.live/login?${params.toString()}`;
+  params.set('redirect', returnTo || `${ASIX_BASE_URL}/projects/ascend`);
+  return `${ASIX_BASE_URL}/login?${params.toString()}`;
 }
 
 /**
@@ -58,7 +59,7 @@ export function buildCheckoutRedirectUrl(returnTo?: string): string {
   const params = new URLSearchParams();
   params.set('app', 'ascend');
   params.set('redirect', returnTo || 'https://ascend.asix.live');
-  return `https://asix.live/checkout?${params.toString()}`;
+  return `${ASIX_BASE_URL}/checkout?${params.toString()}`;
 }
 
 /**
@@ -84,6 +85,47 @@ export function setRedirecting(value: boolean): void {
   } else {
     localStorage.removeItem(REDIRECT_FLAG);
   }
+}
+
+// Known-safe Supabase Auth error messages to surface as-is — everything else
+// (network errors, DB errors, unexpected internals) is mapped to a generic
+// message instead. Login previously showed err.message directly, which for
+// unrecognized failures could leak backend detail; "Invalid login
+// credentials" itself is already Supabase's own account-enumeration-safe
+// wording (it doesn't distinguish "wrong password" from "no such user").
+const SAFE_AUTH_ERROR_MESSAGES = [
+  'Invalid login credentials',
+  'Email not confirmed',
+  'User already registered',
+  'Password should be at least',
+  'Signup requires a valid password',
+  'rate limit',
+];
+
+/**
+ * Map a raw auth error to user-facing text — known Supabase messages pass
+ * through, anything else (which could contain internal detail) becomes a
+ * generic message instead of being shown verbatim.
+ */
+export function getAuthErrorMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  const message = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  const isKnownSafe = SAFE_AUTH_ERROR_MESSAGES.some(known =>
+    message.toLowerCase().includes(known.toLowerCase())
+  );
+  return isKnownSafe ? message : fallback;
+}
+
+/**
+ * Basic client-side password strength gate. Supabase Auth enforces its own
+ * server-side policy regardless — this just avoids letting an obviously weak
+ * password (e.g. "123456") get as far as a network round-trip.
+ */
+export function getPasswordStrengthError(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters.';
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'Password must contain at least one letter and one number.';
+  }
+  return null;
 }
 
 /**

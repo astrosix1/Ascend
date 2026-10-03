@@ -6,16 +6,31 @@
  * sends a weekly progress email to each partner via Resend.
  *
  * Environment variables required:
- *   RESEND_API_KEY   — from resend.com (free tier: 3,000 emails/month)
- *   SUPABASE_URL     — auto-injected by Supabase
- *   SUPABASE_SERVICE_ROLE_KEY — auto-injected by Supabase
+ *   RESEND_API_KEY            — from resend.com (free tier: 3,000 emails/month)
+ *   CRON_SECRET                — a random string only the cron job and this
+ *                                function know; every caller must present it
+ *   SUPABASE_URL               — auto-injected by Supabase
+ *   SUPABASE_SERVICE_ROLE_KEY  — auto-injected by Supabase
+ *
+ * Deployed with --no-verify-jwt (see DEPLOY.md) because pg_cron doesn't send a
+ * Supabase-signed JWT — CRON_SECRET below is this function's *only* gate, so
+ * it must always be checked before any database access.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+const CRON_SECRET = Deno.env.get('CRON_SECRET')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+/** Constant-time string comparison so secret checks aren't timing-attackable. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -218,8 +233,20 @@ async function sendEmail(to: string, toName: string, subject: string, html: stri
 
 Deno.serve(async (req) => {
   try {
-    // Allow cron invocation (POST with no body) and manual GET for testing
-    if (req.method !== 'POST' && req.method !== 'GET') {
+    // Only the cron job (or someone with CRON_SECRET) may invoke this — it
+    // reads every user's habit data with the service-role key, which bypasses
+    // RLS entirely, so this check must happen before anything else below.
+    if (!CRON_SECRET) {
+      console.error('CRON_SECRET is not configured — refusing all requests.');
+      return new Response('Not configured', { status: 500 });
+    }
+    const authHeader = req.headers.get('Authorization') || '';
+    const presented = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!presented || !timingSafeEqual(presented, CRON_SECRET)) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    if (req.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 });
     }
 
@@ -302,8 +329,9 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
+    // Full detail goes to the function logs only — never back to the caller.
     console.error('Fatal error:', err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

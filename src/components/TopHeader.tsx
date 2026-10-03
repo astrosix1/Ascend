@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Spacing, FontSize, FontSizeDesktop, BorderRadius, FontWeight, LineHeight } from '../utils/theme';
 import { useIsDesktop } from '../utils/responsive';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { ASIX_BASE_URL } from '../utils/env';
 
 // Helper functions for greeting and date formatting
 function getGreeting(): string {
@@ -63,7 +64,7 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
 
   const handleGoToDashboard = () => {
     if (typeof window !== 'undefined') {
-      window.open('https://asix.live/dashboard', '_blank', 'noopener,noreferrer');
+      window.open(`${ASIX_BASE_URL}/dashboard`, '_blank', 'noopener,noreferrer');
     }
   };
 
