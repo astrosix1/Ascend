@@ -8,6 +8,9 @@ export interface ToastMessage {
   message: string;
   type: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
+  /** Optional inline action, e.g. Undo. */
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 interface ToastProps {
@@ -65,9 +68,21 @@ export default function Toast({ message, onDismiss }: ToastProps) {
         ]}>
           {message.message}
         </Text>
+        {message.actionLabel && message.onAction ? (
+          <TouchableOpacity
+            onPress={() => { message.onAction?.(); onDismiss(message.id); }}
+            style={styles.closeButton}
+            accessibilityRole="button"
+            accessibilityLabel={message.actionLabel}
+          >
+            <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: FontSize.sm }}>{message.actionLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           onPress={() => onDismiss(message.id)}
           style={styles.closeButton}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
         >
           <Text style={{ color: colors.textSecondary, fontSize: 18 }}>✕</Text>
         </TouchableOpacity>

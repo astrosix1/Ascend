@@ -16,6 +16,7 @@ import AccountabilityInvite from '../../components/AccountabilityInvite';
 import CertificateModal from '../../components/CertificateModal';
 import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 import Toast, { ToastMessage } from '../../components/Toast';
+import { feedback } from '../../utils/feedback';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -168,6 +169,18 @@ export default function DashboardScreen() {
     // Toggle the habit (contextToggleHabit handles ALL XP: ±1 per habit + ±2 bonus)
     contextToggleHabit(habitId, date);
 
+    // Immediate, calm feedback: haptic/sound now, plus an Undo for completions
+    if (!wasCompleted) {
+      if (habit.type === 'good') {
+        feedback.success();
+        showToast(`Done: ${habit.name}`, 'success', 3500, { label: 'Undo', onPress: () => handleToggleHabit(habitId, date) });
+      } else {
+        feedback.warning();
+      }
+    } else {
+      feedback.tap();
+    }
+
     // Calculate completed good habits after the toggle for bonus state tracking
     const completedAfter = goodHabits.filter(h => {
       if (h.id === habitId) {
@@ -183,6 +196,7 @@ export default function DashboardScreen() {
       if (allCompletedAfter && !allCompletedBefore && !bonusEarnedToday) {
         // Just completed all habits for the first time today
         setBonusEarnedToday(true);
+        feedback.milestone();
         // Toast: bonus XP earned
         setTimeout(() => showToast('⚡ +2 XP Bonus — all habits done!', 'success', 4000), 400);
       } else if (!allCompletedAfter && allCompletedBefore && bonusEarnedToday) {
@@ -194,6 +208,7 @@ export default function DashboardScreen() {
       if (!wasCompleted) {
         const potentialStreak = habit.streak + 1;
         if ([7, 14, 30, 50, 100].includes(potentialStreak)) {
+          feedback.milestone();
           setTimeout(() => showToast(`🔥 ${potentialStreak}-Day Streak!`, 'warning', 4500), 700);
 
           // Feature: Check for streak certificate at milestones
@@ -252,9 +267,14 @@ export default function DashboardScreen() {
 
   // ── Toast notifications ──────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const showToast = (message: string, type: ToastMessage['type'] = 'success', duration = 3500) => {
+  const showToast = (
+    message: string,
+    type: ToastMessage['type'] = 'success',
+    duration = 3500,
+    action?: { label: string; onPress: () => void },
+  ) => {
     const id = Date.now().toString() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => [...prev, { id, message, type, duration, actionLabel: action?.label, onAction: action?.onPress }]);
   };
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
@@ -1067,8 +1087,8 @@ export default function DashboardScreen() {
         )}
         {isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈</Text>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} accessibilityRole="button" accessibilityLabel={`Recovery timeline for ${habit.name}`} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈 Recovery</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openRelapseForm(habit.id, habit.name)} style={[styles.relapseBtn, { borderColor: colors.danger }]}>
               <Text style={[styles.relapseBtnText, { color: colors.danger }]}>Relapsed</Text>
@@ -1085,8 +1105,8 @@ export default function DashboardScreen() {
         )}
         {!isCompleted && !isGood && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <TouchableOpacity onPress={() => setTimelineHabit(habit)} style={[styles.whyBtn, { borderColor: colors.accent }]}>
-              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈</Text>
+            <TouchableOpacity onPress={() => setTimelineHabit(habit)} accessibilityRole="button" accessibilityLabel={`Recovery timeline for ${habit.name}`} style={[styles.whyBtn, { borderColor: colors.accent }]}>
+              <Text style={[styles.whyBtnText, { color: colors.accentText }]}>📈 Recovery</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openTemptationModal(habit.id, habit.name)} style={[styles.temptedBtn, { borderColor: colors.warning }]}>
               <Text style={[styles.temptedBtnText, { color: colors.warning }]}>Tempted</Text>
