@@ -18,6 +18,7 @@ import { checkStreakCertificate, Certificate } from '../../utils/certificateGene
 import Toast, { ToastMessage } from '../../components/Toast';
 import { feedback } from '../../utils/feedback';
 import QuickAddSheet from '../../components/QuickAddSheet';
+import StartHere from '../../components/StartHere';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -1297,13 +1298,10 @@ export default function DashboardScreen() {
           {/* Habit list — scrollable, split into Build + Break sections */}
           <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
             {habits.length === 0 && (
-              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
-                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
-                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center', lineHeight: FontSize.sm * 1.6 }}>
-                  Tap "+ Add/Edit" to create your first habit.
-                </Text>
-              </View>
+              <StartHere
+                onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
+                onCustom={() => setShowQuickAdd(true)}
+              />
             )}
 
             {/* ── BUILD: habits to grow ── */}
@@ -2169,12 +2167,10 @@ export default function DashboardScreen() {
             )}
 
             {habits.length === 0 && (
-              <View style={{ padding: contentPadding, alignItems: 'center', paddingTop: Spacing.xl }}>
-                <Text style={{ fontSize: 36, marginBottom: Spacing.md }}>🌱</Text>
-                <Text style={{ color: colors.text, fontSize: FontSize.md, fontWeight: '600', marginBottom: Spacing.xs }}>No habits yet</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' }}>Tap "Add/Edit" to create your first habit.</Text>
-                <Button title="+ Add/Edit" variant="ghost" size="small" onPress={() => setShowEditHabits(true)} style={{ marginTop: Spacing.md }} />
-              </View>
+              <StartHere
+                onAdd={(name, type) => { addHabit({ name, type }); feedback.success(); }}
+                onCustom={() => setShowQuickAdd(true)}
+              />
             )}
 
             {/* ── DONE FOR TODAY card — replaces habit list when all done ── */}
