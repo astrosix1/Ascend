@@ -10,9 +10,10 @@ import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { Spacing, FontSize, BorderRadius } from '../../utils/theme';
 import { useScreenWidth, BREAKPOINTS } from '../../utils/responsive';
-import { ASIX_BASE_URL } from '../../utils/env';
+import { ASIX_BASE_URL, buildSignInUrl } from '../../utils/env';
+import { useNavigation } from '@react-navigation/native';
 
-type SettingsCategory = 'profile' | 'appearance' | 'boundaries' | 'reflection' | 'sync' | 'partner';
+type SettingsCategory = 'profile' | 'appearance' | 'boundaries' | 'reflection' | 'sync' | 'partner' | 'advanced';
 
 const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }[] = [
   { id: 'profile', label: 'Profile', icon: '👤' },
@@ -21,13 +22,21 @@ const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; icon: string }
   { id: 'reflection', label: 'Reflection', icon: '📝' },
   { id: 'sync', label: 'Cloud Sync', icon: '☁️' },
   { id: 'partner', label: 'Partner', icon: '🤝' },
+  { id: 'advanced', label: 'Advanced', icon: '🧪' },
 ];
 
 export default function SettingsScreen() {
-  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, resetAuth, manualSync, isSyncing, lastSyncTime, syncError } = useApp();
+  const { colors, theme, toggleTheme, settings, updateSettings, stats, habits, pomodoroHistory, detoxHistory, currentUserEmail, manualSync, isSyncing, lastSyncTime, syncError, requestDiscoverTab } = useApp();
   const screenWidth = useScreenWidth();
   const desktop = screenWidth > BREAKPOINTS.tablet;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('profile');
+  // Both DesktopNavigator and MobileNavigator render under one shared
+  // NavigationContainer, so this is always safe to call — but only mobile
+  // actually has a Tab.Navigator with routes to jump between. On desktop,
+  // Discover isn't a navigable route at all (DesktopNavigator switches
+  // screens via local state instead), so it's reached there via the
+  // requestDiscoverTab signal in AppContext, which DesktopNavigator watches.
+  const navigation = useNavigation();
 
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameInput, setUsernameInput] = useState(settings.username);
@@ -280,12 +289,12 @@ export default function SettingsScreen() {
             ) : (
               <>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.sm }}>Using guest mode</Text>
-                <Text style={{ color: colors.text, fontSize: FontSize.sm, marginBottom: Spacing.md }}>No account connected</Text>
+                <Text style={{ color: colors.text, fontSize: FontSize.sm, marginBottom: Spacing.md }}>Your data stays on this device. Sign in to sync it across devices.</Text>
                 <Button
-                  title="Log In"
+                  title="Sign in"
                   variant="ghost"
                   onPress={() => {
-                    resetAuth().catch(err => console.error('Log in error:', err));
+                    if (typeof window !== 'undefined') window.location.href = buildSignInUrl();
                   }}
                 />
               </>
@@ -398,7 +407,7 @@ export default function SettingsScreen() {
           <View style={s.row}>
             <View>
               <Text style={s.label}>Theme</Text>
-              <Text style={s.value}>{theme === 'dark' ? 'Dark Grey' : 'Light Grey'} · Orange accent</Text>
+              <Text style={s.value}>{theme === 'dark' ? 'Dark Grey' : 'Light Grey'} · Emerald accent</Text>
             </View>
             <Switch
               value={theme === 'light'}
@@ -507,25 +516,25 @@ export default function SettingsScreen() {
             <View>
               <Text style={s.label}>Cloud Status</Text>
               <Text style={s.value}>
-                {currentUserEmail ? '✓ Synced' : '○ Guest Mode'}
+                {!currentUserEmail ? '○ Guest Mode' : syncError ? '⚠ Not synced' : lastSyncTime ? '✓ Synced' : isSyncing ? '⟳ Syncing…' : '○ Not synced yet'}
               </Text>
             </View>
-            {currentUserEmail && (
-              <TouchableOpacity
-                onPress={() => manualSync()}
-                disabled={isSyncing}
-                style={{
-                  paddingHorizontal: Spacing.md,
-                  paddingVertical: Spacing.sm,
-                  backgroundColor: colors.accentLight,
-                  borderRadius: BorderRadius.sm,
-                  opacity: isSyncing ? 0.6 : 1,
-                }}
-              >
-                <Text style={{ color: colors.accent, fontWeight: '600', fontSize: FontSize.sm }}>
-                  {isSyncing ? '⟳ Syncing...' : '↻ Sync Now'}
-                </Text>
-              </TouchableOpacity>
+            {!!currentUserEmail && (
+            <TouchableOpacity
+              onPress={() => manualSync()}
+              disabled={isSyncing}
+              style={{
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.sm,
+                backgroundColor: colors.accentLight,
+                borderRadius: BorderRadius.sm,
+                opacity: isSyncing ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: colors.accent, fontWeight: '600', fontSize: FontSize.sm }}>
+                {isSyncing ? '⟳ Syncing...' : '↻ Sync Now'}
+              </Text>
+            </TouchableOpacity>
             )}
           </View>
 
@@ -605,6 +614,34 @@ export default function SettingsScreen() {
     </>
   );
 
+  const goToAIGenerator = () => {
+    requestDiscoverTab('generator');
+    // Desktop: DesktopNavigator watches requestedDiscoverTab itself and
+    // switches screens — no navigation object exists there to call.
+    // Mobile: Discover is a real tab, so jump to it directly too.
+    if (!desktop) navigation.navigate('Discover' as never);
+  };
+
+  const advancedContent = (
+    <>
+      {/* Advanced */}
+      <Text style={s.sectionLabel}>ADVANCED</Text>
+      <Card>
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>✨ AI Habit Generator</Text>
+            <Text style={s.value}>Turn a goal into habit suggestions, powered by Claude</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 4 }}>
+              Requires your own Anthropic API key (console.anthropic.com) — not something most
+              people will have, which is why this lives here instead of the main Discover tab.
+            </Text>
+          </View>
+        </View>
+        <Button title="Open AI Generator" onPress={goToAIGenerator} style={{ marginTop: Spacing.sm }} />
+      </Card>
+    </>
+  );
+
   // ── Desktop: 2-column layout ───────────────────────────────────────────────
   if (desktop) {
     const contentMap: Record<SettingsCategory, React.ReactElement> = {
@@ -614,6 +651,7 @@ export default function SettingsScreen() {
       reflection: reflectionContent,
       sync: syncContent,
       partner: partnerContent,
+      advanced: advancedContent,
     };
 
     return (
@@ -685,6 +723,7 @@ export default function SettingsScreen() {
         {reflectionContent}
         {syncContent}
         {partnerContent}
+        {advancedContent}
       </ScrollView>
     </View>
   );

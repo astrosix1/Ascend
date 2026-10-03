@@ -32,7 +32,7 @@ export function SyncStatusIndicator({ onPress }: SyncStatusIndicatorProps) {
     if (!currentUserId) {
       return {
         icon: '○',
-        label: 'Guest Mode',
+        label: 'Signed out',
         color: '#999',
         visible: false,
       };

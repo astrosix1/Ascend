@@ -2,8 +2,8 @@
 
 A habit-tracking and recovery app built with Expo/React Native, running on iOS,
 Android, and web from one codebase. Supabase provides auth, cloud sync, and
-the community forum; the app also works fully signed-out ("guest mode") with
-local-only data.
+the community forum. Every user needs an account (login is delegated to
+asix.live); data is kept locally and synced to the cloud automatically.
 
 ## Stack
 
@@ -25,9 +25,12 @@ npm run web      # or: npm start / npm run ios / npm run android
 ```
 
 The app works out of the box against a shared demo Supabase project (see
-`src/utils/config.ts`) and runs in guest mode with no login required when the
-hostname is `localhost`. To point at your own Supabase project instead, set
-these env vars (see `src/utils/config.ts` for the full list and fallback
+`src/utils/config.ts`). There is no signed-out mode: visitors without a
+session are redirected to the asix.live login. To work on localhost, sign in on
+asix.live and open the "Launch Ascend App" link, or pass the session as
+`http://localhost:8081#access_token=...&refresh_token=...`; the subscription
+check is skipped on localhost. To point at your own Supabase project instead,
+set these env vars (see `src/utils/config.ts` for the full list and fallback
 behavior):
 
 ```bash
@@ -49,7 +52,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 ## Project structure
 
 ```
-App.tsx                    Root component: auth bootstrap, guest/sign-in gate
+App.tsx                    Root component: auth bootstrap + login redirect gate
 src/contexts/AppContext.tsx  Single global context: local state + cloud sync
 src/navigation/             Bottom-tab (mobile) and sidebar (desktop) navigators
 src/screens/                One folder per top-level screen
