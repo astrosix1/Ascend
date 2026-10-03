@@ -163,7 +163,7 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
           </TouchableOpacity>
 
           {/* Back to Dashboard */}
-          {currentUserEmail && (
+          {!!currentUserEmail && (
             <TouchableOpacity
               style={styles.iconButton}
               onPress={handleGoToDashboard}
