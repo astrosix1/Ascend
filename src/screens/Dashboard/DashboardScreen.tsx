@@ -17,6 +17,7 @@ import CertificateModal from '../../components/CertificateModal';
 import { checkStreakCertificate, Certificate } from '../../utils/certificateGenerator';
 import Toast, { ToastMessage } from '../../components/Toast';
 import { feedback } from '../../utils/feedback';
+import QuickAddSheet from '../../components/QuickAddSheet';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import { usePremium } from '../../contexts/PremiumContext';
@@ -173,7 +174,7 @@ export default function DashboardScreen() {
     if (!wasCompleted) {
       if (habit.type === 'good') {
         feedback.success();
-        showToast(`Done: ${habit.name}`, 'success', 3500, { label: 'Undo', onPress: () => handleToggleHabit(habitId, date) });
+        showToast(`Done: ${habit.name}`, 'success', 3500, { label: 'Undo', onPress: () => { contextToggleHabit(habitId, date); feedback.tap(); } });
       } else {
         feedback.warning();
       }
@@ -706,6 +707,7 @@ export default function DashboardScreen() {
   const [accountabilityHabitName, setAccountabilityHabitName] = useState('');
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [timelineHabit, setTimelineHabit] = useState<Habit | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [currentCertificate, setCurrentCertificate] = useState<Certificate | null>(null);
 
   function openAccountabilityModal(habitId: string, habitName: string) {
@@ -4020,6 +4022,30 @@ export default function DashboardScreen() {
         habit={timelineHabit}
         visible={!!timelineHabit}
         onClose={() => setTimelineHabit(null)}
+      />
+
+      {/* ── QUICK ADD: always one tap away ─────────────────────────────── */}
+      <TouchableOpacity
+        onPress={() => setShowQuickAdd(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Add a habit"
+        style={{
+          position: 'absolute', right: Spacing.lg, bottom: Spacing.lg,
+          width: 56, height: 56, borderRadius: 28,
+          backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
+        }}
+      >
+        <Text style={{ color: colors.textOnAccent, fontSize: 28, lineHeight: 30, fontWeight: '400' }}>+</Text>
+      </TouchableOpacity>
+      <QuickAddSheet
+        visible={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onAdd={(name, type) => {
+          addHabit({ name, type });
+          feedback.success();
+          showToast(`Added: ${name}`, 'success', 2500);
+        }}
       />
     </>
   );
