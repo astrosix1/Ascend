@@ -199,11 +199,11 @@ export default function LearnScreen() {
     modalScroll: { padding: Spacing.lg, paddingBottom: 60 },
     sectionBlock: { marginBottom: Spacing.lg },
     blockTitle: { fontSize: FontSize.sm, fontWeight: '700', letterSpacing: 1, marginBottom: Spacing.sm },
-    timelineText: { fontSize: FontSize.sm, color: '#F5A623', lineHeight: 20 },
+    timelineText: { fontSize: FontSize.sm, color: '#F2B44A', lineHeight: 20 },
     microHabitRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
     triggerRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', marginBottom: Spacing.sm },
     inputCustom: {
-      borderWidth: 1, borderColor: '#F5A62355', borderRadius: BorderRadius.sm,
+      borderWidth: 1, borderColor: '#F2B44A55', borderRadius: BorderRadius.sm,
       padding: Spacing.sm, fontSize: FontSize.sm, marginTop: Spacing.xs, marginBottom: Spacing.sm,
     },
   });
@@ -270,7 +270,7 @@ export default function LearnScreen() {
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 1 }} numberOfLines={1}>{lh.category}</Text>
                 </View>
                 <View style={{ backgroundColor: colors.accent + '20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '700' }}>View →</Text>
+                  <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '700' }}>View →</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -365,7 +365,7 @@ export default function LearnScreen() {
                 {habit.description}
               </Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.xs }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Tap to learn more →</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Tap to learn more →</Text>
                 {alreadyAdded(habit.id) && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Text style={{ color: colors.success, fontSize: 14 }}>✓</Text>
@@ -393,7 +393,7 @@ export default function LearnScreen() {
               borderColor: colors.border, borderRadius: BorderRadius.sm, marginTop: Spacing.sm,
             }}
           >
-            <Text style={{ color: colors.accent }}>Load more ({filtered.length - visibleCount} remaining)</Text>
+            <Text style={{ color: colors.accentText }}>Load more ({filtered.length - visibleCount} remaining)</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -488,7 +488,7 @@ export default function LearnScreen() {
                       onPress={() => aiMode === 'goal-to-habits' ? handleAddAiHabit(item) : handleAddAiGoal(item)}
                       style={{ backgroundColor: colors.accent, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs }}
                     >
-                      <Text style={{ color: '#1A1A1A', fontWeight: '700', fontSize: FontSize.sm }}>+ Add</Text>
+                      <Text style={{ color: colors.textOnAccent, fontWeight: '700', fontSize: FontSize.sm }}>+ Add</Text>
                     </TouchableOpacity>
                   )}
                 </Card>
@@ -623,7 +623,7 @@ export default function LearnScreen() {
 
                   {/* Real World Story */}
                   <View style={[s.sectionBlock, { borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: Spacing.md }]}>
-                    <Text style={[s.blockTitle, { color: colors.accent }]}>REAL WORLD EVIDENCE</Text>
+                    <Text style={[s.blockTitle, { color: colors.accentText }]}>REAL WORLD EVIDENCE</Text>
                     <Text style={{ color: colors.text, fontSize: FontSize.sm, lineHeight: 22 }}>
                       {selectedHabit.realWorldStory}
                     </Text>
@@ -670,8 +670,8 @@ export default function LearnScreen() {
                       }}
                       onPress={() => handleAddHabit(selectedHabit)}
                     >
-                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{selectedHabit.name} (Full)</Text>
-                      <Text style={{ color: colors.accent, fontSize: 18 }}>➕</Text>
+                      <Text style={{ color: colors.accentText, fontWeight: '700' }}>{selectedHabit.name} (Full)</Text>
+                      <Text style={{ color: colors.accentText, fontSize: 18 }}>➕</Text>
                     </TouchableOpacity>
                     {selectedHabit.microHabits.map((micro, i) => (
                       <TouchableOpacity
@@ -684,7 +684,7 @@ export default function LearnScreen() {
                         onPress={() => handleAddHabit(selectedHabit, micro)}
                       >
                         <Text style={{ color: colors.text, flex: 1 }}>{micro}</Text>
-                        <Text style={{ color: colors.accent, fontSize: 16 }}>➕</Text>
+                        <Text style={{ color: colors.accentText, fontSize: 16 }}>➕</Text>
                       </TouchableOpacity>
                     ))}
                     {/* Custom micro-habit */}

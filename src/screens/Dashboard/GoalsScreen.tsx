@@ -138,7 +138,7 @@ function GoalCard({
           <View style={[s.habitChips, { marginTop: Spacing.sm }]}>
             {linked.slice(0, 4).map(h => (
               <View key={h.id} style={[s.chip, { backgroundColor: colors.accentLight }]}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs }}>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs }}>
                   {h.name}
                 </Text>
               </View>
@@ -158,7 +158,7 @@ function GoalCard({
       {showActions && (
         <View style={[s.actionRow, { borderTopColor: colors.border }]}>
           <TouchableOpacity onPress={onEdit} style={s.actionBtn}>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '600' }}>Edit</Text>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '600' }}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onComplete} style={s.actionBtn}>
             <Text style={{ color: '#10B981', fontSize: FontSize.sm, fontWeight: '600' }}>✓ Complete</Text>

@@ -22,8 +22,8 @@ export default function EQExerciseDetail({ exercise, onStart, onBack }: EQExerci
         <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
           {/* Back button + category */}
           <TouchableOpacity onPress={onBack} style={{ marginBottom: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '500' }}>Back</Text>
+            <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '500' }}>Back</Text>
           </TouchableOpacity>
 
           <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600', textTransform: 'uppercase', marginBottom: Spacing.sm, letterSpacing: 0.5 }}>
@@ -77,7 +77,7 @@ export default function EQExerciseDetail({ exercise, onStart, onBack }: EQExerci
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <Text style={{ color: colors.accent, fontWeight: FontWeight.bold, fontSize: FontSize.sm }}>
+                  <Text style={{ color: colors.accentText, fontWeight: FontWeight.bold, fontSize: FontSize.sm }}>
                     {idx + 1}
                   </Text>
                 </View>
@@ -102,7 +102,7 @@ export default function EQExerciseDetail({ exercise, onStart, onBack }: EQExerci
                 paddingHorizontal: Spacing.sm,
                 paddingVertical: 4,
               }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '600', textTransform: 'capitalize' }}>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '600', textTransform: 'capitalize' }}>
                   {skill.replace('-', ' ')}
                 </Text>
               </View>

@@ -157,7 +157,7 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
             onPress={onToggleTheme}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 20, color: colors.accent }}>
+            <Text style={{ fontSize: 20, color: colors.accentText }}>
               {theme === 'dark' ? '☀️' : '🌙'}
             </Text>
           </TouchableOpacity>
@@ -210,7 +210,7 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
                 onPress={savePrefs}
                 style={{ flex: 1, backgroundColor: colors.accent, borderRadius: BorderRadius.md, paddingVertical: Spacing.sm, alignItems: 'center' }}
               >
-                <Text style={{ color: '#1A1A1A', fontWeight: '700' }}>Save</Text>
+                <Text style={{ color: colors.textOnAccent, fontWeight: '700' }}>Save</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowCustomize(false)}
@@ -236,10 +236,10 @@ export default function TopHeader({ onToggleTheme }: TopHeaderProps) {
           }}
           onPress={clearSyncError}
         >
-          <Text style={{ color: '#1A1A1A', fontSize: FontSize.xs, flex: 1 }}>
+          <Text style={{ color: colors.textOnAccent, fontSize: FontSize.xs, flex: 1 }}>
             ⚠️ {syncError}
           </Text>
-          <Text style={{ color: '#1A1A1A', marginLeft: Spacing.sm }}>✕</Text>
+          <Text style={{ color: colors.textOnAccent, marginLeft: Spacing.sm }}>✕</Text>
         </TouchableOpacity>
       )}
     </>

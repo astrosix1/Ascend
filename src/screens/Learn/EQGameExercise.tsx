@@ -60,7 +60,7 @@ export default function EQGameExercise({ exercise, onComplete }: EQGameExerciseP
             <Text style={{ color: colors.text, fontSize: FontSize.sm, fontWeight: '600' }}>
               Round {currentRoundIndex + 1} of {exercise.rounds.length}
             </Text>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '600' }}>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '600' }}>
               Score: {score}
             </Text>
           </View>
@@ -161,10 +161,10 @@ export default function EQGameExercise({ exercise, onComplete }: EQGameExerciseP
             {/* Additional Learning */}
             {currentRound.eqLessonIfWrong && !isAnswerCorrect && (
               <Card style={{ backgroundColor: colors.accentLight, marginBottom: Spacing.lg }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '600', marginBottom: Spacing.sm }}>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '600', marginBottom: Spacing.sm }}>
                   💡 EQ Lesson
                 </Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm, lineHeight: 20 }}>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm, lineHeight: 20 }}>
                   {currentRound.eqLessonIfWrong}
                 </Text>
               </Card>

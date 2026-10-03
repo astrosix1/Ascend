@@ -189,7 +189,7 @@ export default function SettingsScreen() {
     },
     sectionLabel: { fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '700', letterSpacing: 1, marginTop: Spacing.lg, marginBottom: Spacing.sm },
     statBox: { alignItems: 'center', flex: 1, padding: Spacing.sm },
-    statNumber: { fontSize: FontSize.xl, fontWeight: '700', color: colors.accent },
+    statNumber: { fontSize: FontSize.xl, fontWeight: '700', color: colors.accentText },
     statLabel: { fontSize: FontSize.xs, color: colors.textSecondary, textAlign: 'center', marginTop: 2 },
   });
 
@@ -220,7 +220,7 @@ export default function SettingsScreen() {
               />
             ) : (
               <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: FontSize.xl, color: colors.accent, fontWeight: '700' }}>
+                <Text style={{ fontSize: FontSize.xl, color: colors.accentText, fontWeight: '700' }}>
                   {settings.username.charAt(0).toUpperCase()}
                 </Text>
               </View>
@@ -230,7 +230,7 @@ export default function SettingsScreen() {
               <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }}>Level {stats.level} · {stats.xp} XP</Text>
             </View>
             <TouchableOpacity onPress={() => setShowStats(!showStats)}>
-              <Text style={{ color: colors.accent, fontSize: 20 }}>📊</Text>
+              <Text style={{ color: colors.accentText, fontSize: 20 }}>📊</Text>
             </TouchableOpacity>
           </View>
 
@@ -531,7 +531,7 @@ export default function SettingsScreen() {
                 opacity: isSyncing ? 0.6 : 1,
               }}
             >
-              <Text style={{ color: colors.accent, fontWeight: '600', fontSize: FontSize.sm }}>
+              <Text style={{ color: colors.accentText, fontWeight: '600', fontSize: FontSize.sm }}>
                 {isSyncing ? '⟳ Syncing...' : '↻ Sync Now'}
               </Text>
             </TouchableOpacity>
@@ -606,7 +606,7 @@ export default function SettingsScreen() {
                   <Text style={s.label}>Add Accountability Partner</Text>
                   <Text style={s.value}>Keep each other accountable via email</Text>
                 </View>
-                <Text style={{ color: colors.accent, fontSize: 16 }}>➕</Text>
+                <Text style={{ color: colors.accentText, fontSize: 16 }}>➕</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -665,7 +665,7 @@ export default function SettingsScreen() {
           {/* Profile mini card */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm }}>
-              <Text style={{ fontSize: FontSize.md, color: colors.accent, fontWeight: '700' }}>{settings.username.charAt(0).toUpperCase()}</Text>
+              <Text style={{ fontSize: FontSize.md, color: colors.accentText, fontWeight: '700' }}>{settings.username.charAt(0).toUpperCase()}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.text }} numberOfLines={1}>{settings.username}</Text>

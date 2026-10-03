@@ -155,7 +155,7 @@ function TimerNotificationOverlay() {
       {/* Pulsing accent bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
-        <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+        <Text style={{ color: colors.accentText, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
           Timer Complete
         </Text>
       </View>
@@ -198,7 +198,7 @@ function TimerNotificationOverlay() {
             borderColor: colors.accent,
           }}
         >
-          <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>
+          <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: 14 }}>
             {timerNotification?.pomodoroSessionType === 'study' ? 'Start Break' : 'Start Study Timer'}
           </Text>
         </TouchableOpacity>
@@ -292,7 +292,7 @@ function MobileNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: colors.accentText,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           backgroundColor: colors.surface,

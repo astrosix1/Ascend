@@ -96,7 +96,7 @@ function PartnerHabitRow({ habit, colors, onSave, onRemove }: {
         </View>
         {partner ? (
           <View style={{ backgroundColor: colors.accent + '20', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.accent + '60' }}>
-            <Text style={{ fontSize: FontSize.xs, color: colors.accent, fontWeight: '700' }}>🤝 Partner set</Text>
+            <Text style={{ fontSize: FontSize.xs, color: colors.accentText, fontWeight: '700' }}>🤝 Partner set</Text>
           </View>
         ) : (
           <View style={{ backgroundColor: colors.surfaceLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
@@ -551,7 +551,7 @@ export default function CommunityScreen() {
 
   const SetupPrompt = ({ feature, docsUrl }: { feature: string; docsUrl: string }) => (
     <View style={s.setupCard}>
-      <Text style={{ color: colors.accent, fontWeight: '700', marginBottom: Spacing.xs }}>
+      <Text style={{ color: colors.accentText, fontWeight: '700', marginBottom: Spacing.xs }}>
         Setup required — {feature}
       </Text>
       <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20, marginBottom: Spacing.sm }}>
@@ -560,7 +560,7 @@ export default function CommunityScreen() {
         Get a free key at the link below.
       </Text>
       <TouchableOpacity onPress={() => Linking.openURL(docsUrl)}>
-        <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>{docsUrl} →</Text>
+        <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>{docsUrl} →</Text>
       </TouchableOpacity>
     </View>
   );
@@ -663,14 +663,14 @@ export default function CommunityScreen() {
                   )}
                 </View>
                 <View style={[s.badge, { backgroundColor: colors.accentLight }]}>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xs }}>{event.category}</Text>
+                  <Text style={{ color: colors.accentText, fontSize: FontSize.xs }}>{event.category}</Text>
                 </View>
               </View>
 
               {/* Countdown badge */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xs }}>
                 <View style={{ backgroundColor: colors.accent + '20', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: colors.accent + '50' }}>
-                  <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>
+                  <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '800' }}>
                     {getEventCountdown(event.date, event.time)}
                   </Text>
                 </View>
@@ -770,8 +770,8 @@ export default function CommunityScreen() {
               backgroundColor: colors.surface,
             }}>
               <TouchableOpacity onPress={() => setEditingPostId(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Cancel</Text>
+                <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Cancel</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>Edit Post</Text>
               <View style={{ width: 60 }} />
@@ -809,8 +809,8 @@ export default function CommunityScreen() {
             backgroundColor: colors.surface,
           }}>
             <TouchableOpacity onPress={() => setSelectedPost(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Forum</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
               <TouchableOpacity onPress={() => toggleForumFavorite(selectedPost.id)}>
@@ -821,7 +821,7 @@ export default function CommunityScreen() {
               {selectedPost.user_id === currentUserId ? (
                 <>
                   <TouchableOpacity onPress={() => { setEditingPostId(selectedPost.id); setEditPostTitle(selectedPost.title); setEditPostContent(selectedPost.content); }}>
-                    <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
+                    <Text style={{ color: colors.accentText, fontSize: 18 }}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeletePost()}>
                     <Text style={{ color: colors.warning, fontSize: 18 }}>🗑️</Text>
@@ -890,7 +890,7 @@ export default function CommunityScreen() {
                         {comment.user_id === currentUserId ? (
                           <>
                             <TouchableOpacity onPress={() => { setEditingCommentId(comment.id); setEditCommentContent(comment.content); }}>
-                              <Text style={{ color: colors.accent, fontSize: 14 }}>✎</Text>
+                              <Text style={{ color: colors.accentText, fontSize: 14 }}>✎</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
                               <Text style={{ color: colors.warning, fontSize: 14 }}>🗑️</Text>
@@ -909,7 +909,7 @@ export default function CommunityScreen() {
                     <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 4 }}>
                       {new Date(comment.created_at).toLocaleDateString()}
                       {comment.is_helpful && (
-                        <Text style={{ color: colors.accent }}> · ★ Helpful</Text>
+                        <Text style={{ color: colors.accentText }}> · ★ Helpful</Text>
                       )}
                     </Text>
                   </View>
@@ -950,8 +950,8 @@ export default function CommunityScreen() {
               }}
             >
               {commentPosting
-                ? <ActivityIndicator size="small" color="#1A1A1A" />
-                : <Text style={{ color: '#1A1A1A', fontSize: 16 }}>➤</Text>}
+                ? <ActivityIndicator size="small" color={colors.textOnAccent} />
+                : <Text style={{ color: colors.textOnAccent, fontSize: 16 }}>➤</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -967,8 +967,8 @@ export default function CommunityScreen() {
             backgroundColor: colors.surface,
           }}>
             <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Forum</Text>
             </TouchableOpacity>
             <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
             <View style={{ width: 60 }} />
@@ -1055,11 +1055,11 @@ export default function CommunityScreen() {
         {/* 5-minute time limit warning */}
         {forumTimeWarning && (
           <View style={s.warningBanner}>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm, flex: 1, lineHeight: 20 }}>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm, flex: 1, lineHeight: 20 }}>
               5 minutes here. Consider reaching out to someone in person instead.
             </Text>
             <TouchableOpacity onPress={() => setForumTimeWarning(false)} style={{ marginLeft: Spacing.sm }}>
-              <Text style={{ color: colors.accent, fontWeight: '700' }}>Done</Text>
+              <Text style={{ color: colors.accentText, fontWeight: '700' }}>Done</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1070,7 +1070,7 @@ export default function CommunityScreen() {
             <SectionHeader title="Question of the Day" />
             <TouchableOpacity onPress={() => openPost(featuredPost)} activeOpacity={0.85}>
               <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
                 <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                   {featuredPost.content}
@@ -1169,8 +1169,8 @@ export default function CommunityScreen() {
                 )}
                 {(post.comment_count || 0) > 0 && (
                   <View style={{ backgroundColor: colors.accent + '20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: colors.accent + '40' }}>
-                    <Text style={{ color: colors.accent, fontSize: 10 }}>💬</Text>
-                    <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{post.comment_count}</Text>
+                    <Text style={{ color: colors.accentText, fontSize: 10 }}>💬</Text>
+                    <Text style={{ color: colors.accentText, fontSize: 10, fontWeight: '800' }}>{post.comment_count}</Text>
                   </View>
                 )}
               </View>
@@ -1193,8 +1193,8 @@ export default function CommunityScreen() {
                 onPress={() => openPost(post)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 44, justifyContent: 'center', flex: 1 }}
               >
-                <Text style={{ color: colors.accent, fontSize: 14 }}>💬</Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs }}>
+                <Text style={{ color: colors.accentText, fontSize: 14 }}>💬</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs }}>
                   {post.comment_count ? post.comment_count : 'Reply'}
                 </Text>
               </TouchableOpacity>
@@ -1252,11 +1252,11 @@ export default function CommunityScreen() {
         {/* 5-minute time limit warning */}
         {forumTimeWarning && (
           <View style={s.warningBanner}>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm, flex: 1, lineHeight: 20 }}>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm, flex: 1, lineHeight: 20 }}>
               5 minutes here. Consider reaching out to someone in person instead.
             </Text>
             <TouchableOpacity onPress={() => setForumTimeWarning(false)} style={{ marginLeft: Spacing.sm }}>
-              <Text style={{ color: colors.accent, fontWeight: '700' }}>Done</Text>
+              <Text style={{ color: colors.accentText, fontWeight: '700' }}>Done</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1267,7 +1267,7 @@ export default function CommunityScreen() {
             <SectionHeader title="Question of the Day" />
             <TouchableOpacity onPress={() => openPost(featuredPost)} activeOpacity={0.85}>
               <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
-                <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
                 <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                   {featuredPost.content}
@@ -1412,8 +1412,8 @@ export default function CommunityScreen() {
             backgroundColor: colors.surface,
           }}>
             <TouchableOpacity onPress={() => setEditingPostId(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-              <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Cancel</Text>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Cancel</Text>
             </TouchableOpacity>
             <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>Edit Post</Text>
             <View style={{ width: 60 }} />
@@ -1452,8 +1452,8 @@ export default function CommunityScreen() {
           backgroundColor: colors.surface,
         }}>
           <TouchableOpacity onPress={() => setSelectedPost(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-            <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-            <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Back</Text>
+            <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+            <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Back</Text>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
             <TouchableOpacity onPress={() => toggleForumFavorite(selectedPost.id)}>
@@ -1464,7 +1464,7 @@ export default function CommunityScreen() {
             {selectedPost.user_id === currentUserId ? (
               <>
                 <TouchableOpacity onPress={() => { setEditingPostId(selectedPost.id); setEditPostTitle(selectedPost.title); setEditPostContent(selectedPost.content); }}>
-                  <Text style={{ color: colors.accent, fontSize: 18 }}>✎</Text>
+                  <Text style={{ color: colors.accentText, fontSize: 18 }}>✎</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDeletePost()}>
                   <Text style={{ color: colors.warning, fontSize: 18 }}>🗑️</Text>
@@ -1533,7 +1533,7 @@ export default function CommunityScreen() {
                       {comment.user_id === currentUserId ? (
                         <>
                           <TouchableOpacity onPress={() => { setEditingCommentId(comment.id); setEditCommentContent(comment.content); }}>
-                            <Text style={{ color: colors.accent, fontSize: 14 }}>✎</Text>
+                            <Text style={{ color: colors.accentText, fontSize: 14 }}>✎</Text>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
                             <Text style={{ color: colors.warning, fontSize: 14 }}>🗑️</Text>
@@ -1552,7 +1552,7 @@ export default function CommunityScreen() {
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 4 }}>
                     {new Date(comment.created_at).toLocaleDateString()}
                     {comment.is_helpful && (
-                      <Text style={{ color: colors.accent }}> · ★ Helpful</Text>
+                      <Text style={{ color: colors.accentText }}> · ★ Helpful</Text>
                     )}
                   </Text>
                 </View>
@@ -1593,8 +1593,8 @@ export default function CommunityScreen() {
             }}
           >
             {commentPosting
-              ? <ActivityIndicator size="small" color="#1A1A1A" />
-              : <Text style={{ color: '#1A1A1A', fontSize: 16 }}>➤</Text>}
+              ? <ActivityIndicator size="small" color={colors.textOnAccent} />
+              : <Text style={{ color: colors.textOnAccent, fontSize: 16 }}>➤</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -1623,8 +1623,8 @@ export default function CommunityScreen() {
               backgroundColor: colors.surface,
             }}>
               <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Forum</Text>
+                <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Forum</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
               <View style={{ width: 60 }} />
@@ -1713,7 +1713,7 @@ export default function CommunityScreen() {
               <SectionHeader title="Question of the Day" />
               <TouchableOpacity onPress={() => setSelectedPost(featuredPost)} activeOpacity={0.85}>
                 <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                  <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
                   <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                     {featuredPost.content}
@@ -1729,8 +1729,8 @@ export default function CommunityScreen() {
               onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
               style={{ marginRight: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}
             >
-              <Text style={{ color: colors.accent, fontSize: 18 }}>🔖</Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>🔖</Text>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>
                 {showFavoritesOnly ? 'All' : 'Saved'}
               </Text>
             </TouchableOpacity>
@@ -1750,7 +1750,7 @@ export default function CommunityScreen() {
                     borderColor: forumCategory === cat ? colors.accent : colors.border,
                   }}
                 >
-                  <Text style={{ color: forumCategory === cat ? '#1A1A1A' : colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>
+                  <Text style={{ color: forumCategory === cat ? colors.textOnAccent : colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>
                     {cat}
                   </Text>
                 </TouchableOpacity>
@@ -1769,7 +1769,7 @@ export default function CommunityScreen() {
                     onPress={() => toggleForumFavorite(post.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={{ color: colors.accent, fontSize: 16 }}>🔖</Text>
+                    <Text style={{ color: colors.accentText, fontSize: 16 }}>🔖</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
@@ -1816,7 +1816,7 @@ export default function CommunityScreen() {
               backgroundColor: colors.accent, borderRadius: BorderRadius.sm,
             }}
           >
-            <Text style={{ color: '#1A1A1A', fontWeight: '700', fontSize: FontSize.sm }}>
+            <Text style={{ color: colors.textOnAccent, fontWeight: '700', fontSize: FontSize.sm }}>
               Start a Discussion
             </Text>
           </TouchableOpacity>
@@ -1861,8 +1861,8 @@ export default function CommunityScreen() {
               backgroundColor: colors.surface,
             }}>
               <TouchableOpacity onPress={() => setShowNewPost(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                <Text style={{ color: colors.accent, fontSize: 18 }}>←</Text>
-                <Text style={{ color: colors.accent, fontSize: FontSize.sm }}>Back</Text>
+                <Text style={{ color: colors.accentText, fontSize: 18 }}>←</Text>
+                <Text style={{ color: colors.accentText, fontSize: FontSize.sm }}>Back</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: FontSize.md }}>New Post</Text>
               <View style={{ width: 60 }} />
@@ -1951,7 +1951,7 @@ export default function CommunityScreen() {
               <SectionHeader title="Question of the Day" />
               <TouchableOpacity onPress={() => setSelectedPost(featuredPost)} activeOpacity={0.85}>
                 <Card style={{ borderColor: colors.accent, borderWidth: 1 }}>
-                  <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
+                  <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700', marginBottom: Spacing.xs }}>★ FEATURED</Text>
                   <Text style={[s.postTitle, { color: colors.text }]}>{featuredPost.title}</Text>
                   <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm }} numberOfLines={2}>
                     {featuredPost.content}
@@ -1967,8 +1967,8 @@ export default function CommunityScreen() {
               onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
               style={{ marginRight: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}
             >
-              <Text style={{ color: colors.accent, fontSize: 18 }}>🔖</Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.xs, fontWeight: '700' }}>
+              <Text style={{ color: colors.accentText, fontSize: 18 }}>🔖</Text>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.xs, fontWeight: '700' }}>
                 {showFavoritesOnly ? 'All' : 'Saved'}
               </Text>
             </TouchableOpacity>
@@ -1988,7 +1988,7 @@ export default function CommunityScreen() {
                     borderColor: forumCategory === cat ? colors.accent : colors.border,
                   }}
                 >
-                  <Text style={{ color: forumCategory === cat ? '#1A1A1A' : colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>
+                  <Text style={{ color: forumCategory === cat ? colors.textOnAccent : colors.textSecondary, fontSize: FontSize.xs, fontWeight: '600' }}>
                     {cat}
                   </Text>
                 </TouchableOpacity>
@@ -2007,7 +2007,7 @@ export default function CommunityScreen() {
                     onPress={() => toggleForumFavorite(post.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={{ color: colors.accent, fontSize: 16 }}>🔖</Text>
+                    <Text style={{ color: colors.accentText, fontSize: 16 }}>🔖</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginBottom: Spacing.xs }}>
@@ -2054,7 +2054,7 @@ export default function CommunityScreen() {
               backgroundColor: colors.accent, borderRadius: BorderRadius.sm,
             }}
           >
-            <Text style={{ color: '#1A1A1A', fontWeight: '700', fontSize: FontSize.sm }}>
+            <Text style={{ color: colors.textOnAccent, fontWeight: '700', fontSize: FontSize.sm }}>
               Start a Discussion
             </Text>
           </TouchableOpacity>

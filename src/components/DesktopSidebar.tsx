@@ -48,7 +48,7 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
     logo: {
       fontSize: FontSize.lg,
       fontWeight: FontWeight.bold,
-      color: colors.accent,
+      color: colors.accentText,
       marginBottom: Spacing.sm,
       lineHeight: FontSize.lg * 1.2,
       textAlign: 'center',
@@ -87,7 +87,7 @@ export default function DesktopSidebar({ activeScreen, onNavigate }: DesktopSide
       lineHeight: FontSize.sm * 1.4,
     },
     navLabelActive: {
-      color: colors.accent,
+      color: colors.accentText,
       fontWeight: FontWeight.bold,
     },
     navIcon: {

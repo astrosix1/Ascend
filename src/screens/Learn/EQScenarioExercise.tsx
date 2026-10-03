@@ -109,10 +109,10 @@ export default function EQScenarioExercise({ exercise, onComplete }: EQScenarioE
 
             {/* EQ Insight */}
             <Card style={{ marginBottom: Spacing.lg, backgroundColor: colors.accentLight }}>
-              <Text style={{ color: colors.accent, fontSize: FontSize.sm, fontWeight: '600', textTransform: 'uppercase', marginBottom: Spacing.sm }}>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.sm, fontWeight: '600', textTransform: 'uppercase', marginBottom: Spacing.sm }}>
                 💡 EQ Insight
               </Text>
-              <Text style={{ color: colors.accent, fontSize: FontSize.md, lineHeight: 24, fontWeight: '500' }}>
+              <Text style={{ color: colors.accentText, fontSize: FontSize.md, lineHeight: 24, fontWeight: '500' }}>
                 {choice.eqInsight}
               </Text>
             </Card>
