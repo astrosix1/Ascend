@@ -98,11 +98,13 @@ function Root() {
               const refresh_token = params.get('refresh_token');
               if (access_token && refresh_token) {
                 console.log('[Auth] Found tokens in URL hash, setting session...');
+                // Strip the tokens from the address bar and history first, so
+                // they don't linger there if setSession fails (expired token).
+                window.history.replaceState(null, '', window.location.pathname);
                 await sb.auth.setSession({
                   access_token: decodeURIComponent(access_token),
                   refresh_token: decodeURIComponent(refresh_token),
                 });
-                window.history.replaceState(null, '', window.location.pathname);
                 console.log('[Auth] Session set from URL hash');
               }
             } catch (hashErr) {
