@@ -7,6 +7,8 @@ import { AppProvider, useApp, AppState } from './src/contexts/AppContext';
 import { PremiumProvider } from './src/contexts/PremiumContext';
 import LoadingSkeleton, { HabitRowSkeleton } from './src/components/LoadingSkeleton';
 import AppNavigator from './src/navigation/AppNavigator';
+import ComponentPreview from './src/screens/Dev/ComponentPreview';
+import { isLocalhostHost } from './src/utils/env';
 import { loadRuntimeConfig, isSupabaseReady, getSupabaseClient } from './src/utils/runtimeConfig';
 import { getSession, onAuthStateChange } from './src/utils/supabase';
 import { getData, KEYS } from './src/utils/storage';
@@ -214,6 +216,11 @@ function Root() {
         {[1, 2, 3, 4].map(i => <HabitRowSkeleton key={i} />)}
       </View>
     );
+  }
+
+  // Dev-only design-system gallery: localhost + ?ui=preview
+  if (typeof window !== 'undefined' && isLocalhostHost() && window.location.search.includes('ui=preview')) {
+    return <ComponentPreview />;
   }
 
   // No login wall and no subscription wall: the whole app is open. Premium

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextStyle, TextProps } from 'react-native';
-import { FontSize, FontWeight, LineHeight, LetterSpacing } from '../utils/theme';
+import { Typography, LetterSpacing } from '../utils/theme';
 import { useApp } from '../contexts/AppContext';
 
 /**
@@ -27,55 +27,15 @@ export type TextVariant =
   | 'micro';     // 10px, weight 600                  — badge counts, tiny labels
 
 const variantStyles: Record<TextVariant, TextStyle> = {
-  hero: {
-    fontSize: FontSize.hero,
-    fontWeight: FontWeight.bold,
-    letterSpacing: LetterSpacing.heading,
-    lineHeight: FontSize.hero * LineHeight.tight,
-  },
-  h2: {
-    fontSize: FontSize.xxl,
-    fontWeight: FontWeight.bold,
-    letterSpacing: LetterSpacing.heading,
-    lineHeight: FontSize.xxl * LineHeight.heading,
-  },
-  h3: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.semibold,
-    lineHeight: FontSize.xl * LineHeight.heading,
-  },
-  body: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.regular,
-    lineHeight: FontSize.md * LineHeight.body,
-  },
-  bodyBold: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-    lineHeight: FontSize.md * LineHeight.body,
-  },
-  secondary: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.regular,
-    lineHeight: FontSize.sm * LineHeight.normal,
-  },
-  label: {
-    fontSize: FontSize.label,
-    fontWeight: FontWeight.bold,
-    textTransform: 'uppercase',
-    letterSpacing: LetterSpacing.caps,
-    lineHeight: FontSize.label * LineHeight.normal,
-  },
-  caption: {
-    fontSize: FontSize.caption,
-    fontWeight: FontWeight.regular,
-    lineHeight: FontSize.caption * LineHeight.normal,
-  },
-  micro: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    lineHeight: FontSize.xs * LineHeight.normal,
-  },
+  hero: { ...Typography.display },
+  h2: { ...Typography.title },
+  h3: { ...Typography.heading },
+  body: { ...Typography.body },
+  bodyBold: { ...Typography.subheading },
+  secondary: { ...Typography.bodySmall },
+  label: { ...Typography.label, textTransform: 'uppercase', letterSpacing: LetterSpacing.caps },
+  caption: { ...Typography.caption },
+  micro: { fontSize: 10, lineHeight: 14, fontWeight: '500' },
 };
 
 interface AppTextProps extends TextProps {
