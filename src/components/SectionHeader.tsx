@@ -22,7 +22,7 @@ export default function SectionHeader({ title, subtitle }: SectionHeaderProps) {
       ]}>
         {title}
       </Text>
-      {subtitle && (
+      {!!subtitle && (
         <Text style={[
           styles.subtitle,
           { color: colors.textSecondary },
